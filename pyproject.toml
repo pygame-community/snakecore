@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.black]
+line-length = 88
+target_version = ['^py39']
+include = '\.pyi?$'
+exclude = '''
+
+(
+  /(
+      \.eggs         # exclude a few common directories in the
+    | \.git          # root of the project
+    | \.hg
+    | \.mypy_cache
+    | \.tox
+    | \.venv
+    | _build
+    | buck-out
+    | build
+    | dist
+  )/
+)
+'''
+
+[tool.isort]
+profile = "black"
+combine_as_imports = true
+combine_star = true
+line_length = 88
+
+[tool.pyright]
+include = [
+    "snakecore"
+]
+exclude = [
+    "**/__pycache__"
+]
+reportUnnecessaryTypeIgnoreComment = true
+pythonVersion = "3.9"
+typeCheckingMode = "basic"
+
+[tool.pytest.ini_options]
+asyncio_mode = "strict"
