@@ -12,19 +12,8 @@ from typing import Optional, Union
 
 import discord
 
-# declare type alias for any channel
-Channel = Union[discord.TextChannel, discord.DMChannel, discord.GroupChannel]
-
+# default client object
 client: Optional[discord.Client] = None
-
-# 'primary' guild for the bot
-guild: Optional[discord.Guild] = None
-
-# IO object to redirect output to discord, gets patched later
-stdout: Optional[io.StringIO] = None
-
-console_channel: discord.TextChannel
-db_channel: discord.TextChannel
 
 # init-flags
 snakecore_is_init = False

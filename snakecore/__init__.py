@@ -15,6 +15,8 @@ def init(client: discord.Client):
             f" not {client.__class__.__name__}"
         )
     config.client = client
+    events.init(client)
+    utils.init(client)
     config.snakecore_is_init = True
 
 def is_init() -> bool:

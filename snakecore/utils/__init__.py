@@ -3,12 +3,13 @@ This file is a part of the source code for snakecore.
 This project has been licensed under the MIT license.
 Copyright (c) 2020-present PygameCommunityDiscord
 
-This file defines some utility functionality for the library and general bot development.
+This module defines some utility functionality for the library and general bot development.
 """
 
 import discord
 from snakecore import config
-from . import embed_utils, serializers, utils
+from . import embed_utils, serializers
+from .utils import *
 
 
 def init(client: discord.Client):

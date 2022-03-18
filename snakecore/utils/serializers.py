@@ -6,7 +6,6 @@ Copyright (c) 2020-present PygameCommunityDiscord
 This file implements wrapper classes used to pickle Discord models and dataclasses. 
 """
 
-from __future__ import annotations
 import asyncio
 from collections import deque
 import datetime

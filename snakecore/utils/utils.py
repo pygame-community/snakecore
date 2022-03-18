@@ -1,13 +1,10 @@
 """
-This file is a part of the source code for the PygameCommunityBot.
+This file is a part of the source code for snakecore.
 This project has been licensed under the MIT license.
 Copyright (c) 2020-present PygameCommunityDiscord
 
 This file defines some important utility functions.
 """
-
-from __future__ import annotations
-from ast import pattern
 
 import asyncio
 import datetime
@@ -19,10 +16,6 @@ import traceback
 from typing import Callable, Iterable, Union, Optional
 
 import discord
-import pygame
-
-import snakecore
-
 
 def join_readable(joins: list[str]):
     """

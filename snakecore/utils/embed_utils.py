@@ -1,13 +1,10 @@
 """
-This file is a part of the source code for the PygameCommunityBot.
+This file is a part of the source code for snakecore.
 This project has been licensed under the MIT license.
 Copyright (c) 2020-present PygameCommunityDiscord
 
 This file defines some important embed related utility functions.
 """
-
-from __future__ import annotations
-
 
 import asyncio
 import datetime
@@ -1587,7 +1584,7 @@ def export_embed_data(
     indent: Optional[int] = None,
     as_json: bool = True,
     always_return: bool = False,
-):
+) -> Optional[str]:
     """
     Export embed data to serialized JSON or a Python dictionary and store it in a file or a string.
     """
@@ -1647,198 +1644,3 @@ def export_embed_data(
             return_data = repr(data)
 
         return return_data
-
-
-def get_member_info_str(member: Union[discord.Member, discord.User]):
-    """
-    Get member info in a string, utility function for the embed functions
-    """
-    member_name_info = f"\u200b\n*Name*: \n> {member.mention} \n> "
-    if hasattr(member, "nick") and member.display_name:
-        member_nick = (
-            member.display_name.replace("\\", r"\\")
-            .replace("*", r"\*")
-            .replace("`", r"\`")
-            .replace("_", r"\_")
-        )
-        member_name_info += (
-            f"**{member_nick}**\n> (*{member.name}#{member.discriminator}*)\n\n"
-        )
-    else:
-        member_name_info += f"**{member.name}**#{member.discriminator}\n\n"
-
-    member_created_at_info = (
-        f"*Created On*:\n> {utils.format_datetime(member.created_at)}\n\n"
-    )
-
-    if isinstance(member, discord.Member) and member.joined_at:
-        member_joined_at_info = (
-            f"*Joined On*:\n> {utils.format_datetime(member.joined_at)}\n\n"
-        )
-    else:
-        member_joined_at_info = "*Joined On*: \n> `...`\n\n"
-
-    divider_roles = {} if common.GENERIC else common.ServerConstants.DIVIDER_ROLES
-
-    member_func_role_count = (
-        max(
-            len(
-                tuple(
-                    member.roles[i]
-                    for i in range(1, len(member.roles))
-                    if member.roles[i].id not in divider_roles
-                )
-            ),
-            0,
-        )
-        if isinstance(member, discord.Member)
-        else ""
-    )
-
-    if isinstance(member, discord.Member) and member_func_role_count:
-        member_top_role_info = f"*Highest Role*: \n> {member.roles[-1].mention}\n> `<@&{member.roles[-1].id}>`\n\n"
-        if member_func_role_count != len(member.roles) - 1:
-            member_role_count_info = f"*Role Count*: \n> `{member_func_role_count} ({len(member.roles) - 1})`\n\n"
-        else:
-            member_role_count_info = f"*Role Count*: \n> `{member_func_role_count}`\n\n"
-    else:
-        member_top_role_info = member_role_count_info = ""
-
-    member_id_info = f"*Member ID*: \n> <@!`{member.id}`>\n\n"
-
-    if isinstance(member, discord.Member):
-        member_stats = (
-            f"*Is Pending Screening*: \n> `{member.pending}`\n\n"
-            f"*Is Bot Account*: \n> `{member.bot}`\n\n"
-            f"*Is System User (Discord Official)*: \n> `{member.system}`\n\n"
-        )
-    else:
-        member_stats = (
-            f"*Is Bot Account*: \n> `{member.bot}`\n\n"
-            f"*Is System User (Discord Official)*: \n> `{member.system}`\n\n"
-        )
-
-    return "".join(
-        (
-            member_name_info,
-            member_created_at_info,
-            member_joined_at_info,
-            member_top_role_info,
-            member_role_count_info,
-            member_id_info,
-            member_stats,
-        )
-    )
-
-
-def get_msg_info_embed(msg: discord.Message, author: bool = True):
-    """
-    Generate an embed containing info about a message and its author.
-    """
-    member: Union[discord.Member, discord.User] = msg.author
-
-    msg_created_at_info = (
-        f"*Created On:*\n> {utils.format_datetime(msg.created_at)}\n\n"
-    )
-
-    if msg.edited_at:
-        msg_edited_at_info = (
-            f"*Last Edited On*: \n> {utils.format_datetime(msg.edited_at)}\n\n"
-        )
-
-    else:
-        msg_edited_at_info = "*Last Edited On*: \n> `...`\n\n"
-
-    msg_id_info = f"*Message ID*: \n> `{msg.id}`\n\n"
-    msg_char_count_info = f"*Char. Count*: \n> `{len(msg.content) if isinstance(msg.content, str) else 0}`\n\n"
-    msg_attachment_info = (
-        f"*Number Of Attachments*: \n> `{len(msg.attachments)} attachment(s)`\n\n"
-    )
-    msg_embed_info = f"*Number Of Embeds*: \n> `{len(msg.embeds)} embed(s)`\n\n"
-    msg_is_pinned = f"*Is Pinned*: \n> `{msg.pinned}`\n\n"
-
-    msg_info = "".join(
-        (
-            msg_created_at_info,
-            msg_edited_at_info,
-            msg_char_count_info,
-            msg_id_info,
-            msg_embed_info,
-            msg_attachment_info,
-            msg_is_pinned,
-        )
-    )
-
-    if author:
-        return create(
-            title="__Message & Author Info__",
-            description="\n".join(
-                (
-                    "__Text"
-                    + (" (Shortened)" if len(msg.content) > 2000 else "")
-                    + "__:",
-                    f"\n {msg.content[:2001]}" + "\n\n[...]"
-                    if len(msg.content) > 2000
-                    else msg.content,
-                    "\u2800",
-                )
-            ),
-            thumbnail_url=str(member.avatar_url),
-            fields=[
-                ("__Message Info__", msg_info, True),
-                ("__Message Author Info__", get_member_info_str(member), True),
-                ("\u2800", f"**[View Original Message]({msg.jump_url})**", False),
-            ],
-        )
-
-    member_name_info = f"\u200b\n*Name*: \n> {member.mention} \n> "
-
-    if isinstance(member, discord.Member) and member.nick:
-        member_nick = (
-            member.nick.replace("\\", r"\\")
-            .replace("*", r"\*")
-            .replace("`", r"\`")
-            .replace("_", r"\_")
-        )
-        member_name_info += (
-            f"**{member_nick}**\n> (*{member.name}#{member.discriminator}*)\n\n"
-        )
-    else:
-        member_name_info += f"**{member.name}**#{member.discriminator}\n\n"
-
-    return create(
-        title="__Message Info__",
-        author_name=f"{member.name}#{member.discriminator}",
-        author_icon_url=str(member.avatar_url),
-        description="\n".join(
-            (
-                "__Text" + (" (Shortened)" if len(msg.content) > 2000 else "") + "__:",
-                f"\n {msg.content[:2001]}" + "\n[...]"
-                if len(msg.content) > 2000
-                else msg.content,
-                "\u2800",
-            )
-        ),
-        fields=[
-            (
-                "__" + ("Message " if author else "") + "Info__",
-                member_name_info + msg_info,
-                True,
-            ),
-            ("\u2800", f"**[View Original Message]({msg.jump_url})**", False),
-        ],
-    )
-
-
-def get_member_info_embed(member: Union[discord.Member, discord.User]):
-    """
-    Generate an embed containing info about a server member.
-    """
-
-    return create(
-        title="__"
-        + ("Member" if isinstance(member, discord.Member) else "User")
-        + " Info__",
-        description=get_member_info_str(member),
-        thumbnail_url=str(member.avatar_url),
-    )
