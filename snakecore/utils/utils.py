@@ -196,42 +196,6 @@ def format_code_exception(e, pops: int = 1):
     return ret
 
 
-def filter_id(mention: str):
-    """
-    Filters mention to get ID "<@!6969>" to "6969"
-    Note that this function can error with ValueError on the int call, so the
-    caller of this function must take care of that.
-    """
-    for char in ("<", ">", "@", "&", "#", "!", " "):
-        mention = mention.replace(char, "")
-
-    return int(mention)
-
-
-def filter_emoji_id(name: str):
-    """
-    Filter emoji name to get "837402289709907978" from
-    "<:pg_think:837402289709907978>"
-    Note that this function can error with ValueError on the int call, in which
-    case it returns the input string (no exception is raised)
-
-    Args:
-        name (str): The emoji name
-
-    Returns:
-        str|int: The emoji id or the input string if it could not convert it to
-        an int.
-    """
-    if name.count(":") >= 2:
-        emoji_id = name.split(":")[-1][:-1]
-        return int(emoji_id)
-
-    try:
-        return int(name)
-    except ValueError:
-        return name
-
-
 def extract_mention_id(mention: str) -> int:
     """Extract the id '123456789696969' from a Discord role, user or channel mention
     markdown string with the structures '<@{6969...}>', '<@!{6969...}>',

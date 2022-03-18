@@ -17,10 +17,6 @@ client: Optional[discord.Client] = None
 snakecore_is_init = False
 utils_is_init = False
 
-
+# helpful constants
 BASIC_MAX_FILE_SIZE = 8_000_000  # bytes
-
 ZERO_SPACE = "\u200b"  # U+200B
-
-DOC_EMBED_LIMIT = 3
-BROWSE_MESSAGE_LIMIT = 500
