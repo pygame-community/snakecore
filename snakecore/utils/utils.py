@@ -7,6 +7,7 @@ This file defines some important utility functions.
 """
 
 import datetime
+import fractions
 import os
 import platform
 import re
@@ -86,54 +87,105 @@ def progress_bar(
     )
 
 
-def format_time(
+UNIT_DATA = (
+    ("w", "weeks", 604800),
+    ("d", "days", 86400),
+    ("h", "hours", 3600),
+    ("m", "minutes", 60),
+    ("s", "seconds", 1),
+    ("ms", "miliseconds", 1e-03),
+    ("\u03bcs", "microseconds", 1e-06),
+    ("ns", "nanoseconds", 1e-09),
+)
+
+
+def format_time_by_units(
     seconds: float,
     decimal_places: int = 4,
-    unit_data: tuple[tuple[float, str], ...] = (
-        (1.0, "s"),
-        (1e-03, "ms"),
-        (1e-06, "\u03bcs"),
-        (1e-09, "ns"),
-    ),
+    long_unit_names: bool = False,
+    multi_units: bool = False,
+    whole_units: bool = True,
+    fract_units: bool = True,
 ):
-    """
-    Formats time with a prefix
+    """_summary_
+
+    Args:
+        seconds: _description_
+        decimal_places: _description_. Defaults to 4.
+        long_unit_names: _description_. Defaults to False.
+        multi_units: _description_. Defaults to False.
+        whole_units: _description_. Defaults to True.
+        fractional_units: _description_. Defaults to True.
+
+    Returns:
+        str: The formatted time string.
+
+    Raises:
+        ValueError: 'seconds' was not positive.
     """
 
     if seconds < 0:
         raise ValueError("argument 'seconds' must be a positive number")
 
-    for fractions, unit in unit_data:
-        if seconds >= fractions:
-            return f"{seconds / fractions:.0{decimal_places}f} {unit}"
+    if multi_units:
+        result: list[str] = []
 
-    return f"{seconds/1e-09:.0{decimal_places}f} ns"
+        start_idx = 0
+        stop_idx = 7
+
+        if whole_units and not fract_units:
+            start_idx = 0
+            stop_idx = 4
+
+        elif not whole_units and fract_units:
+            start_idx = 4
+            stop_idx = 7
+
+        elif whole_units and fract_units:
+            pass
 
 
-def format_long_time(
-    seconds: int,
-    unit_data: tuple[tuple[str, int], ...] = (
-        ("weeks", 604800),
+        for name, count in unit_data:
+            value = seconds // count
+            if value or (not result and count == 1):
+                seconds -= value * count
+                if value == 1:
+                    name = name[:-1]
+                result.append(f"{value} {name}")
+
+        return join_readable(result)
+
+    else:
+        for unit, fractions in unit_data:
+            if seconds >= fractions:
+                return f"{seconds / fractions:.0{decimal_places}f} {unit}"
+
+        return f"{seconds/1e-09:.0{decimal_places}f} ns"
+
+
+def format_time_by_long_units(
+    seconds: float,
+    decimal_places: int = 4,
+    multi_units: bool = False,
+    unit_data: tuple[tuple[float, str], ...] = (
+        ("weeks", 604800)
         ("days", 86400),
         ("hours", 3600),
         ("minutes", 60),
         ("seconds", 1),
+        ("miliseconds", 1e-03),
+        ("microseconds", 1e-06),
+        ("nanoseconds", 1e-09),
     ),
 ):
-    """
-    Formats time into string, which is of the order of a few days
-    """
-    result: list[str] = []
+    """_summary_
 
-    for name, count in unit_data:
-        value = seconds // count
-        if value or (not result and count == 1):
-            seconds -= value * count
-            if value == 1:
-                name = name[:-1]
-            result.append(f"{value} {name}")
-
-    return join_readable(result)
+    Args:
+        seconds: _description_
+        decimal_places: _description_. Defaults to 4.
+        multi_units: _description_. Defaults to False.
+        unit_data: _description_. Defaults to ( ("w", 604800) ("d", 86400), ("h", 3600), ("m", 60), ("s", 1), ("ms", 1e-03), ("\u03bcs", 1e-06), ("ns", 1e-09), ).
+    """
 
 
 def format_timedelta(tdelta: datetime.timedelta):
@@ -366,7 +418,7 @@ def check_channels_permissions(
     return booleans
 
 
-def format_datetime(dt: Union[int, float, datetime.datetime], tformat: str = "f"):
+def create_timestamp_markdown(dt: Union[int, float, datetime.datetime], tformat: str = "f"):
     """
     Get a discord timestamp formatted string that renders it correctly on the
     discord end. dt can be UNIX timestamp or datetime object while tformat
