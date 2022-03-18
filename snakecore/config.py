@@ -15,9 +15,7 @@ client: Optional[discord.Client] = None
 
 # init-flags
 snakecore_is_init = False
-events_is_init = False
 utils_is_init = False
-jobs_is_init = False
 
 
 BASIC_MAX_FILE_SIZE = 8_000_000  # bytes

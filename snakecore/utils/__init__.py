@@ -9,7 +9,7 @@ This module defines some utility functionality for the library and general bot d
 from typing import Optional
 import discord
 from snakecore import config
-from . import embed_utils, serializers
+from . import embed_utils
 from .utils import *
 
 

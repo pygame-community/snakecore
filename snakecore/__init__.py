@@ -2,7 +2,7 @@ from typing import Optional
 import discord
 
 from . import config
-from . import utils, command_handler, db, events, jobs
+from . import utils, command_handler, db, jobs
 
 __title__ = "snakecore"
 __author__ = "PygameCommunityDiscord"
@@ -21,7 +21,6 @@ def init(client: Optional[discord.Client] = None):
     if config.client is None:
         config.client = client
 
-    events.init(client=client)
     utils.init(client=client)
 
     config.snakecore_is_init = True
