@@ -7,11 +7,13 @@ This file defines some important utility functions.
 """
 
 from __future__ import annotations
+from ast import pattern
 
 import asyncio
 import datetime
 import os
 import platform
+import re
 import sys
 import traceback
 from typing import Callable, Iterable, Union, Optional
@@ -20,6 +22,7 @@ import discord
 import pygame
 
 import snakecore
+
 
 def join_readable(joins: list[str]):
     """
@@ -226,13 +229,103 @@ def filter_emoji_id(name: str):
         str|int: The emoji id or the input string if it could not convert it to
         an int.
     """
-
-    pattern = r"<.*\:.+\:[0-9]+\>"
+    if name.count(":") >= 2:
+        emoji_id = name.split(":")[-1][:-1]
+        return int(emoji_id)
 
     try:
         return int(name)
     except ValueError:
         return name
+
+
+def extract_mention_id(mention: str) -> int:
+    """Extract the id '123456789696969' from a Discord role, user or channel mention
+    markdown string with the structures '<@{6969...}>', '<@!{6969...}>',
+    '<@!{6969...}>' or '<#{6969...}>'.
+    Does not validate for the existence of those ids.
+
+    Args:
+        mention (str): The mention string.
+
+    Returns:
+        int: The extracted integer id.
+
+    Raises:
+        ValueError: Invalid mention string.
+    """
+
+    men_pattern = r"\<((\@[&!]?)|\#){1}[0-9]+\>"
+    id_pattern = r"[0-9]+"
+
+    match = re.match(men_pattern, mention)
+    if match is None:
+        raise ValueError(
+            "invalid Discord mention string: Must be a guild role, channel or user mention"
+        )
+
+    id_str = mention[slice(*re.search(id_pattern, mention).span())]
+
+    return int(id_str)
+
+
+def is_valid_mention_string(mention: str) -> bool:
+    """Whether the given input string matches one of the structures of a valid Discord
+    mention markdown string which are '<@{6969...}>', '<@!{6969...}>'
+    or '<@&{6969...}>'.
+    Does not validate for the actual existence of the mention targets.
+
+    Args:
+        mention (str): The mention string.
+
+    Returns:
+        bool: True/False
+    """
+    return bool(re.match(r"\<((\@[&!]?)|\#){1}[0-9]+\>", mention))
+
+
+def is_emoji_code(emoji_code: str) -> bool:
+    """Whether the given string matches the structure of an emoji code,
+    which is ':{unicode_characters}:'. No whitespace is allowed.
+    Does not validate for the existence of the emoji codes
+    of the input strings.
+
+    Args:
+        emoji_code (str): The emoji code string.
+
+    Returns:
+        bool: True/False
+    """
+    return bool(re.match(r"\:\S+\:", emoji_code))
+
+
+def extract_custom_emoji_id(emoji_markdown: str) -> int:
+    """
+    Extract the id '123456789696969' from a custom Discord emoji markdown string with
+    the structure '<:custom_emoji:123456789696969>'. Also includes animated emojis.
+    Does not validate for the existence of the ids.
+
+    Args:
+        emoji_markdown (str): The emoji markdown string.
+
+    Returns:
+        int: The extracted integer id.
+
+    Raises:
+        ValueError: Invalid emoji markdown string.
+    """
+
+    emoji_pattern = r"<a?\:\S+\:[0-9]+\>"
+    id_pattern = r"[0-9]+"
+
+    match = re.match(emoji_pattern, emoji_markdown)
+    if match is None:
+        raise ValueError(
+            "invalid emoji markdown string: Must have the structure '<[a]:emoji_name:emoji_id>'"
+        )
+
+    id_str = emoji_markdown[slice(*re.search(id_pattern, emoji_markdown).span())]
+    return int(id_str)
 
 
 def code_block(string: str, max_characters: int = 2048, code_type: str = "") -> str:
@@ -316,47 +409,3 @@ def format_datetime(dt: Union[int, float, datetime.datetime], tformat: str = "f"
     if isinstance(dt, datetime.datetime):
         dt = dt.replace(tzinfo=datetime.timezone.utc).timestamp()
     return f"<t:{int(dt)}:{tformat}>"
-
-
-def split_wc_scores(scores: dict[int, int]):
-    """
-    Split wc scoreboard into different categories
-    """
-    scores_list = [(score, f"<@!{mem}>") for mem, score in scores.items()]
-    scores_list.sort(reverse=True)
-
-    for title, category_score in common.WC_SCORING:
-        category_list = list(filter(lambda x: x[0] >= category_score, scores_list))
-        if not category_list:
-            continue
-
-        desc = ">>> " + "\n".join(
-            (f"`{score}` **•** {mem} :medal:" for score, mem in category_list)
-        )
-
-        yield title, desc, False
-        scores_list = scores_list[len(category_list) :]
-
-
-async def give_wc_roles(member: discord.Member, score: int):
-    """
-    Updates the WC roles of a member based on their latest total score
-    """
-    got_role: bool = False
-    for min_score, role_id in common.ServerConstants.WC_ROLES:
-        if score >= min_score and not got_role:
-            # This is the role to give
-            got_role = True
-            if role_id not in map(lambda x: x.id, member.roles):
-                await member.add_roles(
-                    discord.Object(role_id),
-                    reason="Automatic bot action, adds WC event roles",
-                )
-
-        else:
-            # any other event related role to be removed
-            if role_id in map(lambda x: x.id, member.roles):
-                await member.remove_roles(
-                    discord.Object(role_id),
-                    reason="Automatic bot action, removes older WC event roles",
-                )

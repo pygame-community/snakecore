@@ -4,11 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.black]
 line-length = 88
-<<<<<<< HEAD
-target_version = ['^py39']
-=======
 target_version = ['py39', 'py310']
->>>>>>> ae70a642db4601cb8fd871fc8e5e97e8be9b84a4
 include = '\.pyi?$'
 exclude = '''
 
@@ -43,10 +39,7 @@ exclude = [
 ]
 reportUnnecessaryTypeIgnoreComment = true
 pythonVersion = "3.9"
-<<<<<<< HEAD
-=======
 typeCheckingMode = "basic"
->>>>>>> ae70a642db4601cb8fd871fc8e5e97e8be9b84a4
 
 [tool.pytest.ini_options]
 asyncio_mode = "strict"

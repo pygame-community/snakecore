@@ -10,6 +10,7 @@ from snakecore import config
 from .base_events import BaseEvent, CustomEvent
 from .client_events import *
 
+
 def init(client: discord.Client):
     if not isinstance(client, discord.Client):
         raise TypeError(
@@ -17,4 +18,8 @@ def init(client: discord.Client):
             f" not {client.__class__.__name__}"
         )
     config.client = client
+    config.events_is_init = True
 
+
+def is_init() -> bool:
+    return config.events_is_init

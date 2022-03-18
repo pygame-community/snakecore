@@ -25,6 +25,7 @@ from snakecore import config
 
 _DISCORD_MODEL_SERIAL_MAP = {}
 
+
 def _get_client():
     if config.client is None:
         raise RuntimeError(
@@ -32,6 +33,7 @@ def _get_client():
             " must be specified upon initialization of the module."
         )
     return config.client
+
 
 def get_serializer_class(discord_class: Type):
     class_name = discord_class.__name__

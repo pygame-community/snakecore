@@ -19,6 +19,7 @@ from snakecore import config
 
 from . import base_events
 
+
 def _get_client():
     if config.client is None:
         raise RuntimeError(
@@ -26,6 +27,7 @@ def _get_client():
             " must be specified upon initialization of the module."
         )
     return config.client
+
 
 class ClientEvent(base_events.BaseEvent):
     """The base class for all discord API websocket event wrapper objects, with values as returned by discord.py."""

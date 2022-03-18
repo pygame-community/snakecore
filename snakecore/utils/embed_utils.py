@@ -21,9 +21,6 @@ from typing import Iterable, Union, Optional, Any
 
 import black
 import discord
-from discord.embeds import EmptyEmbed
-
-import snakecore
 
 EMBED_TOP_LEVEL_ATTRIBUTES_MASK_DICT = {
     "provider": None,
@@ -532,6 +529,7 @@ def get_fields(*strings: str):
 
     return field_datas
 
+
 def parse_condensed_embed_list(embed_list: Union[list, tuple]):
     """
     Parse the condensed embed list syntax used in some embed creation
@@ -675,19 +673,19 @@ def parse_condensed_embed_list(embed_list: Union[list, tuple]):
 
 
 def create_as_dict(
-    author_name: Optional[str] = EmptyEmbed,
-    author_url: Optional[str] = EmptyEmbed,
-    author_icon_url: Optional[str] = EmptyEmbed,
-    title: Optional[str] = EmptyEmbed,
-    url: Optional[str] = EmptyEmbed,
-    thumbnail_url: Optional[str] = EmptyEmbed,
-    description: Optional[str] = EmptyEmbed,
-    image_url: Optional[str] = EmptyEmbed,
+    author_name: Optional[str] = None,
+    author_url: Optional[str] = None,
+    author_icon_url: Optional[str] = None,
+    title: Optional[str] = None,
+    url: Optional[str] = None,
+    thumbnail_url: Optional[str] = None,
+    description: Optional[str] = None,
+    image_url: Optional[str] = None,
     color: int = -1,
     fields: Union[list, tuple] = (),
-    footer_text: Optional[str] = EmptyEmbed,
-    footer_icon_url: Optional[str] = EmptyEmbed,
-    timestamp: Optional[str] = EmptyEmbed,
+    footer_text: Optional[str] = None,
+    footer_icon_url: Optional[str] = None,
+    timestamp: Optional[str] = None,
 ):
     embed_dict = {}
 
@@ -884,19 +882,19 @@ def clean_embed_dict(embed_dict: dict):
 
 
 def create(
-    author_name: Optional[str] = EmptyEmbed,
-    author_url: Optional[str] = EmptyEmbed,
-    author_icon_url: Optional[str] = EmptyEmbed,
-    title: Optional[str] = EmptyEmbed,
-    url: Optional[str] = EmptyEmbed,
-    thumbnail_url: Optional[str] = EmptyEmbed,
-    description: Optional[str] = EmptyEmbed,
-    image_url: Optional[str] = EmptyEmbed,
+    author_name: Optional[str] = None,
+    author_url: Optional[str] = None,
+    author_icon_url: Optional[str] = None,
+    title: Optional[str] = None,
+    url: Optional[str] = None,
+    thumbnail_url: Optional[str] = None,
+    description: Optional[str] = None,
+    image_url: Optional[str] = None,
     color: int = DEFAULT_EMBED_COLOR,
     fields: Union[list, tuple] = (),
-    footer_text: Optional[str] = EmptyEmbed,
-    footer_icon_url: Optional[str] = EmptyEmbed,
-    timestamp: Optional[Union[str, datetime.datetime]] = EmptyEmbed,
+    footer_text: Optional[str] = None,
+    footer_icon_url: Optional[str] = None,
+    timestamp: Optional[Union[str, datetime.datetime]] = None,
 ):
     """
     Creates an embed with a much more tight function.
@@ -946,19 +944,19 @@ def create(
 
 async def send(
     channel: discord.abc.Messageable,
-    author_name: Optional[str] = EmptyEmbed,
-    author_url: Optional[str] = EmptyEmbed,
-    author_icon_url: Optional[str] = EmptyEmbed,
-    title: Optional[str] = EmptyEmbed,
-    url: Optional[str] = EmptyEmbed,
-    thumbnail_url: Optional[str] = EmptyEmbed,
-    description: Optional[str] = EmptyEmbed,
-    image_url: Optional[str] = EmptyEmbed,
+    author_name: Optional[str] = None,
+    author_url: Optional[str] = None,
+    author_icon_url: Optional[str] = None,
+    title: Optional[str] = None,
+    url: Optional[str] = None,
+    thumbnail_url: Optional[str] = None,
+    description: Optional[str] = None,
+    image_url: Optional[str] = None,
     color: int = DEFAULT_EMBED_COLOR,
     fields: Union[list, tuple] = (),
-    footer_text: Optional[str] = EmptyEmbed,
-    footer_icon_url: Optional[str] = EmptyEmbed,
-    timestamp: Optional[str] = EmptyEmbed,
+    footer_text: Optional[str] = None,
+    footer_icon_url: Optional[str] = None,
+    timestamp: Optional[str] = None,
     reference: Optional[Union[discord.Message, discord.MessageReference]] = None,
 ):
     """
@@ -987,19 +985,19 @@ async def send(
 
 async def replace(
     message: discord.Message,
-    author_name: Optional[str] = EmptyEmbed,
-    author_url: Optional[str] = EmptyEmbed,
-    author_icon_url: Optional[str] = EmptyEmbed,
-    title: Optional[str] = EmptyEmbed,
-    url: Optional[str] = EmptyEmbed,
-    thumbnail_url: Optional[str] = EmptyEmbed,
-    description: Optional[str] = EmptyEmbed,
-    image_url: Optional[str] = EmptyEmbed,
+    author_name: Optional[str] = None,
+    author_url: Optional[str] = None,
+    author_icon_url: Optional[str] = None,
+    title: Optional[str] = None,
+    url: Optional[str] = None,
+    thumbnail_url: Optional[str] = None,
+    description: Optional[str] = None,
+    image_url: Optional[str] = None,
     color: int = DEFAULT_EMBED_COLOR,
     fields: Union[list, tuple] = (),
-    footer_text: Optional[str] = EmptyEmbed,
-    footer_icon_url: Optional[str] = EmptyEmbed,
-    timestamp: Optional[str] = EmptyEmbed,
+    footer_text: Optional[str] = None,
+    footer_icon_url: Optional[str] = None,
+    timestamp: Optional[str] = None,
 ):
     """
     Replaces the embed of a message with a much more tight function
@@ -1025,19 +1023,19 @@ async def replace(
 async def edit(
     message: discord.Message,
     embed: discord.Embed,
-    author_name: Optional[str] = EmptyEmbed,
-    author_url: Optional[str] = EmptyEmbed,
-    author_icon_url: Optional[str] = EmptyEmbed,
-    title: Optional[str] = EmptyEmbed,
-    url: Optional[str] = EmptyEmbed,
-    thumbnail_url: Optional[str] = EmptyEmbed,
-    description: Optional[str] = EmptyEmbed,
-    image_url: Optional[str] = EmptyEmbed,
+    author_name: Optional[str] = None,
+    author_url: Optional[str] = None,
+    author_icon_url: Optional[str] = None,
+    title: Optional[str] = None,
+    url: Optional[str] = None,
+    thumbnail_url: Optional[str] = None,
+    description: Optional[str] = None,
+    image_url: Optional[str] = None,
     color=-1,
     fields=[],
-    footer_text: Optional[str] = EmptyEmbed,
-    footer_icon_url: Optional[str] = EmptyEmbed,
-    timestamp: Optional[str] = EmptyEmbed,
+    footer_text: Optional[str] = None,
+    footer_icon_url: Optional[str] = None,
+    timestamp: Optional[str] = None,
     add_attributes: bool = False,
     edit_inner_fields: bool = False,
 ):
