@@ -151,7 +151,7 @@ def format_byte(size: int, decimal_places: int = 3):
     for unit in ("B", "KB", "MB"):
         if size < fact * 1000:
             return f"{size/fact:.0{decimal_places}f} {unit}"
-        
+
         fact *= 1000
 
     return f"{round(size / 1e9, decimal_places)} GB"
