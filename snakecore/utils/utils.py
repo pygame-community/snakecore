@@ -94,20 +94,20 @@ def format_time(
         (1e-03, "ms"),
         (1e-06, "\u03bcs"),
         (1e-09, "ns"),
-        (1e-12, "ps"),
-        (1e-15, "fs"),
-        (1e-18, "as"),
-        (1e-21, "zs"),
-        (1e-24, "ys"),
     ),
 ):
     """
     Formats time with a prefix
     """
+
+    if seconds < 0:
+        raise ValueError("argument 'seconds' must be a positive number")
+
     for fractions, unit in unit_data:
         if seconds >= fractions:
             return f"{seconds / fractions:.0{decimal_places}f} {unit}"
-    return "very fast"
+
+    return f"{seconds/1e-09:.0{decimal_places}f} ns"
 
 
 def format_long_time(
