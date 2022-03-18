@@ -225,11 +225,10 @@ def extract_mention_id(mention: str) -> int:
 
     return int(id_str)
 
-
-def is_valid_mention_string(mention: str) -> bool:
+def is_valid_mention(mention: str) -> bool:
     """Whether the given input string matches one of the structures of a valid Discord
-    mention markdown string which are '<@{6969...}>', '<@!{6969...}>'
-    or '<@&{6969...}>'.
+    mention markdown string which are '<@{6969...}>', '<@!{6969...}>',
+    '<@&{6969...}>' or '<#{6969...}>'.
     Does not validate for the actual existence of the mention targets.
 
     Args:
@@ -283,6 +282,22 @@ def extract_custom_emoji_id(emoji_markdown: str) -> int:
 
     id_str = emoji_markdown[slice(*re.search(id_pattern, emoji_markdown).span())]
     return int(id_str)
+
+
+def is_valid_custom_emoji(emoji_markdown: str) -> bool:
+    """
+    Whether the given string matches the structure for a custom Discord emoji markdown
+    string with the structure '<:custom_emoji:123456789696969>'. Also includes animated
+    emojis.
+    Does not validate for the existence of the specified emoji markdown.
+
+    Args:
+        emoji_markdown (str): The emoji markdown string.
+
+    Returns:
+        bool: True/False
+    """
+    return bool(re.match(r"<a?\:\S+\:[0-9]+\>", emoji_markdown))
 
 
 def code_block(string: str, max_characters: int = 2048, code_type: str = "") -> str:
