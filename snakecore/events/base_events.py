@@ -8,9 +8,8 @@ This file implements base classes used to capture or emit events.
 
 from __future__ import annotations
 
-import time
 import datetime
-from typing import Any, Callable, Coroutine, Iterable, Optional, Sequence, Type, Union
+from typing import Optional, Type
 
 
 _EVENT_CLASS_MAP = {}

@@ -7,26 +7,13 @@ This file implements wrapper classes used to capture Discord Gateway events.
 All classes inherit from `ClientEvent`, which inherits from `BaseEvents`. 
 """
 
-from __future__ import annotations
-import asyncio
-from collections import deque
 import datetime
-from typing import Any, Callable, Coroutine, Iterable, Optional, Sequence, Union
+from typing import Optional, Sequence, Union
 
 import discord
-from discord.ext import tasks
-from snakecore import config
+from config import _get_client
 
 from . import base_events
-
-
-def _get_client():
-    if config.client is None:
-        raise RuntimeError(
-            "No 'discord.Client' object could be found. A client object"
-            " must be specified upon initialization of the module."
-        )
-    return config.client
 
 
 class ClientEvent(base_events.BaseEvent):
@@ -258,6 +245,7 @@ class _OnRawReactionToggle(OnRawReactionBase):
 
     async def as_unraw(self):
         user = None
+        client = _get_client()
         if (
             self.payload.guild_id
             and self.payload.member is not None
@@ -265,7 +253,6 @@ class _OnRawReactionToggle(OnRawReactionBase):
         ):
             user = self.payload.member
         else:
-            client = _get_client()
             user = client.get_user(self.payload.user_id)
             if not user:
                 user = await client.fetch_user(self.payload.user_id)

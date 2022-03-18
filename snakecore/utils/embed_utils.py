@@ -6,15 +6,13 @@ Copyright (c) 2020-present PygameCommunityDiscord
 This file defines some important embed related utility functions.
 """
 
-import asyncio
 import datetime
-import imp
 import io
 import json
 import re
 from ast import literal_eval
 from collections.abc import Mapping
-from typing import Iterable, Union, Optional, Any
+from typing import Any, Union, Optional
 
 import black
 import discord

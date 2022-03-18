@@ -6,14 +6,13 @@ Copyright (c) 2020-present PygameCommunityDiscord
 This file defines some important utility functions.
 """
 
-import asyncio
 import datetime
 import os
 import platform
 import re
 import sys
 import traceback
-from typing import Callable, Iterable, Union, Optional
+from typing import Callable, Iterable, Union
 
 import discord
 

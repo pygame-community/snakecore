@@ -6,32 +6,14 @@ Copyright (c) 2020-present PygameCommunityDiscord
 This file implements wrapper classes used to pickle Discord models and dataclasses. 
 """
 
-import asyncio
-from collections import deque
-import datetime
 import io
-import itertools
-import pickle
-from selectors import BaseSelector
-import time
-from types import SimpleNamespace
-from typing import Any, Callable, Coroutine, Iterable, Optional, Sequence, Type, Union
+from typing import Optional, Type
 
 import discord
-from discord.ext import tasks
 
-from snakecore import config
+from config import _get_client
 
 _DISCORD_MODEL_SERIAL_MAP = {}
-
-
-def _get_client():
-    if config.client is None:
-        raise RuntimeError(
-            "No 'discord.Client' object could be found. A client object"
-            " must be specified upon initialization of the module."
-        )
-    return config.client
 
 
 def get_serializer_class(discord_class: Type):
@@ -164,7 +146,7 @@ class MemberSerializer(DiscordObjectBaseSerializer):
 
         client = _get_client()
 
-        guild: discord.Guild = client.get_guild(self._dict["guild_id"])
+        guild = client.get_guild(self._dict["guild_id"])
         if guild is None:
             if always_fetch:
                 guild = await client.fetch_guild(self._dict["id"])

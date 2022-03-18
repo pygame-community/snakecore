@@ -37,9 +37,7 @@ include = [
 exclude = [
     "**/__pycache__"
 ]
-reportUnnecessaryTypeIgnoreComment = true
 pythonVersion = "3.9"
-typeCheckingMode = "basic"
 
 [tool.pytest.ini_options]
 asyncio_mode = "strict"
