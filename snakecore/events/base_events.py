@@ -6,14 +6,12 @@ Copyright (c) 2020-present PygameCommunityDiscord
 This file implements base classes used to capture or emit events.
 """
 
-from __future__ import annotations
-
 import datetime
 from typing import Optional, Type
 
+from .base_events import BaseEvent
 
 _EVENT_CLASS_MAP = {}
-
 
 def get_event_class_from_id(class_identifier: str, closest_match: bool = True):
 

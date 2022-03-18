@@ -11,7 +11,16 @@ from typing import Optional, Type
 
 import discord
 
-from config import _get_client
+from snakecore import config
+
+def _get_client() -> discord.Client:
+    if config.client is None:
+        raise RuntimeError(
+            "No global default 'discord.Client' object was configured. A client object"
+            " must be specified upon initialization of the 'utils' module in order"
+            " for the 'serializers' module to work reliably."
+        )
+    return config.client
 
 _DISCORD_MODEL_SERIAL_MAP = {}
 

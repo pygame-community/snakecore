@@ -11,10 +11,18 @@ import datetime
 from typing import Optional, Sequence, Union
 
 import discord
-from config import _get_client
+from snakecore import config
 
 from . import base_events
 
+def _get_client() -> discord.Client:
+    if config.client is None:
+        raise RuntimeError(
+            "No global default 'discord.Client' object was configured. A client object"
+            " must be specified upon initialization of the 'events' module in order"
+            " for the 'client_events' module to work reliably."
+        )
+    return config.client
 
 class ClientEvent(base_events.BaseEvent):
     """The base class for all discord API websocket event wrapper objects, with values as returned by discord.py."""

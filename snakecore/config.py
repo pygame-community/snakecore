@@ -26,12 +26,3 @@ ZERO_SPACE = "\u200b"  # U+200B
 
 DOC_EMBED_LIMIT = 3
 BROWSE_MESSAGE_LIMIT = 500
-
-
-def _get_client():
-    if client is None:
-        raise RuntimeError(
-            "No 'discord.Client' object could be found. A client object"
-            " must be specified upon initialization of the module."
-        )
-    return client
