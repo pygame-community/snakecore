@@ -15,6 +15,7 @@ from snakecore import config
 
 from . import base_events
 
+
 def _get_client() -> discord.Client:
     if config.client is None:
         raise RuntimeError(
@@ -23,6 +24,7 @@ def _get_client() -> discord.Client:
             " for the 'client_events' module to work reliably."
         )
     return config.client
+
 
 class ClientEvent(base_events.BaseEvent):
     """The base class for all discord API websocket event wrapper objects, with values as returned by discord.py."""

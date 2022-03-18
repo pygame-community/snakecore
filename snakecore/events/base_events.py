@@ -13,6 +13,7 @@ from .base_events import BaseEvent
 
 _EVENT_CLASS_MAP = {}
 
+
 def get_event_class_from_id(class_identifier: str, closest_match: bool = True):
 
     name, timestamp_str = class_identifier.split("-")

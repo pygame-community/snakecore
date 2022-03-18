@@ -13,6 +13,7 @@ import discord
 
 from snakecore import config
 
+
 def _get_client() -> discord.Client:
     if config.client is None:
         raise RuntimeError(
@@ -21,6 +22,7 @@ def _get_client() -> discord.Client:
             " for the 'serializers' module to work reliably."
         )
     return config.client
+
 
 _DISCORD_MODEL_SERIAL_MAP = {}
 
