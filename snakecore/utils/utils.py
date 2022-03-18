@@ -225,6 +225,7 @@ def extract_mention_id(mention: str) -> int:
 
     return int(id_str)
 
+
 def is_valid_mention(mention: str) -> bool:
     """Whether the given input string matches one of the structures of a valid Discord
     mention markdown string which are '<@{6969...}>', '<@!{6969...}>',
