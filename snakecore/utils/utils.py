@@ -17,6 +17,7 @@ from typing import Callable, Iterable, Union, Optional
 
 import discord
 
+
 def join_readable(joins: list[str]):
     """
     Join a list of strings, in a human readable way

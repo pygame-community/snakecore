@@ -8,6 +8,7 @@ __license__ = "MIT"
 __copyright__ = "Copyright 2022-present PygameCommunityDiscord"
 __version__ = "0.1.0"
 
+
 def init(client: discord.Client):
     if not isinstance(client, discord.Client):
         raise TypeError(
@@ -18,6 +19,7 @@ def init(client: discord.Client):
     events.init(client)
     utils.init(client)
     config.snakecore_is_init = True
+
 
 def is_init() -> bool:
     return config.snakecore_is_init

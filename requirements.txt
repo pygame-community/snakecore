@@ -1,7 +1,2 @@
-<<<<<<< HEAD
-discord.py>=2.0
-=======
-# comment for now because dispy has not released yet
-# discord.py>=2.0
->>>>>>> ae70a642db4601cb8fd871fc8e5e97e8be9b84a4
+discord.py>=1.7
 python-dotenv>=0.19
