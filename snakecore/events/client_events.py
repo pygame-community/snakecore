@@ -19,14 +19,13 @@ from snakecore import config
 
 from . import base_events
 
-
-client = config.client
-
-if not isinstance(client, discord.Client):
-    raise RuntimeError(
-        "No 'discord.Client' object could be found. A client object"
-        " must be specified upon initialization of the module."
-    )
+def _get_client():
+    if config.client is None:
+        raise RuntimeError(
+            "No 'discord.Client' object could be found. A client object"
+            " must be specified upon initialization of the module."
+        )
+    return config.client
 
 class ClientEvent(base_events.BaseEvent):
     """The base class for all discord API websocket event wrapper objects, with values as returned by discord.py."""
@@ -264,6 +263,7 @@ class _OnRawReactionToggle(OnRawReactionBase):
         ):
             user = self.payload.member
         else:
+            client = _get_client()
             user = client.get_user(self.payload.user_id)
             if not user:
                 user = await client.fetch_user(self.payload.user_id)

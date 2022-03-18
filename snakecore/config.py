@@ -12,6 +12,9 @@ from typing import Optional, Union
 
 import discord
 
+# declare type alias for any channel
+Channel = Union[discord.TextChannel, discord.DMChannel, discord.GroupChannel]
+
 client: Optional[discord.Client] = None
 
 # 'primary' guild for the bot
@@ -29,3 +32,4 @@ ZERO_SPACE = "\u200b"  # U+200B
 
 DOC_EMBED_LIMIT = 3
 BROWSE_MESSAGE_LIMIT = 500
+

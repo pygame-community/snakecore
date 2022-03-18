@@ -6,7 +6,9 @@ Copyright (c) 2020-present PygameCommunityDiscord
 This module implements classes for representing generic event objects using OOP principles.
 """
 
-import snakecore.config
+from snakecore import config
+from .base_events import BaseEvent, CustomEvent
+from .client_events import *
 
 def init(client: discord.Client):
     if not isinstance(client, discord.Client):
@@ -14,8 +16,5 @@ def init(client: discord.Client):
             f"argument 'client' must be of type discord.Client,"
             f" not {client.__class__.__name__}"
         )
-    snakecore.config.client = client
+    config.client = client
 
-
-from .base_events import BaseEvent, CustomEvent
-from .client_events import *
