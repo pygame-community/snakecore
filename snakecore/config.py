@@ -11,7 +11,6 @@ These configuration variables are only meant to be accessed and
 modified with the `get_config_value()` and `set_config_value()` functions.
 """
 
-from types import NoneType
 from typing import Any, Optional, Type, Union
 import discord
 
