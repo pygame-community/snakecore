@@ -13,7 +13,7 @@ import platform
 import re
 import sys
 import traceback
-from typing import Callable, Iterable, Union
+from typing import Callable, Iterable, Optional, Union
 
 import discord
 
@@ -87,7 +87,7 @@ def progress_bar(
     )
 
 
-UNIT_DATA = (
+TIME_UNITS = (
     ("w", "weeks", 604800),
     ("d", "days", 86400),
     ("h", "hours", 3600),
@@ -98,38 +98,48 @@ UNIT_DATA = (
     ("ns", "nanoseconds", 1e-09),
 )
 
-
 def format_time_by_units(
-    seconds: float,
+    dt: Union[datetime.timedelta, int, float],
     decimal_places: int = 4,
-    long_unit_names: bool = False,
+    full_unit_names: bool = False,
     multi_units: bool = False,
     whole_units: bool = True,
     fract_units: bool = True,
 ):
-    """_summary_
+    """Format the given relative time in seconds into a string of whole and/or
+    fractional time unit(s). The time units range from nanoseconds to weeks.
+
 
     Args:
-        seconds: _description_
-        decimal_places: _description_. Defaults to 4.
-        long_unit_names: _description_. Defaults to False.
-        multi_units: _description_. Defaults to False.
-        whole_units: _description_. Defaults to True.
-        fractional_units: _description_. Defaults to True.
+        dt (Union[datetime.timedelta, int, float]): The relative input time in seconds.
+        decimal_places (int): The decimal places to be used in the formatted output
+          time. Only applies when `multi_units` is `False`. Defaults to 4.
+        full_unit_names (bool): Use full unit names (like 'week' instead of 'w').
+          Defaults to False.
+        multi_units (bool): Whether the formatted output string should use multiple
+          units in descending order to divide up the input time. Defaults to False.
+        whole_units (bool): Whether whole units above or equal to one should be
+          used as units. Defaults to True.
+        fractional_units (bool): Whether fractional units less than or equal to one
+          should be used as units. Defaults to True.
 
     Returns:
         str: The formatted time string.
 
     Raises:
-        ValueError: 'seconds' was not positive.
+        ValueError: 'dt' was not positive.
     """
 
-    if seconds < 0:
+    if isinstance(dt, datetime.timedelta):
+        dt = dt.total_seconds()
+
+    if dt < 0:
         raise ValueError("argument 'seconds' must be a positive number")
 
     if multi_units:
         result: list[str] = []
 
+        name_idx = 1 if full_unit_names else 0
         start_idx = 0
         stop_idx = 7
 
@@ -141,72 +151,79 @@ def format_time_by_units(
             start_idx = 4
             stop_idx = 7
 
-        elif whole_units and fract_units:
-            pass
+        elif not whole_units and not fract_units:
+            raise ValueError("the arguments 'whole_units' and 'fract_units' cannot both be False")
 
 
-        for name, count in unit_data:
-            value = seconds // count
-            if value or (not result and count == 1):
-                seconds -= value * count
-                if value == 1:
+        for i in range(start_idx, stop_idx+1):
+            unit_tuple = TIME_UNITS[i]
+            name = unit_tuple[name_idx]
+            unit_value = unit_tuple[2]
+
+            value = dt // unit_value
+            if value or (not result and unit_value == 1):
+                dt -= value * unit_value
+                if full_unit_names and value == 1:
                     name = name[:-1]
                 result.append(f"{value} {name}")
 
         return join_readable(result)
 
     else:
-        for unit, fractions in unit_data:
-            if seconds >= fractions:
-                return f"{seconds / fractions:.0{decimal_places}f} {unit}"
+        for unit_tuple in TIME_UNITS:
+            name = unit_tuple[name_idx]
+            unit_value = unit_tuple[2]
+            if dt >= unit_value:
+                return f"{dt / fractions:.0{decimal_places}f} {name}"
 
-        return f"{seconds/1e-09:.0{decimal_places}f} ns"
+        return f"{dt/1e-09:.0{decimal_places}f} ns"
 
+STORAGE_UNITS = (
+    ("GB", "gigabytes", 1_000_000_000),
+    ("MB", "megabytes", 1_000_000),
+    ("KB", "kilobytes", 1_000),
+    ("B", "bytes", 1),
+)
 
-def format_time_by_long_units(
-    seconds: float,
-    decimal_places: int = 4,
-    multi_units: bool = False,
-    unit_data: tuple[tuple[float, str], ...] = (
-        ("weeks", 604800)
-        ("days", 86400),
-        ("hours", 3600),
-        ("minutes", 60),
-        ("seconds", 1),
-        ("miliseconds", 1e-03),
-        ("microseconds", 1e-06),
-        ("nanoseconds", 1e-09),
-    ),
-):
-    """_summary_
+BASE_2_STORAGE_UNITS = (
+    ("GiB", "gibibytes", 1073741824),
+    ("MiB", "mebibytes", 1048576),
+    ("KiB", "kibibytes", 1024),
+    ("B", "bytes", 1),
+)
+
+def format_byte(size: int, decimal_places: Optional[int] = None, full_unit_names: bool = False, base_2_units: bool = False):
+    """Format the given storage size in bytes into a string denoting
+    the storage size with an equal or larger size unit. The units
+    range from bytes to gigabytes.
 
     Args:
-        seconds: _description_
-        decimal_places: _description_. Defaults to 4.
-        multi_units: _description_. Defaults to False.
-        unit_data: _description_. Defaults to ( ("w", 604800) ("d", 86400), ("h", 3600), ("m", 60), ("s", 1), ("ms", 1e-03), ("\u03bcs", 1e-06), ("ns", 1e-09), ).
+        size (int): THe storage size in bytes.
+        decimal_places (Optional[int]): The exact decimal places to display in the
+          formatting output. If omitted, the Python `float` class's string version
+          will be used to automatically choose the needed decimal places.
+          Defaults to None.
+        full_unit_names (bool, optional): Use full unit names (like 'gigabyte'
+          instead of 'GB'). Defaults to False.
+        base_2_units (bool): Whether powers of 2 should be used as size units.
+          Defaults to False.
+
+    Returns:
+        str: The formatted storage size string.
     """
 
+    name_idx = 1 if full_unit_names else 0
 
-def format_timedelta(tdelta: datetime.timedelta):
-    """
-    Formats timedelta object into human readable time
-    """
-    return format_long_time(int(tdelta.total_seconds()))
+    units = BASE_2_STORAGE_UNITS if base_2_units else STORAGE_UNITS
 
-
-def format_byte(size: int, decimal_places: int = 3):
-    """
-    Formats a given size and outputs a string equivalent to B, KB, MB, or GB
-    """
-    fact = 1
-    for unit in ("B", "KB", "MB"):
-        if size < fact * 1000:
-            return f"{size/fact:.0{decimal_places}f} {unit}"
-
-        fact *= 1000
-
-    return f"{round(size / 1e9, decimal_places)} GB"
+    for unit_tuple in units:
+        name = unit_tuple[name_idx]
+        unit_value = unit_tuple[2]
+        if size >= unit_value:
+            if decimal_places is None:
+                return f"{size / unit_value} {name}"
+            else:
+                return f"{size / unit_value:.0{decimal_places}f} {name}"
 
 
 def split_long_message(message: str, limit: int = 2000):
