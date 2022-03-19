@@ -98,6 +98,7 @@ TIME_UNITS = (
     ("ns", "nanoseconds", 1e-09),
 )
 
+
 def format_time_by_units(
     dt: Union[datetime.timedelta, int, float],
     decimal_places: int = 4,
@@ -152,10 +153,11 @@ def format_time_by_units(
             stop_idx = 7
 
         elif not whole_units and not fract_units:
-            raise ValueError("the arguments 'whole_units' and 'fract_units' cannot both be False")
+            raise ValueError(
+                "the arguments 'whole_units' and 'fract_units' cannot both be False"
+            )
 
-
-        for i in range(start_idx, stop_idx+1):
+        for i in range(start_idx, stop_idx + 1):
             unit_tuple = TIME_UNITS[i]
             name = unit_tuple[name_idx]
             unit_value = unit_tuple[2]
@@ -178,6 +180,7 @@ def format_time_by_units(
 
         return f"{dt/1e-09:.0{decimal_places}f} ns"
 
+
 STORAGE_UNITS = (
     ("GB", "gigabytes", 1_000_000_000),
     ("MB", "megabytes", 1_000_000),
@@ -192,7 +195,13 @@ BASE_2_STORAGE_UNITS = (
     ("B", "bytes", 1),
 )
 
-def format_byte(size: int, decimal_places: Optional[int] = None, full_unit_names: bool = False, base_2_units: bool = False):
+
+def format_byte(
+    size: int,
+    decimal_places: Optional[int] = None,
+    full_unit_names: bool = False,
+    base_2_units: bool = False,
+):
     """Format the given storage size in bytes into a string denoting
     the storage size with an equal or larger size unit. The units
     range from bytes to gigabytes.
@@ -435,7 +444,9 @@ def check_channels_permissions(
     return booleans
 
 
-def create_timestamp_markdown(dt: Union[int, float, datetime.datetime], tformat: str = "f"):
+def create_timestamp_markdown(
+    dt: Union[int, float, datetime.datetime], tformat: str = "f"
+):
     """
     Get a discord timestamp formatted string that renders it correctly on the
     discord end. dt can be UNIX timestamp or datetime object while tformat
