@@ -98,7 +98,7 @@ def set_config_value(name: str, value: Any, ignore_if_set: bool = False):
     old_value = _all_vars[real_name]
 
     if old_value is UNSET or not ignore_if_set:
-        config.__dict__[name] = value
+        config.__dict__[real_name] = value
 
 
 # configuration variables
