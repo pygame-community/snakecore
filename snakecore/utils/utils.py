@@ -182,6 +182,7 @@ def format_time_by_units(
             if dt >= unit_value:
                 return f"{dt / unit_value:.0{decimal_places}f}{space}{name}"
 
+
 STORAGE_UNITS = (
     ("GB", "gigabytes", 1_000_000_000),
     ("MB", "megabytes", 1_000_000),
