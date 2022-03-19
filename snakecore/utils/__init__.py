@@ -21,9 +21,9 @@ def init(client: Union[UNSET_TYPE, discord.Client] = UNSET):
             f" not {client.__class__.__name__}"
         )
 
-    config.set_config_value("global_client", client, ignore_if_set=True)
-    config.set_config_value("utils_is_init", True)
+    config.set_value("global_client", client, ignore_if_set=True)
+    config.set_value("utils_is_init", True)
 
 
 def is_init() -> bool:
-    return config.get_config_value("utils_is_init", wanted_value_cls=bool)
+    return config.get_value("utils_is_init", wanted_value_cls=bool)

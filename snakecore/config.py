@@ -8,7 +8,7 @@ codebase. It is not meant to be used with `from ... import` statements, since th
 values of the variables defined in it can change at runtime.
 
 These configuration variables are only meant to be accessed and
-modified with the `get_config_value()` and `set_config_value()` functions.
+modified with the `get_value()` and `set_value()` functions.
 """
 
 from typing import Any, Optional, Type, Union
@@ -24,7 +24,7 @@ NoneType = type(None)
 _all_vars = globals()
 
 # helper functions
-def get_config_value(
+def get_value(
     name: str,
     default: Union[UNSET_TYPE, Any] = UNSET,
     wanted_value_cls: Optional[Type] = None,
@@ -74,7 +74,7 @@ def get_config_value(
     return value
 
 
-def set_config_value(name: str, value: Any, ignore_if_set: bool = False):
+def set_value(name: str, value: Any, ignore_if_set: bool = False):
     """Set the new value for the specified configuration variable.
 
     Args:
