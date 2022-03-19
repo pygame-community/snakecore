@@ -102,6 +102,7 @@ TIME_UNITS = (
 def format_time_by_units(
     dt: Union[datetime.timedelta, int, float],
     decimal_places: int = 4,
+    value_unit_space: bool = True,
     full_unit_names: bool = False,
     multi_units: bool = False,
     whole_units: bool = True,
@@ -115,6 +116,8 @@ def format_time_by_units(
         dt (Union[datetime.timedelta, int, float]): The relative input time in seconds.
         decimal_places (int): The decimal places to be used in the formatted output
           time. Only applies when `multi_units` is `False`. Defaults to 4.
+        value_unit_space (bool): Whether to add a whitespace character before the name
+          of a time unit. Defaults to True.
         full_unit_names (bool): Use full unit names (like 'week' instead of 'w').
           Defaults to False.
         multi_units (bool): Whether the formatted output string should use multiple
@@ -137,10 +140,11 @@ def format_time_by_units(
     if dt < 0:
         raise ValueError("argument 'seconds' must be a positive number")
 
+    name_idx = 1 if full_unit_names else 0
+    space = " " if value_unit_space else ""
+
     if multi_units:
         result: list[str] = []
-
-        name_idx = 1 if full_unit_names else 0
         start_idx = 0
         stop_idx = 7
 
@@ -167,7 +171,7 @@ def format_time_by_units(
                 dt -= value * unit_value
                 if full_unit_names and value == 1:
                     name = name[:-1]
-                result.append(f"{value} {name}")
+                result.append(f"{value}{space}{name}")
 
         return join_readable(result)
 
@@ -176,10 +180,7 @@ def format_time_by_units(
             name = unit_tuple[name_idx]
             unit_value = unit_tuple[2]
             if dt >= unit_value:
-                return f"{dt / fractions:.0{decimal_places}f} {name}"
-
-        return f"{dt/1e-09:.0{decimal_places}f} ns"
-
+                return f"{dt / unit_value:.0{decimal_places}f}{space}{name}"
 
 STORAGE_UNITS = (
     ("GB", "gigabytes", 1_000_000_000),
