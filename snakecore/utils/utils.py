@@ -6,7 +6,6 @@ Copyright (c) 2020-present PygameCommunityDiscord
 This file defines some important utility functions.
 """
 
-from collections.abc import Mapping
 import datetime
 import fractions
 import os
@@ -14,7 +13,7 @@ import platform
 import re
 import sys
 import traceback
-from typing import Any, Callable, Iterable, Optional, Union
+from typing import Callable, Iterable, Optional, Union
 
 import discord
 
@@ -182,7 +181,6 @@ def format_time_by_units(
             unit_value = unit_tuple[2]
             if dt >= unit_value:
                 return f"{dt / unit_value:.0{decimal_places}f}{space}{name}"
-
 
 STORAGE_UNITS = (
     ("GB", "gigabytes", 1_000_000_000),
@@ -465,133 +463,3 @@ def create_timestamp_markdown(
     if isinstance(dt, datetime.datetime):
         dt = dt.replace(tzinfo=datetime.timezone.utc).timestamp()
     return f"<t:{int(dt)}:{tformat}>"
-
-
-def recursive_dict_compare(
-    source_dict: dict,
-    target_dict: dict,
-    compare_func: Optional[Callable[[Any, Any], bool]] = None,
-    ignore_keys_missing_in_source: bool = False,
-    ignore_keys_missing_in_target: bool = False,
-    _final_bool: bool = True,
-):
-    """
-    Compare the key and values of one dictionary with those of another, similar to dict.update(),
-    But recursively do the same for dictionary values that are dictionaries as well.
-    based on the answers in
-    https://stackoverflow.com/questions/3232943/update-value-of-a-nested-dictionary-of-varying-depth
-    """
-
-    if compare_func is None:
-        compare_func = lambda d1, d2: d1 == d2
-
-    if not ignore_keys_missing_in_source and target_dict.keys() != source_dict.keys():
-        return False
-
-    for k, v in source_dict.items():
-        if isinstance(v, dict) and isinstance(target_dict.get(k, None), dict):
-            _final_bool = recursive_dict_compare(
-                target_dict[k],
-                v,
-                compare_func=compare_func,
-                ignore_keys_missing_in_source=ignore_keys_missing_in_source,
-                ignore_keys_missing_in_target=ignore_keys_missing_in_target,
-                _final_bool=_final_bool,
-            )
-            if not _final_bool:
-                return False
-        else:
-            if k not in target_dict:
-                if ignore_keys_missing_in_target:
-                    continue
-                _final_bool = False
-            else:
-                _final_bool = compare_func(v, target_dict[k])
-                if not _final_bool:
-                    return False
-
-    return _final_bool
-
-
-def recursive_dict_update(
-    old_dict: dict,
-    update_dict: dict,
-    add_new_keys: bool = True,
-    skip_value: str = "\0",
-):
-    """
-    Update one dictionary with another, similar to dict.update(),
-    But recursively update dictionary values that are dictionaries as well.
-    based on the answers in
-    https://stackoverflow.com/questions/3232943/update-value-of-a-nested-dictionary-of-varying-depth
-    """
-    for k, v in update_dict.items():
-        if isinstance(v, dict):
-            new_value = recursive_dict_update(
-                old_dict.get(k, {}), v, add_new_keys=add_new_keys, skip_value=skip_value
-            )
-            if new_value != skip_value:
-                if k not in old_dict:
-                    if not add_new_keys:
-                        continue
-                old_dict[k] = new_value
-
-        elif v != skip_value:
-            if k not in old_dict:
-                if not add_new_keys:
-                    continue
-            old_dict[k] = v
-
-    return old_dict
-
-
-def recursive_dict_delete(
-    old_dict: dict,
-    update_dict: dict,
-    skip_value: str = "\0",
-    inverse: bool = False,
-):
-    """
-    Delete dictionary attributes present in another,
-    But recursively do the same dictionary values that are dictionaries as well.
-    based on the answers in
-    https://stackoverflow.com/questions/3232943/update-value-of-a-nested-dictionary-of-varying-depth
-    """
-    if inverse:
-        for k, v in tuple(old_dict.items()):
-            if isinstance(v, dict):
-                lower_update_dict = None
-                if isinstance(update_dict, dict):
-                    lower_update_dict = update_dict.get(k, {})
-
-                new_value = recursive_dict_delete(
-                    v, lower_update_dict, skip_value=skip_value, inverse=inverse
-                )
-                if (
-                    new_value != skip_value
-                    and isinstance(update_dict, dict)
-                    and k not in update_dict
-                ):
-                    old_dict[k] = new_value
-                    if not new_value:
-                        del old_dict[k]
-            elif (
-                v != skip_value
-                and isinstance(update_dict, dict)
-                and k not in update_dict
-            ):
-                del old_dict[k]
-    else:
-        for k, v in update_dict.items():
-            if isinstance(v, dict):
-                new_value = recursive_dict_delete(
-                    old_dict.get(k, {}), v, skip_value=skip_value
-                )
-                if new_value != skip_value and k in old_dict:
-                    old_dict[k] = new_value
-                    if not new_value:
-                        del old_dict[k]
-
-            elif v != skip_value and k in old_dict:
-                del old_dict[k]
-    return old_dict
