@@ -115,24 +115,24 @@ def format_time_by_units(
 
     Args:
         dt (Union[datetime.timedelta, int, float]): The relative input time in seconds.
-        decimal_places (int): The decimal places to be used in the formatted output
+        decimal_places (int, optional): The decimal places to be used in the formatted output
           time. Only applies when `multi_units` is `False`. Defaults to 4.
-        value_unit_space (bool): Whether to add a whitespace character before the name
+        value_unit_space (bool, optional): Whether to add a whitespace character before the name
           of a time unit. Defaults to True.
-        full_unit_names (bool): Use full unit names (like 'week' instead of 'w').
+        full_unit_names (bool, optional): Use full unit names (like 'week' instead of 'w').
           Defaults to False.
-        multi_units (bool): Whether the formatted output string should use multiple
+        multi_units (bool, optional): Whether the formatted output string should use multiple
           units in descending order to divide up the input time. Defaults to False.
-        whole_units (bool): Whether whole units above or equal to one should be
+        whole_units (bool, optional): Whether whole units above or equal to one should be
           used as units. Defaults to True.
-        fractional_units (bool): Whether fractional units less than or equal to one
+        fractional_units (bool, optional): Whether fractional units less than or equal to one
           should be used as units. Defaults to True.
 
     Returns:
         str: The formatted time string.
 
     Raises:
-        ValueError: 'dt' was not positive.
+        ValueError: `dt` was not positive.
     """
 
     if isinstance(dt, datetime.timedelta):
@@ -211,13 +211,13 @@ def format_byte(
 
     Args:
         size (int): THe storage size in bytes.
-        decimal_places (Optional[int]): The exact decimal places to display in the
+        decimal_places (Optional[int], optional): The exact decimal places to display in the
           formatting output. If omitted, the Python `float` class's string version
           will be used to automatically choose the needed decimal places.
           Defaults to None.
         full_unit_names (bool, optional): Use full unit names (like 'gigabyte'
           instead of 'GB'). Defaults to False.
-        base_2_units (bool): Whether powers of 2 should be used as size units.
+        base_2_units (bool, optional): Whether powers of 2 should be used as size units.
           Defaults to False.
 
     Returns:
@@ -449,7 +449,7 @@ def check_channels_permissions(
 
 def create_timestamp_markdown(
     dt: Union[int, float, datetime.datetime], tformat: str = "f"
-):
+) -> str:
     """
     Get a discord timestamp formatted string that renders it correctly on the
     discord end. dt can be UNIX timestamp or datetime object while tformat
@@ -476,7 +476,7 @@ def recursive_dict_compare(
     _final_bool: bool = True,
 ):
     """
-    Compare the key and values of one dictionary with those of another, similar to dict.update(),
+    Compare the key and values of one dictionary with those of another,
     But recursively do the same for dictionary values that are dictionaries as well.
     based on the answers in
     https://stackoverflow.com/questions/3232943/update-value-of-a-nested-dictionary-of-varying-depth

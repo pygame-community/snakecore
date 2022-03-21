@@ -1044,10 +1044,10 @@ async def edit_from_dict(
         message (discord.Message): The target message to apply the modified embed to.
         embed (discord.Embed): The target embed to make a new, modified embed from.
         update_embed_dict (dict): The embed dictionary used for modification.
-        add_attributes (bool): Whether the embed attributes in 'update_embed_dict'
-            should be added to the new modified embed if not present.
-        edit_inner_fields (bool): Whether to modify the 'fields' attribute of an embed
-        as one unit or to modify the embeds fields themselves, one by one.
+        add_attributes (bool, optional): Whether the embed attributes in 'update_embed_dict'
+          should be added to the new modified embed if not present. Defaults to True.
+        edit_inner_fields (bool, optional): Whether to modify the 'fields' attribute of an embed
+          as one unit or to modify the embeds fields themselves, one by one. Defaults to False.
     """
     old_embed_dict = embed.to_dict()
 

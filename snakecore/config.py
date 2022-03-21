@@ -15,7 +15,6 @@ from typing import Any, Optional, Type, Union
 import discord
 
 from snakecore.constants import UNSET, UNSET_TYPE
-from snakecore import config
 
 
 EllipsisType = type(Ellipsis)
@@ -109,3 +108,4 @@ config_global_client: Union[UNSET_TYPE, discord.Client] = UNSET
 # init-flags
 config_snakecore_is_init = False
 config_utils_is_init = False
+config_events_is_init = False
