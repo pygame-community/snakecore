@@ -1,7 +1,7 @@
 from typing import Optional, Union
 import discord
 
-from . import utils, command_handler, db, jobs
+from . import config, utils, command_handler, db, events, jobs
 from .config import conf
 
 __title__ = "snakecore"
@@ -16,6 +16,7 @@ def init(client: Optional[discord.Client] = None):
         conf.global_client = client
 
     utils.init(client=client)
+    events.init(client=client)
     conf.init_mods[config.ModuleName.SNAKECORE] = True
 
 
