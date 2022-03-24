@@ -7,9 +7,9 @@ A asynchronous job module based on OOP principles.
 """
 
 import discord
-from snakecore import config
+from snakecore import config, conf
 
-from snakecore.constants import UNSET, UNSET_TYPE
+from snakecore.constants import UNSET
 from .base_jobs import (
     get_job_class_from_id,
     get_job_class_id,
@@ -36,17 +36,13 @@ from .manager import JobManager
 from .proxies import *
 from . import utils
 
-def init(client: Union[UNSET_TYPE, discord.Client] = UNSET):
-    if not isinstance(client, (discord.Client, UNSET_TYPE)):
-        raise TypeError(
-            f"argument 'client' must be None or of type discord.Client,"
-            f" not {client.__class__.__name__}"
-        )
+def init(client: Optional[discord.Client] = None):
+    if client is not None and not conf.is_set("global_client"):
+        conf.global_client = client
 
-    config.set_value("global_client", client, ignore_if_set=True)
-    config.set_value("jobs_is_init", True)
+    conf.init_mods[config.ModuleName.JOBS] = True
 
 
-def is_init() -> bool:
-    return config.get_value("jobs_is_init", wanted_value_cls=bool)
+def is_init():
+    return conf.init_mods.get(config.ModuleName.JOBS, False)
 

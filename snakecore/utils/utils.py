@@ -6,9 +6,7 @@ Copyright (c) 2020-present PygameCommunityDiscord
 This file defines some important utility functions.
 """
 
-from collections.abc import Mapping
 import datetime
-import fractions
 import os
 import platform
 import re

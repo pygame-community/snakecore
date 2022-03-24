@@ -11,7 +11,7 @@ from typing import Optional, Type, Union
 
 import discord
 
-from snakecore import config
+from snakecore import conf
 from snakecore.exceptions import SnakeCoreException
 from snakecore.utils import recursive_dict_compare
 
@@ -152,12 +152,7 @@ class UserSerializer(DiscordObjectBaseSerializer):
         if always_fetch is None:
             always_fetch = self.ALWAYS_FETCH_ON_ASYNC_RECONSTRUCT
 
-        client: discord.Client = (
-            config.get_value("global_client", wanted_value_cls=discord.Client)
-            if client is None
-            else client
-        )
-
+        client = conf.global_client if client is None else client
         user = client.get_user(self._dict["user_id"])
         if user is None:
             if always_fetch:
@@ -187,12 +182,7 @@ class MemberSerializer(DiscordObjectBaseSerializer):
         if always_fetch is None:
             always_fetch = self.ALWAYS_FETCH_ON_ASYNC_RECONSTRUCT
 
-        client: discord.Client = (
-            config.get_value("global_client", wanted_value_cls=discord.Client)
-            if client is None
-            else client
-        )
-
+        client = conf.global_client if client is None else client
         guild = client.get_guild(self._dict["guild_id"])
         if guild is None:
             if always_fetch:
@@ -232,12 +222,7 @@ class GuildSerializer(DiscordObjectBaseSerializer):
         if always_fetch is None:
             always_fetch = self.ALWAYS_FETCH_ON_ASYNC_RECONSTRUCT
 
-        client: discord.Client = (
-            config.get_value("global_client", wanted_value_cls=discord.Client)
-            if client is None
-            else client
-        )
-
+        client = conf.global_client if client is None else client
         guild = client.get_guild(self._dict["guild_id"])
         if guild is None:
             if always_fetch:
@@ -260,11 +245,7 @@ class EmojiSerializer(DiscordObjectBaseSerializer):
         }
 
     def deserialized(self, client: Optional[discord.Client] = None):
-        client: discord.Client = (
-            config.get_value("global_client", wanted_value_cls=discord.Client)
-            if client is None
-            else client
-        )
+        client = conf.global_client if client is None else client
         emoji = client.get_emoji(self._dict["emoji_id"])
         if emoji is None:
             raise DeserializationError(
@@ -365,12 +346,7 @@ class RoleSerializer(DiscordObjectBaseSerializer):
         if always_fetch is None:
             always_fetch = self.ALWAYS_FETCH_ON_ASYNC_RECONSTRUCT
 
-        client: discord.Client = (
-            config.get_value("global_client", wanted_value_cls=discord.Client)
-            if client is None
-            else client
-        )
-
+        client = conf.global_client if client is None else client
         guild = client.get_guild(self._dict["guild_id"])
 
         if guild is None:
@@ -607,12 +583,7 @@ class MessageSerializer(DiscordObjectBaseSerializer):
         if always_fetch is None:
             always_fetch = self.ALWAYS_FETCH_ON_ASYNC_RECONSTRUCT
 
-        client: discord.Client = (
-            config.get_value("global_client", wanted_value_cls=discord.Client)
-            if client is None
-            else client
-        )
-
+        client = conf.global_client if client is None else client
         channel = client.get_channel(self._dict["channel_id"])
 
         if channel is None:
@@ -671,12 +642,7 @@ class ChannelSerializer(DiscordObjectBaseSerializer):
         if always_fetch is None:
             always_fetch = self.ALWAYS_FETCH_ON_ASYNC_RECONSTRUCT
 
-        client: discord.Client = (
-            config.get_value("global_client", wanted_value_cls=discord.Client)
-            if client is None
-            else client
-        )
-
+        client = conf.global_client if client is None else client
         channel = client.get_channel(self._dict["id"])
         if channel is None:
             if always_fetch:
@@ -703,12 +669,7 @@ class GuildChannelSerializer(ChannelSerializer):
         if always_fetch is None:
             always_fetch = self.ALWAYS_FETCH_ON_ASYNC_RECONSTRUCT
 
-        client: discord.Client = (
-            config.get_value("global_client", wanted_value_cls=discord.Client)
-            if client is None
-            else client
-        )
-
+        client = conf.global_client if client is None else client
         guild = client.get_guild(self._dict["guild_id"])
         if guild is None:
             if always_fetch:
