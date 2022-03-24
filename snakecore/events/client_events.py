@@ -11,7 +11,7 @@ import datetime
 from typing import Optional, Sequence, Union
 
 import discord
-from snakecore import config
+from snakecore import conf
 
 from . import base_events
 
@@ -245,11 +245,7 @@ class _OnRawReactionToggle(OnRawReactionBase):
 
     async def as_unraw(self, client: Optional[discord.Client] = None):
         user = None
-        client: discord.Client = (
-            config.get_value("global_client", wanted_value_cls=discord.Client)
-            if client is None
-            else client
-        )
+        client = conf.global_client if client is None else client
         if (
             self.payload.guild_id
             and self.payload.member is not None

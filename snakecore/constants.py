@@ -6,10 +6,8 @@ Copyright (c) 2020-present PygameCommunityDiscord
 This file defines some constants used across the library.
 """
 
-from typing import Any
 
-
-class _UnsetValue:
+class _UnsetType:
     __slots__ = ()
 
     def __eq__(self, other):
@@ -25,8 +23,7 @@ class _UnsetValue:
         return "UnsetValue"
 
 
-UNSET: Any = _UnsetValue()
-UNSET_TYPE = _UnsetValue
+UNSET = _UnsetType()
 
 
 # helpful constants

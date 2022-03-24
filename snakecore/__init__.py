@@ -1,8 +1,8 @@
 from typing import Optional, Union
 import discord
 
-from .constants import UNSET, UNSET_TYPE
-from . import config, utils, command_handler, db, jobs
+from . import utils, command_handler, db, jobs
+from .config import conf
 
 __title__ = "snakecore"
 __author__ = "PygameCommunityDiscord"
@@ -11,17 +11,13 @@ __copyright__ = "Copyright 2022-present PygameCommunityDiscord"
 __version__ = "0.1.0"
 
 
-def init(client: Union[UNSET_TYPE, discord.Client] = UNSET):
-    if not isinstance(client, (discord.Client, UNSET_TYPE)):
-        raise TypeError(
-            f"argument 'client' must be None or of type discord.Client,"
-            f" not {client.__class__.__name__}"
-        )
+def init(client: Optional[discord.Client] = None):
+    if client is not None and not conf.is_set("global_client"):
+        conf.global_client = client
 
-    config.set_value("global_client", client)
     utils.init(client=client)
-    config.set_value("snakecore_is_init", True)
+    conf.init_mods[config.ModuleName.SNAKECORE] = True
 
 
-def is_init() -> bool:
-    return config.get_value("snakecore_is_init", wanted_value_cls=bool)
+def is_init():
+    return conf.init_mods.get(config.ModuleName.SNAKECORE, False)
