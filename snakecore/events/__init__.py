@@ -7,7 +7,7 @@ This module implements classes for representing generic event objects using OOP 
 """
 from typing import Optional
 
-from snakecore import conf
+from snakecore import conf, config
 
 from .base_events import BaseEvent, CustomEvent
 from .client_events import *
