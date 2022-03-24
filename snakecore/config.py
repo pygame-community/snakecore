@@ -3,109 +3,410 @@ This file is a part of the source code for snakecore.
 This project has been licensed under the MIT license.
 Copyright (c) 2020-present PygameCommunityDiscord
 
-This module defines some internal configuration variables used across the whole
-codebase. It is not meant to be used with `from ... import` statements, since the
-values of the variables defined in it can change at runtime.
-
-These configuration variables are only meant to be accessed and
-modified with the `get_value()` and `set_value()` functions.
+This module defines some internal configuration classes and utilities used
+throughout the codebase
 """
 
-from typing import Any, Optional, Type, Union
+from abc import ABC, abstractmethod
+from enum import Enum, auto
+from time import perf_counter
+from types import GenericAlias
+from typing import Any, Callable, Generic, Protocol, TypeVar, overload
+
 import discord
 
-from snakecore.constants import UNSET, UNSET_TYPE
+from .constants import _UnsetType, UNSET
+
+_T = TypeVar("_T", bound=object)
 
 
-EllipsisType = type(Ellipsis)
-NoneType = type(None)
-
-_all_vars = globals()
-
-# helper functions
-def get_value(
-    name: str,
-    default: Union[UNSET_TYPE, Any] = UNSET,
-    wanted_value_cls: Optional[Type] = None,
-) -> Any:
-    """Get the current value of the specified configuration variable.
-
-    Args:
-        name (str): The name of the target configuration variable.
-        default (Any): The value to return if no configuration variable was set.
-        wanted_value_cls (Optional[Type]): An optional type to indicate as the desired
-          type in the `RuntimeError` exception raised when a configuration value is
-          not set. `None` will be ignored as an argument. Defaults to None.
-
-     Returns:
-        object: The value of the specified configuration variable, or the `default`
-          return value, if set.
-
-    Raises:
-        KeyError: Argument `name` is not a valid configuration variable name.
-        RuntimeError: The value for the speficied configuration variable is not set.
+class _FieldContainer:
+    """
+    A dataclass to hold an internal BaseField record
     """
 
-    real_name = name
+    def __init__(self, var: Any, read_only: bool = False, write_once: bool = False):
+        self.var = var
+        self.read_only = read_only
+        self.write_once = write_once
 
-    if not name.startswith("config_"):
-        real_name = "config_" + name
+    def __repr__(self):
+        args = (
+            f"var={self.var}, read_only={self.read_only}, write_once={self.write_once}"
+        )
+        return f"<{self.__class__.__name__}({args})>"
 
-    if real_name not in _all_vars:
-        raise KeyError(f"Invalid configuration variable name: {name}")
 
-    value = _all_vars[real_name]
+class SupportsField(Protocol):
+    """
+    A class that implements this protocol supports BaseField.
+    This protocol is merely implemented for typechecking purposes, users
+    should inherit the 'ConfigurationBase'.
+    """
 
-    if value is UNSET:
-        if default is not UNSET:
-            return default
+    _priv_desc_data: dict[str, _FieldContainer]
 
-        raise RuntimeError(
-            f"the value for the configuration variable name '{name}' is not set"
-            + (
-                f" as an instance of class {wanted_value_cls.__name__}"
-                if wanted_value_cls is not None
-                else ""
+
+class BaseField(Generic[_T], ABC):
+    """
+    A base class for ConstantField and Field.
+    """
+
+    def __init__(self, init_val: _T):
+        """
+        Initialise a Field object with an initial value
+
+        Args:
+            init_val (_T): The default value for the Field.
+        """
+        self._init_val = init_val
+
+    def __set_name__(self, owner: SupportsField, name: str):
+        # owner unused for now
+        self._name = name
+
+    def __get__(self, obj: SupportsField, objtype=None) -> _T:
+        ret = obj._priv_desc_data[self._name].var
+        if ret is UNSET:
+            raise AttributeError(
+                f"No value was set for the configuration attribute '{self._name}'"
             )
-            + ", it is required for proper functioning of the module calling this function"
+
+        return ret
+
+    @abstractmethod
+    def _get_container(self) -> _FieldContainer:
+        """
+        Subclasses must implement a method to return a _FieldContainer record
+        """
+
+
+class ConstantField(BaseField[_T]):
+    """
+    Used to represent a field that is constant. Trying to overwrite the
+    descriptor results in an error at both typechecktime and runtime
+    """
+
+    def _get_container(self):
+        return _FieldContainer(self._init_val, read_only=True)
+
+
+class Field(BaseField[_T]):
+    """
+    Used to represent a modifiable field. Fields are type checked at runtime
+    during assignment to a new value
+    """
+
+    # overloads are implemented solely for the benefits of static typecheckers
+
+    # passing init val, cannot pass constructor
+    @overload
+    def __init__(self, *, init_val: _T, var_type: type[_T] = _UnsetType):
+        """
+        Initialise a Field object with an initial value and an optional type
+
+        Args:
+            init_val (_T): The default value for the Field.
+            var_type (type[_T], optional)
+              The explicit type(s) to enforce on assigment to the field.
+              This primarily exists to allow wider types than the default value
+              If this argument is not passed, it infers type from the default
+              value and only allows the specific type.
+
+        Raises:
+            ValueError: Invalid values for the specified arguments.
+            TypeError: Invalid types for the specified arguments.
+        """
+
+    # passing constructor, cannot pass init val. var_type is mandatory here
+    @overload
+    def __init__(self, *, init_constr: Callable[[], _T], var_type: type[_T]):
+        """
+        Initialise a Field object with an initial constructor and type
+
+        Args:
+            init_constr (Callable[[], _T]): The constructor used to make a
+              default value. Passing a constructor is useful while dealing
+              with mutable types
+            var_type (type[_T]): The explicit type(s) to enforce on assigment
+              to the field.
+
+        Raises:
+            ValueError: Invalid values for the specified arguments.
+            TypeError: Invalid types for the specified arguments.
+        """
+
+    # neither init val not constructor was passed, in this case var_type is
+    # a mandatory argument, and write_once can be passed, which is false by
+    # default
+    @overload
+    def __init__(self, *, var_type: type[_T], write_once: bool = False):
+        """
+        Initialise a Field object with a type. In this case, the field remains
+        in unset state till the first assignment
+
+        Args:
+            var_type (type[_T]): The explicit type(s) to enforce on assigment
+              to the field.
+            write_once (bool=False, optional)
+
+        Raises:
+            ValueError: Invalid values for the specified arguments.
+            TypeError: Invalid types for the specified arguments.
+        """
+
+    # actual implementation of __init__
+    def __init__(
+        self,
+        *,
+        init_val: _T = UNSET,
+        init_constr: Callable[[], _T] = _UnsetType,
+        var_type: type[_T] = _UnsetType,
+        write_once: bool = False,
+    ):
+        self._init_val = init_val
+        self._init_constr = init_constr
+        self._var_type = var_type
+        self._write_once = write_once
+
+        if self._init_val is UNSET:
+            if self._var_type is _UnsetType:
+                raise ValueError(
+                    "Argument 'var_type' must be set when 'init_val' is not passed"
+                )
+
+            if self._init_constr is not _UnsetType:
+                if not callable(self._init_constr):
+                    raise TypeError(
+                        "Argument 'init_constr' must be a callable if passed"
+                    )
+
+                if write_once:
+                    raise ValueError(
+                        "Arguments 'write_once' cannot be passed when "
+                        "'init_constr' is set"
+                    )
+
+        else:
+            if write_once:
+                raise ValueError(
+                    "Arguments 'write_once' cannot be passed when 'init_val' is set"
+                )
+
+            if self._init_constr is not _UnsetType:
+                # setting both is an error
+                raise ValueError(
+                    "Arguments 'init_val' and 'init_constr' must not be set "
+                    "simultaneously"
+                )
+
+            if self._var_type is _UnsetType:
+                # auto determine type when init_val is available
+                self._var_type = type(init_val)
+
+        # isinstance checks can't handle a GenericAlias
+        if isinstance(self._var_type, GenericAlias):
+            self._var_type = self._var_type.__origin__
+
+    def validate(self, obj: _T):
+        """
+        The setter calls this method to inspect an object before setting it.
+        Subclasses can override this class and implement more logic
+        """
+        if not isinstance(obj, self._var_type):
+            raise TypeError(
+                f"Assignments to the configuration attribute '{self._name}' "
+                f"must be an instance of {self._var_type}, not "
+                f"{obj.__class__.__name__}"
+            )
+
+    def __set__(self, obj: SupportsField, value: _T):
+        rec = obj._priv_desc_data[self._name]
+        if rec.write_once and rec.var is not UNSET:
+            raise AttributeError(
+                "A value was already set for the write-once configuration "
+                f"attribute '{self._name}'"
+            )
+
+        self.validate(value)
+        rec.var = value
+
+    def _get_container(self):
+        val = self._init_val if self._init_constr is _UnsetType else self._init_constr()
+        if val is not UNSET:
+            self.validate(val)
+
+        return _FieldContainer(val, write_once=self._write_once)
+
+
+class ConfigurationBase(SupportsField):
+    def __init__(self):
+        self._priv_desc_data = {}
+
+        for name, val in self.__class__.__dict__.items():
+            if isinstance(val, BaseField):
+                self._priv_desc_data[name] = val._get_container()
+
+    def is_set(self, name: str):
+        """
+        Whether the speficied variable name is set
+
+        Args:
+            name (str): The name of the target variable.
+
+        Returns:
+            bool: True/False
+
+        Raises:
+            AttributeError: Unknown attribute name.
+        """
+        return self._priv_desc_data[name].var is not UNSET
+
+    def is_read_only(self, name: str):
+        """
+        Whether the speficied variable name is read-only.
+
+        Args:
+            name (str): The name of the target variable.
+
+        Returns:
+            bool: True/False
+
+        Raises:
+            AttributeError: Unknown attribute name.
+        """
+        return self._priv_desc_data[name].read_only
+
+    def is_write_once(self, name: str):
+        """
+        Whether the speficied variable name is write-once, which behaves like
+        being read-only after one assignment has occured.
+
+        Args:
+            name (str): The name of the target variable.
+
+        Returns:
+            bool: True/False
+
+        Raises:
+            AttributeError: Unknown variable name.
+        """
+        return self._priv_desc_data[name].write_once
+
+    def __contains__(self, name: Any):
+        if not isinstance(name, str):
+            return False
+
+        return name in self._priv_desc_data
+
+    def __setattr__(self, name: str, val: Any):
+        if "_priv_desc_data" in dir(self) and name in self and self.is_read_only(name):
+            # tried to set a read-only attribute
+            raise AttributeError("Cannot modify a read-only attribute")
+
+        super().__setattr__(name, val)
+
+    def __repr__(self):
+        return (
+            f"<{self.__class__.__name__}("
+            + ", ".join(f"{k}={v}" for k, v in self._priv_desc_data.items())
+            + ")>"
         )
 
-    return value
+
+class ModuleName(Enum):
+    SNAKECORE = auto()
+    UTILS = auto()
+    EVENTS = auto()
 
 
-def set_value(name: str, value: Any, ignore_if_set: bool = False):
-    """Set the new value for the specified configuration variable.
-
-    Args:
-        name (str): The name of the target configuration variable.
-        value (Any): The new value to set.
-        ignore_if_set (bool, optional): Whether to only set a new value
-          if another value has not already been set. Defaults to False.
-
-    Raises:
-        KeyError: Argument `name` is not a valid configuration variable name.
+class CoreConfig(ConfigurationBase):
+    """
+    Configuration variables used by snakecore itself
     """
 
-    real_name = name
-
-    if not name.startswith("config_"):
-        real_name = "config_" + name
-
-    if real_name not in _all_vars:
-        raise KeyError(f"Invalid configuration variable name: {name}")
-
-    old_value = _all_vars[real_name]
-
-    if old_value is UNSET or not ignore_if_set:
-        _all_vars[real_name] = value
+    global_client = Field(var_type=discord.Client, write_once=True)
+    init_mods = Field(init_constr=dict, var_type=dict[ModuleName, bool])
 
 
-# configuration variables
+conf = CoreConfig()
 
-# default client object
-config_global_client: Union[UNSET_TYPE, discord.Client] = UNSET
+if __name__ == "__main__":
+    # a few tests to make sure the config system is working
+    # TODO: move these tests to unit tests directory and expand on this
 
-# init-flags
-config_snakecore_is_init = False
-config_utils_is_init = False
-config_events_is_init = False
+    class Configuration(ConfigurationBase):
+        a = 6
+        b = Field(init_val=4.5)
+
+        try:
+            # expected error
+            c = Field()
+        except ValueError:
+            pass
+        else:
+            raise RuntimeError("This should have failed!")
+
+        # 'd' looks like 'Field[list[str] | _UnsetType]' at typecheck time, but
+        # will be a list and checked for list at runtime. Will also fail at
+        # runtime if this is modified
+        d = ConstantField("test")
+
+        # 'e' looks like 'Field[tuple[int, int, int]]' at typecheck time, but
+        # will be a list and checked for tuple at runtime
+        e = Field(init_val=(1, 2, 3), var_type=tuple[int, int, int])
+
+    class FailConfiguration(ConfigurationBase):
+        # expected error, mismatching types. This fails when the class is
+        # instantiated
+        f = Field(init_val=1, var_type=list[int])
+
+    try:
+        var = FailConfiguration()
+    except TypeError:
+        pass
+    else:
+        raise RuntimeError("This should have failed!")
+
+    c = Configuration()
+    v = None
+
+    t0 = perf_counter()
+    v = c.a
+    dt0 = perf_counter() - t0
+    print("getting speed for regular attribute:", dt0)
+
+    t0 = perf_counter()
+    c.a = 3
+    dt0 = perf_counter() - t0
+    print("setting speed for regular attribute:", dt0)
+
+    t0 = perf_counter()
+    v = c.b
+    dt0 = perf_counter() - t0
+    print("getting speed for Field:", dt0)
+
+    t0 = perf_counter()
+    c.b = 10.2
+    dt0 = perf_counter() - t0
+    print("setting speed for Field:", dt0)
+
+    try:
+        # expected error, modifying ConstantField
+        c.d = "sus".replace("s", "u")
+    except AttributeError:
+        pass
+    else:
+        raise RuntimeError("This should have failed!")
+
+    # should pass
+    c.e = (4, 5, 6)
+
+    try:
+        # expected error, wrong type
+        c.e = None
+
+    except TypeError:
+        pass
+    else:
+        raise RuntimeError("This should have failed!")
