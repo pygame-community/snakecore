@@ -109,3 +109,4 @@ config_global_client: Union[UNSET_TYPE, discord.Client] = UNSET
 config_snakecore_is_init = False
 config_utils_is_init = False
 config_events_is_init = False
+config_jobs_is_init = False
