@@ -12,9 +12,9 @@ import datetime
 import itertools
 from types import FunctionType
 from typing import Any, Callable, Optional, Sequence, Type, Union
+
 from snakecore import events
 from snakecore.constants import UNSET
-
 from .jobs import (
     JobPermissionLevels,
     EventJobBase,
@@ -23,8 +23,6 @@ from .jobs import (
 )
 
 from . import manager
-
-JobManager = manager.JobManager
 
 
 class JobProxy:
@@ -716,7 +714,7 @@ class JobManagerProxy:
         self.__j = job
         self._job_stop_timeout = None
 
-    is_running = JobManager.is_running
+    is_running = manager.JobManager.is_running
 
     def get_job_stop_timeout(self):  # placeholder method with docstring
         """Get the maximum time period in seconds for the job object managed
@@ -764,41 +762,41 @@ class JobManagerProxy:
         """
         ...
 
-    create_job = JobManager.create_job
+    create_job = manager.JobManager.create_job
 
-    initialize_job = JobManager.initialize_job
+    initialize_job = manager.JobManager.initialize_job
 
-    register_job = JobManager.register_job
+    register_job = manager.JobManager.register_job
 
-    create_and_register_job = JobManager.create_and_register_job
+    create_and_register_job = manager.JobManager.create_and_register_job
 
-    job_scheduling_is_initialized = JobManager.job_scheduling_is_initialized
+    job_scheduling_is_initialized = manager.JobManager.job_scheduling_is_initialized
 
     wait_for_job_scheduling_initialization = (
-        JobManager.wait_for_job_scheduling_initialization
+        manager.JobManager.wait_for_job_scheduling_initialization
     )
 
     wait_for_job_scheduling_uninitialization = (
-        JobManager.wait_for_job_scheduling_uninitialization
+        manager.JobManager.wait_for_job_scheduling_uninitialization
     )
 
-    create_job_schedule = JobManager.create_job_schedule
+    create_job_schedule = manager.JobManager.create_job_schedule
 
-    get_job_schedule_identifiers = JobManager.get_job_schedule_identifiers
+    get_job_schedule_identifiers = manager.JobManager.get_job_schedule_identifiers
 
-    job_schedule_has_failed = JobManager.job_schedule_has_failed
+    job_schedule_has_failed = manager.JobManager.job_schedule_has_failed
 
-    has_job_schedule = JobManager.has_job_schedule
+    has_job_schedule = manager.JobManager.has_job_schedule
 
-    remove_job_schedule = JobManager.remove_job_schedule
+    remove_job_schedule = manager.JobManager.remove_job_schedule
 
-    restart_job = JobManager.restart_job
+    restart_job = manager.JobManager.restart_job
 
-    start_job = JobManager.start_job
+    start_job = manager.JobManager.start_job
 
-    stop_job = JobManager.stop_job
+    stop_job = manager.JobManager.stop_job
 
-    kill_job = JobManager.kill_job
+    kill_job = manager.JobManager.kill_job
 
     def get_guarded_jobs(self) -> tuple:
         """Get the jobs currently being guarded by the manager,
@@ -809,9 +807,9 @@ class JobManagerProxy:
         """
         ...
 
-    guard_job = JobManager.guard_job
+    guard_job = manager.JobManager.guard_job
 
-    unguard_job = JobManager.unguard_job
+    unguard_job = manager.JobManager.unguard_job
 
     def has_job(self, job_proxy: JobProxy) -> bool:
         """Whether a specific job object is currently in this
@@ -827,13 +825,13 @@ class JobManagerProxy:
 
     __contains__ = has_job
 
-    has_job_identifier = JobManager.has_job_identifier
+    has_job_identifier = manager.JobManager.has_job_identifier
 
 
 class _JobManagerProxy:  # hidden implementation to trick type-checker engines
     __slots__ = ("__mgr", "__j", "_job_stop_timeout")
 
-    def __init__(self, mgr: JobManager, job):
+    def __init__(self, mgr: manager.JobManager, job):
         self.__mgr = mgr
         self.__j = job
         self._job_stop_timeout = None

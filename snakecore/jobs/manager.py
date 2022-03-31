@@ -14,6 +14,19 @@ import pickle
 import time
 from typing import Any, Callable, Coroutine, Literal, Optional, Sequence, Type, Union
 
+import discord
+
+from snakecore.constants.enums import (
+    _JOB_VERBS_PRES_CONT,
+    JobPermissionLevels,
+    JobVerbs,
+)
+from snakecore.exceptions import (
+    JobError,
+    JobInitializationError,
+    JobPermissionError,
+    JobStateError,
+)
 from snakecore.utils import utils
 from snakecore import events
 from .jobs import (
@@ -21,18 +34,12 @@ from .jobs import (
     IntervalJobBase,
     _SingletonMixinJobBase,
     JobManagerJob,
-    JobError,
-    JobStateError,
-    JobInitializationError,
-    JobPermissionError,
-    JobVerbs,
-    _JOB_VERBS_PRES_CONT,
-    JobPermissionLevels,
     get_job_class_from_scheduling_identifier,
     get_job_class_from_runtime_identifier,
     get_job_class_permission_level,
     get_job_class_scheduling_identifier,
 )
+
 
 class JobManager:
     """The job manager for all interval jobs and event jobs.
@@ -58,7 +65,7 @@ class JobManager:
 
         self._created_at = datetime.datetime.now(datetime.timezone.utc)
         self._identifier = (
-            f"{id(self)}-" f"{int(self._created_at.timestamp()*1_000_000_000)}"
+            f"{id(self)}-{int(self._created_at.timestamp()*1_000_000_000)}"
         )
 
         self._loop = loop
@@ -191,7 +198,7 @@ class JobManager:
     def _pickle_dict(target_dict):
         if not isinstance(target_dict, dict):
             raise TypeError(
-                f"argument 'target_dict' must be of type 'dict', "
+                "argument 'target_dict' must be of type 'dict', "
                 f"not {target_dict.__class__}"
             )
 
@@ -286,7 +293,7 @@ class JobManager:
                         )
                         if job_class is None:
                             print(
-                                f"Job initiation failed: Could not find job class "
+                                "Job initiation failed: Could not find job class "
                                 "with a scheduling identifier of "
                                 f'\'{schedule_data["class_scheduling_identifier"]}\''
                             )
@@ -503,7 +510,7 @@ class JobManager:
             data_set = set(data_set)
         else:
             raise TypeError(
-                f"argument 'data' must be of type 'dict' or 'bytes'"
+                "argument 'data' must be of type 'dict' or 'bytes'"
                 f" (pickle data of a list), not {data.__class__.__name__}"
             )
 
@@ -686,7 +693,7 @@ class JobManager:
                 raise JobPermissionError(
                     f"insufficient permission level of {invoker_cls.__qualname__} "
                     f"({invoker_cls_permission_level.name}) "
-                    f"for dispatching custom events to job objects "
+                    "for dispatching custom events to job objects "
                 )
             return False
 
@@ -698,7 +705,7 @@ class JobManager:
                 raise JobPermissionError(
                     f"insufficient permission level of {invoker_cls.__qualname__} "
                     f"({invoker_cls_permission_level.name}) "
-                    f"for dispatching non-custom events to job objects "
+                    "for dispatching non-custom events to job objects "
                 )
             return False
 
@@ -999,7 +1006,14 @@ class JobManager:
             try:
                 await job._INITIALIZE_EXTERNAL()
                 job._initialized = True
-            except Exception:
+            except (
+                ValueError,
+                TypeError,
+                LookupError,
+                JobError,
+                AssertionError,
+                discord.DiscordException,
+            ):
                 job._initialized = False
                 if raise_exceptions:
                     raise
@@ -1140,7 +1154,8 @@ class JobManager:
 
         if not issubclass(cls, (EventJobBase, IntervalJobBase)):
             raise TypeError(
-                f"argument 'cls' must be of a subclass of 'EventJobBase' or 'IntervalJobBase', not '{cls}'"
+                "argument 'cls' must be of a subclass of 'EventJobBase' or "
+                f"'IntervalJobBase', not '{cls}'"
             ) from None
 
         if isinstance(_iv, (EventJobBase, IntervalJobBase)):
@@ -1379,7 +1394,8 @@ class JobManager:
                     return True
 
             raise KeyError(
-                f"cannot find any scheduled operation with the identifier '{schedule_identifier}'"
+                "cannot find any scheduled operation with the identifier "
+                f"'{schedule_identifier}'"
             )
 
         return True
@@ -1459,7 +1475,7 @@ class JobManager:
             self._interval_job_ids.add(job._identifier)
         else:
             raise TypeError(
-                f"expected an instance of EventJobBase or IntervalJobBase subclasses, "
+                "expected an instance of EventJobBase or IntervalJobBase subclasses, "
                 f"not {job.__class__.__qualname__}"
             ) from None
 
@@ -1489,7 +1505,7 @@ class JobManager:
         """
         if not isinstance(job, (EventJobBase, IntervalJobBase)):
             raise TypeError(
-                f"expected an instance of class EventJobBase or IntervalJobBase "
+                "expected an instance of class EventJobBase or IntervalJobBase "
                 f", not {job.__class__.__qualname__}"
             ) from None
 
@@ -1620,7 +1636,7 @@ class JobManager:
             ) from None
 
         raise TypeError(
-            f"the arguments 'identifier' and 'created_at' cannot both be None"
+            "the arguments 'identifier' and 'created_at' cannot both be None"
         ) from None
 
     def find_jobs(
@@ -1728,7 +1744,8 @@ class JobManager:
                     classes = (classes,)
                 else:
                     raise TypeError(
-                        f"'classes' must be a tuple of 'EventJobBase' or 'IntervalJobBase' subclasses or a single subclass"
+                        "'classes' must be a tuple of 'EventJobBase' or 'IntervalJobBase' "
+                        "subclasses or a single subclass"
                     ) from None
 
             elif isinstance(classes, tuple):
@@ -1736,7 +1753,8 @@ class JobManager:
                     issubclass(c, (EventJobBase, IntervalJobBase)) for c in classes
                 ):
                     raise TypeError(
-                        f"'classes' must be a tuple of 'EventJobBase' or 'IntervalJobBase' subclasses or a single subclass"
+                        "'classes' must be a tuple of 'EventJobBase' or 'IntervalJobBase' "
+                        "subclasses or a single subclass"
                     ) from None
 
             if exact_class_match:
@@ -1751,7 +1769,7 @@ class JobManager:
                 filter_functions.append(lambda job: job.created_at < created_before)
             else:
                 raise TypeError(
-                    f"'created_before' must be of type 'datetime.datetime', not "
+                    "'created_before' must be of type 'datetime.datetime', not "
                     f"{type(created_before)}"
                 ) from None
 
@@ -1762,7 +1780,7 @@ class JobManager:
                 )
             else:
                 raise TypeError(
-                    f"'created_after' must be of type 'datetime.datetime', not "
+                    "'created_after' must be of type 'datetime.datetime', not "
                     f"{type(created_after)}"
                 ) from None
 
@@ -1770,7 +1788,7 @@ class JobManager:
             if not isinstance(permission_level, JobPermissionLevels):
                 raise TypeError(
                     "argument 'permission_level' must be an enum value from the "
-                    f"JobPermissionLevels enum"
+                    "JobPermissionLevels enum"
                 )
 
             filter_functions.append(
@@ -1781,7 +1799,7 @@ class JobManager:
             if not isinstance(below_permission_level, JobPermissionLevels):
                 raise TypeError(
                     "argument 'below_permission_level' must be an enum value from the "
-                    f"JobPermissionLevels enum"
+                    "JobPermissionLevels enum"
                 )
 
             filter_functions.append(
@@ -1792,7 +1810,7 @@ class JobManager:
             if not isinstance(above_permission_level, JobPermissionLevels):
                 raise TypeError(
                     "argument 'above_permission_level' must be an enum value from the "
-                    f"JobPermissionLevels enum"
+                    "JobPermissionLevels enum"
                 )
 
             filter_functions.append(

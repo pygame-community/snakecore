@@ -597,6 +597,7 @@ def recursive_dict_delete(
                 del old_dict[k]
     return old_dict
 
+
 def chainmap_getitem(map: ChainMap, key: Any):
     """A better approach to looking up from
     ChainMap objects, by treating inner

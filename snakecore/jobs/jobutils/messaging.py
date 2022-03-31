@@ -6,15 +6,19 @@ Copyright (c) 2022-present PygameCommunityDiscord
 This file implements job classes for scheduling Discord communication methods as jobs. 
 """
 
-from typing import Optional, Union
 import io
+from typing import Optional, Union
+
 import discord
-from snakecore.jobs.jobs import IntervalJobBase, JobPermissionLevels
+
+from snakecore.constants.enums import JobPermissionLevels
+from snakecore.jobs.jobs import IntervalJobBase
 from snakecore.jobs.groupings import OutputNameRecord
 from snakecore import config
 from snakecore.utils import embed_utils, serializers
 
 NoneType = type(None)
+
 
 class MessageSend(
     IntervalJobBase,

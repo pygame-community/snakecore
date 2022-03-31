@@ -15,3 +15,24 @@ class SnakeCoreException(Exception):
 ## serializers
 class DeserializationError(SnakeCoreException):
     """Failed to deserialize the serialized data of a serializer object."""
+
+
+# jobs/
+class JobError(Exception):
+    """Generic job object error."""
+
+
+class JobPermissionError(JobError):
+    """Job object permisssion error."""
+
+
+class JobStateError(JobError):
+    """An invalid job object state is preventing an operation."""
+
+
+class JobInitializationError(JobError):
+    """Initialization of a job object failed, or is required."""
+
+
+class JobWarning(Warning):
+    """Base class for job related warnings."""

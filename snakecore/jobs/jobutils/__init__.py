@@ -9,7 +9,12 @@ This module implements utility job classes.
 import asyncio
 from collections import deque
 from typing import Any, Callable, Coroutine, Optional
-from snakecore.jobs.jobs import IntervalJobBase, EventJobBase, JobPermissionLevels, publicjobmethod
+
+import discord
+
+from snakecore.constants.enums import JobPermissionLevels
+from snakecore.exceptions import JobError
+from snakecore.jobs.jobs import IntervalJobBase, EventJobBase, publicjobmethod
 from snakecore.jobs.proxies import JobProxy
 from snakecore import events
 from snakecore.utils import serializers
@@ -69,6 +74,7 @@ class RegisterDelayedJobGroup(JobGroup):
 
         class OutputQueues(OutputNameRecord):
             successes: str
+            failures: str
 
         class PublicMethods(NameRecord):
             get_successes_async: Optional[Callable[[], Coroutine]]
@@ -96,8 +102,16 @@ class RegisterDelayedJobGroup(JobGroup):
                 job_proxy = self.data.jobs.popleft()
                 try:
                     await self.manager.register_job(job_proxy)
-                except Exception:
+                except (
+                    ValueError,
+                    TypeError,
+                    LookupError,
+                    JobError,
+                    AssertionError,
+                    discord.DiscordException,
+                ):
                     self.data.failure_jobs.append(job_proxy)
+                    self.push_output_queue("failures", job_proxy)
                 else:
                     self.data.success_jobs.append(job_proxy)
                     self.push_output_queue("successes", job_proxy)

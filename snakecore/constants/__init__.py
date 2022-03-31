@@ -6,7 +6,11 @@ Copyright (c) 2022-present PygameCommunityDiscord
 This file defines some constants used across the library.
 """
 
+import asyncio
 from typing import Any
+from aiohttp import ClientError
+
+import discord
 
 from .enums import *
 
@@ -52,8 +56,19 @@ class _UnsetType(metaclass=_SingletonMeta):
         return "Unset"
 
 
+# sentinel singleton for unused variables
 UNSET: Any = _UnsetType()
 
 # helpful constants
 BASIC_MAX_FILE_SIZE = 8_000_000  # bytes
 ZERO_SPACE = "\u200b"  # U+200B
+
+DEFAULT_JOB_EXCEPTION_WHITELIST = (
+    OSError,
+    discord.GatewayNotFound,
+    discord.ConnectionClosed,
+    ClientError,
+    asyncio.TimeoutError,
+)
+"""The default exceptions handled in discord.ext.tasks.Loop
+upon reconnecting."""
