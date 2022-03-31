@@ -1,9 +1,10 @@
 """
 This file is a part of the source code for snakecore.
 This project has been licensed under the MIT license.
-Copyright (c) 2020-present PygameCommunityDiscord
+Copyright (c) 2022-present PygameCommunityDiscord
 
-This module defines some utility functionality for the library and general bot development.
+This module defines some utility functionality for the library and general bot
+development.
 """
 
 from typing import Optional

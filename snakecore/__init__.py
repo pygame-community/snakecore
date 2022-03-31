@@ -1,3 +1,11 @@
+"""
+This file is a part of the source code for snakecore.
+This project has been licensed under the MIT license.
+Copyright (c) 2022-present PygameCommunityDiscord
+
+A set of core APIs to facilitate the creation of feature-rich Discord bots.
+"""
+
 from typing import Optional, Union
 import discord
 

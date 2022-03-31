@@ -1,7 +1,7 @@
 """
 This file is a part of the source code for snakecore.
 This project has been licensed under the MIT license.
-Copyright (c) 2020-present PygameCommunityDiscord
+Copyright (c) 2022-present PygameCommunityDiscord
 
 This file implements wrapper classes used to capture Discord Gateway events.
 All classes inherit from `ClientEvent`, which inherits from `BaseEvents`. 
@@ -11,7 +11,7 @@ import datetime
 from typing import Optional, Sequence, Union
 
 import discord
-from snakecore import conf
+from snakecore import config
 
 from . import base_events
 
@@ -245,7 +245,7 @@ class _OnRawReactionToggle(OnRawReactionBase):
 
     async def as_unraw(self, client: Optional[discord.Client] = None):
         user = None
-        client = conf.global_client if client is None else client
+        client = config.conf.global_client if client is None else client
         if (
             self.payload.guild_id
             and self.payload.member is not None
