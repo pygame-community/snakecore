@@ -6,22 +6,34 @@ Copyright (c) 2022-present PygameCommunityDiscord
 This file implements job classes for scheduling Discord communication methods as jobs. 
 """
 
-from __future__ import annotations
 from typing import Optional, Union
 import io
 import discord
+from snakecore.jobs.jobs import IntervalJobBase, JobPermissionLevels
+from snakecore.jobs.groupings import OutputNameRecord
 from snakecore import config
-from snakecore.jobs import IntervalJobBase, PERM_LEVELS
 from snakecore.utils import embed_utils, serializers
 
 NoneType = type(None)
 
-class MessageSend(IntervalJobBase, permission_level=PERM_LEVELS.LOWEST):
+class MessageSend(
+    IntervalJobBase,
+    scheduling_identifier="87b81031-d606-4a95-b86a-2eb72b7eb7b1",
+    permission_level=JobPermissionLevels.LOWEST,
+):
     """A job class for sending a message into a
     discord text channel.
+
+    Permission Level:
+        JobPermissionLevels.LOWEST
+
+    Output Fields:
+        message: The message that was sent.
     """
 
-    OUTPUT_FIELDS = frozenset(("message",))
+    class OutputFields(OutputNameRecord):
+        message: str
+        "The message that was sent."
 
     DEFAULT_COUNT = 1
     DEFAULT_RECONNECT = False
@@ -77,7 +89,7 @@ class MessageSend(IntervalJobBase, permission_level=PERM_LEVELS.LOWEST):
         if not isinstance(self.data.channel, discord.abc.Messageable):
             if isinstance(self.data.channel, int):
                 channel_id = self.data.channel
-                client: discord.Client = config.get_value("global_client", wanted_value_cls=discord.Client)
+                client = config.conf.global_client
                 self.data.channel = client.get_channel(channel_id)
                 if self.data.channel is None:
                     self.data.channel = await client.fetch_channel(channel_id)
@@ -164,17 +176,20 @@ class MessageSend(IntervalJobBase, permission_level=PERM_LEVELS.LOWEST):
         msg = await self.data.channel.send(**self.data.kwargs)
         self.set_output_field("message", msg)
 
-    async def on_stop(self, reason, by_force):
-        if self.failed():
+    async def on_stop(self):
+        if self.run_failed():
             if self.data.kill_if_failed:
                 self.KILL()
         else:
             self.COMPLETE()
 
 
-class _MessageModify(IntervalJobBase, permission_level=PERM_LEVELS.LOWEST):
+class _MessageModify(IntervalJobBase, permission_level=JobPermissionLevels.LOWEST):
     """A intermediary job class for modifying a message in a
     Discord text channel. Does not do anything on its own.
+
+    Permission Level:
+        JobPermissionLevels.LOWEST
     """
 
     DEFAULT_COUNT = 1
@@ -202,11 +217,10 @@ class _MessageModify(IntervalJobBase, permission_level=PERM_LEVELS.LOWEST):
         self.data.kill_if_failed = not not kill_if_failed
 
     async def on_init(self):
-        client: discord.Client = config.get_value("global_client", wanted_value_cls=discord.Client)
-
         if not isinstance(self.data.channel, discord.abc.Messageable):
             if isinstance(self.data.channel, int):
                 channel_id = self.data.channel
+                client = config.conf.global_client
                 self.data.channel = client.get_channel(channel_id)
                 if self.data.channel is None:
                     self.data.channel = await client.fetch_channel(channel_id)
@@ -232,17 +246,23 @@ class _MessageModify(IntervalJobBase, permission_level=PERM_LEVELS.LOWEST):
             else:
                 raise TypeError("Invalid type for argument 'message'")
 
-    async def on_stop(self, reason, by_force):
-        if self.failed():
+    async def on_stop(self):
+        if self.run_failed():
             if self.data.kill_if_failed:
                 self.KILL()
         else:
             self.COMPLETE()
 
 
-class MessageEdit(_MessageModify):
+class MessageEdit(
+    _MessageModify,
+    scheduling_identifier="d1918a58-b8ab-4a47-9a0b-f1f4be01de40",
+):
     """A job class for editing a message in a
     Discord text channel.
+
+    Permission Level:
+        JobPermissionLevels.LOWEST
     """
 
     def __init__(
@@ -309,9 +329,14 @@ class MessageEdit(_MessageModify):
         await self.data.message.edit(**self.data.kwargs)
 
 
-class MessageDelete(_MessageModify):
+class MessageDelete(
+    _MessageModify, scheduling_identifier="860055c6-4971-4046-925c-7cafae67d72b"
+):
     """A job class for deleting a message in a
     Discord text channel.
+
+    Permission Level:
+        JobPermissionLevels.LOWEST
     """
 
     def __init__(
@@ -347,8 +372,14 @@ class MessageDelete(_MessageModify):
         await self.data.message.delete(**self.data.kwargs)
 
 
-class ReactionAdd(_MessageModify):
-    """Adds a given reaction to a message."""
+class ReactionAdd(
+    _MessageModify, scheduling_identifier="151cf1a5-73c8-4542-ad17-9b9956d0ebbe"
+):
+    """Adds a given reaction to a message.
+
+    Permission Level:
+        JobPermissionLevels.LOWEST
+    """
 
     def __init__(
         self,
@@ -389,13 +420,12 @@ class ReactionAdd(_MessageModify):
 
     async def on_init(self):
         await super().on_init()
-        client: discord.Client = config.get_value("global_client", wanted_value_cls=discord.Client)
-        
         if not isinstance(
             self.data.emoji,
             (discord.Reaction, discord.Emoji, discord.PartialEmoji, str),
         ):
             if isinstance(self.data.emoji, int):
+                client = config.conf.global_client
                 emoji = client.get_emoji(self.data.emoji)
                 if emoji is None:
                     raise ValueError("invalid integer ID for 'emoji' argument")
@@ -412,8 +442,14 @@ class ReactionAdd(_MessageModify):
         await self.data.message.add_reaction(self.data.emoji)
 
 
-class ReactionsAdd(_MessageModify):
-    """Adds a sequence of reactions to a message."""
+class ReactionsAdd(
+    _MessageModify, scheduling_identifier="f26bdcb2-8d04-4bf5-82f8-778c7a8af834"
+):
+    """Adds a sequence of reactions to a message.
+
+    Permission Level:
+        JobPermissionLevels.LOWEST
+    """
 
     def __init__(
         self,
@@ -467,8 +503,6 @@ class ReactionsAdd(_MessageModify):
 
     async def on_init(self):
         await super().on_init()
-        client: discord.Client = config.get_value("global_client", wanted_value_cls=discord.Client)
-        
         for i in range(len(self.data.emojis)):
             emoji = self.data.emojis[i]
             if not isinstance(
@@ -476,6 +510,7 @@ class ReactionsAdd(_MessageModify):
                 (discord.Reaction, discord.Emoji, discord.PartialEmoji, str),
             ):
                 if isinstance(emoji, int):
+                    client = config.conf.global_client
                     emoji = client.get_emoji(emoji)
                     if emoji is None:
                         raise ValueError(
@@ -504,8 +539,14 @@ class ReactionsAdd(_MessageModify):
                 await message.add_reaction(emojis[i])
 
 
-class ReactionRemove(_MessageModify):
-    """Removes a given reaction from a message."""
+class ReactionRemove(
+    _MessageModify, scheduling_identifier="e1c474dd-1c56-43b9-91f4-7b74a1ddf1a0"
+):
+    """Removes a given reaction from a message.
+
+    Permission Level:
+        JobPermissionLevels.LOWEST
+    """
 
     def __init__(
         self,
@@ -552,13 +593,12 @@ class ReactionRemove(_MessageModify):
 
     async def on_init(self):
         await super().on_init()
-        client: discord.Client = config.get_value("global_client", wanted_value_cls=discord.Client)
-
         if not isinstance(
             self.data.emoji,
             (discord.Reaction, discord.Emoji, discord.PartialEmoji, str),
         ):
             if isinstance(self.data.emoji, int):
+                client = config.conf.global_client
                 emoji = client.get_emoji(self.data.emoji)
                 if emoji is None:
                     raise ValueError("invalid integer ID for 'emoji' argument")
@@ -581,8 +621,14 @@ class ReactionRemove(_MessageModify):
         await self.data.message.remove_reaction(self.data.emoji, self.data.member)
 
 
-class ReactionClearEmoji(_MessageModify):
-    """Clears a set of reactions from a message."""
+class ReactionClearEmoji(
+    _MessageModify, scheduling_identifier="59cf5461-ca9a-45c7-9010-2e5a97e26879"
+):
+    """Clears a set of reactions from a message.
+
+    Permission Level:
+        JobPermissionLevels.LOWEST
+    """
 
     def __init__(
         self,
@@ -623,14 +669,13 @@ class ReactionClearEmoji(_MessageModify):
         self.data.emoji = emoji
 
     async def on_init(self):
-        client: discord.Client = config.get_value("global_client", wanted_value_cls=discord.Client)
         await super().on_init()
-
         if not isinstance(
             self.data.emoji,
             (discord.Reaction, discord.Emoji, discord.PartialEmoji, str),
         ):
             if isinstance(self.data.emoji, int):
+                client = config.conf.global_client
                 emoji = client.get_emoji(self.data.emoji)
                 if emoji is None:
                     raise ValueError("invalid integer ID for 'emoji' argument")
@@ -647,8 +692,14 @@ class ReactionClearEmoji(_MessageModify):
         await self.data.message.clear_reaction(self.data.emoji)
 
 
-class ReactionClear(_MessageModify):
-    """Clears all reactions from a message."""
+class ReactionClear(
+    _MessageModify, scheduling_identifier="1637b978-64c1-420c-a12f-09f81fc613ac"
+):
+    """Clears all reactions from a message.
+
+    Permission Level:
+        JobPermissionLevels.LOWEST
+    """
 
     async def on_run(self):
         await self.data.message.clear_reactions()

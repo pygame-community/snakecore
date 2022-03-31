@@ -6,19 +6,18 @@ Copyright (c) 2022-present PygameCommunityDiscord
 A asynchronous job module based on OOP principles.
 """
 
+from typing import Optional
 import discord
-from snakecore import config, conf
 
-from snakecore.constants import UNSET
-from .base_jobs import (
-    get_job_class_from_id,
-    get_job_class_id,
+from snakecore import config
+from .jobs import (
+    get_job_class_from_runtime_identifier,
     get_job_class_permission_level,
     DEFAULT_JOB_EXCEPTION_WHITELIST,
-    JOB_STATUS,
-    JOB_VERBS,
-    JOB_STOP_REASONS,
-    PERM_LEVELS,
+    JobStatus,
+    JobVerbs,
+    JobStopReasons,
+    JobPermissionLevels,
     JobError,
     JobPermissionError,
     JobStateError,
@@ -33,16 +32,16 @@ from .base_jobs import (
     JobManagerJob,
 )
 from .manager import JobManager
-from .proxies import *
-from . import utils
+from .proxies import JobProxy, JobOutputQueueProxy, JobManagerProxy
+from .groupings import JobGroup
+from . import jobutils
 
 def init(client: Optional[discord.Client] = None):
-    if client is not None and not conf.is_set("global_client"):
-        conf.global_client = client
+    if client is not None and not config.conf.is_set("global_client"):
+        config.conf.global_client = client
 
-    conf.init_mods[config.ModuleName.JOBS] = True
+    config.conf.init_mods[config.ModuleName.JOBS] = True
 
 
 def is_init():
-    return conf.init_mods.get(config.ModuleName.JOBS, False)
-
+    return config.conf.init_mods.get(config.ModuleName.JOBS, False)

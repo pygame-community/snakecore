@@ -6,6 +6,7 @@ Copyright (c) 2020-present PygameCommunityDiscord
 This file defines some important utility functions.
 """
 
+from collections import ChainMap, defaultdict
 import datetime
 import os
 import platform
@@ -15,6 +16,8 @@ import traceback
 from typing import Any, Callable, Iterable, Optional, Union
 
 import discord
+
+from snakecore.constants import UNSET
 
 
 def join_readable(joins: list[str]):
@@ -593,3 +596,109 @@ def recursive_dict_delete(
             elif v != skip_value and k in old_dict:
                 del old_dict[k]
     return old_dict
+
+def chainmap_getitem(map: ChainMap, key: Any):
+    """A better approach to looking up from
+    ChainMap objects, by treating inner
+    defaultdict maps as a rare special case.
+
+    Args:
+        map (ChainMap): The ChainMap.
+        key (Any): The key.
+
+    Returns:
+        object: The lookup result.
+
+    Raises:
+        KeyError: key not found.
+    """
+    for mapping in map.maps:
+        if not isinstance(mapping, defaultdict):
+            if key in mapping:
+                return mapping[key]
+            continue
+
+        try:
+            return mapping[key]  # can't use 'key in mapping' with defaultdict
+        except KeyError:
+            pass
+    return map.__missing__(key)
+
+
+def class_getattr_unique(
+    cls: type,
+    name: str,
+    filter_func: Callable[[Any], bool] = lambda obj: True,
+    check_dicts_only: bool = False,
+    _id_set=None,
+) -> list[Any]:
+    values = []
+    value_obj = UNSET
+
+    if _id_set is None:
+        _id_set = set()
+
+    if check_dicts_only:
+        if name in cls.__dict__:
+            value_obj = cls.__dict__[name]
+    else:
+        if hasattr(cls, name):
+            value_obj = getattr(cls, name)
+
+    if (
+        value_obj is not UNSET
+        and id(value_obj) not in _id_set
+        and filter_func(value_obj)
+    ):
+        values.append(value_obj)
+        _id_set.add(id(value_obj))
+
+    for base_cls in cls.__mro__[1:]:
+        values.extend(
+            class_getattr_unique(
+                base_cls,
+                name,
+                filter_func=filter_func,
+                check_dicts_only=check_dicts_only,
+                _id_set=_id_set,
+            )
+        )
+    return values
+
+
+def class_getattr(
+    cls: type,
+    name: str,
+    default: Any = UNSET,
+    /,
+    filter_func: Callable[[Any], bool] = lambda obj: True,
+    check_dicts_only: bool = False,
+    _is_top_lvl=True,
+):
+    value_obj = UNSET
+    if check_dicts_only:
+        if name in cls.__dict__:
+            value_obj = cls.__dict__[name]
+    else:
+        if hasattr(cls, name):
+            value_obj = getattr(cls, name)
+
+    if value_obj is not UNSET and filter_func(value_obj):
+        return value_obj
+
+    for base_cls in cls.__mro__[1:]:
+        value_obj = class_getattr(
+            base_cls, name, check_dicts_only=check_dicts_only, _is_top_lvl=False
+        )
+        if value_obj is not UNSET:
+            return value_obj
+
+    if default is UNSET:
+        if not _is_top_lvl:
+            return UNSET
+        raise AttributeError(
+            f"could not find the attribute '{name}' in the __mro__ hierarchy of class "
+            f"'{cls.__name__}'"
+        ) from None
+
+    return default

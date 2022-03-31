@@ -7,16 +7,16 @@ This file implements a job manager class for running and managing job objects
 at runtime. 
 """
 
-from __future__ import annotations
 import asyncio
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 import datetime
 import pickle
 import time
-from typing import Callable, Literal, Optional, Type, Union
+from typing import Any, Callable, Coroutine, Literal, Optional, Sequence, Type, Union
 
-from snakecore import events, utils
-from .base_jobs import (
+from snakecore.utils import utils
+from snakecore import events
+from .jobs import (
     EventJobBase,
     IntervalJobBase,
     _SingletonMixinJobBase,
@@ -25,14 +25,14 @@ from .base_jobs import (
     JobStateError,
     JobInitializationError,
     JobPermissionError,
-    JOB_VERBS,
-    PERM_LEVELS,
-    get_job_class_id,
-    get_job_class_from_id,
+    JobVerbs,
+    _JOB_VERBS_PRES_CONT,
+    JobPermissionLevels,
+    get_job_class_from_scheduling_identifier,
+    get_job_class_from_runtime_identifier,
     get_job_class_permission_level,
+    get_job_class_scheduling_identifier,
 )
-from .proxies import JobProxy
-
 
 class JobManager:
     """The job manager for all interval jobs and event jobs.
@@ -67,18 +67,18 @@ class JobManager:
         self._job_type_count_dict = {}
         self._job_id_map = {}
         self._manager_job = None
-        self._thread_pool_executor = ThreadPoolExecutor(max_workers=4)
+        self._thread_pool_executor: Optional[ThreadPoolExecutor] = None
         self._thread_pool_executor_lock = asyncio.Lock()
-        self._process_pool_executor = ProcessPoolExecutor(max_workers=4)
+        self._process_pool_executor: Optional[ProcessPoolExecutor] = None
         self._process_pool_executor_lock = asyncio.Lock()
         self._event_waiting_queues = {}
-        self._schedule_dict = {0: {}}
+        self._schedule_dict: dict[str, dict[str, Any]] = {"0": {}}
         # zero timestamp for failed scheduling attempts
         self._schedule_ids = set()
         self._schedule_dict_fails = {}
         self._schedule_dict_lock = asyncio.Lock()
-        self._running = True
         self._initialized = False
+        self._is_running = False
         self._scheduling_is_initialized = False
         self._scheduling_initialized_futures = []
         self._scheduling_uninitialized_futures = []
@@ -88,8 +88,33 @@ class JobManager:
 
         self._global_job_stop_timeout = global_job_timeout
 
+    def _check_init(self):
+        if not self._initialized:
+            raise RuntimeError("this job manager is not initialized")
+
+    def _check_running(self):
+        if not self._is_running:
+            raise RuntimeError("this job manager is not running")
+
+    def _check_init_and_running(self):
+        if not self._initialized:
+            raise RuntimeError("this job manager is not initialized")
+
+        elif not self._is_running:
+            raise RuntimeError("this job manager is not running")
+
+    def _check_scheduling_init(self):
+        if not self._scheduling_is_initialized:
+            raise RuntimeError(
+                "job scheduling was not initialized for this job manager"
+            )
+
+    def _check_has_executors(self):
+        if self._thread_pool_executor is None or self._process_pool_executor is None:
+            raise RuntimeError("this job manager does not have any executors")
+
     @property
-    def identifier(self):
+    def identifier(self) -> str:
         return self._identifer
 
     def set_event_loop(self, loop):
@@ -102,29 +127,33 @@ class JobManager:
         """
         if not isinstance(loop, asyncio.AbstractEventLoop):
             raise TypeError(
-                "invalid event loop, must be a subclass of " "asyncio.AbstractEventLoop"
+                "invalid event loop, must be a subclass of 'asyncio.AbstractEventLoop'"
             ) from None
         self._loop = loop
 
-    def is_running(self):
-        """Whether this job manager is currently running.
+    def is_running(self) -> bool:
+        """Whether this job manager is currently running, meaning that it has been
+        initialized and has not yet quit.
 
         Returns:
             bool: True/False
         """
-        return self._running
+        return self._is_running
 
-    def initialized(self):
-        """Whether this job manager is currently running.
+    def initialized(self) -> bool:
+        """Whether this job manager was initialized.
+        This can return True even if a job manager
+        has quit. To check if a job manager is running,
+        use the `is_running()` method.
 
         Returns:
             bool: True/False
         """
         return self._initialized
 
-    def get_global_job_stop_timeout(self):
+    def get_global_job_stop_timeout(self) -> Optional[float]:
         """Get the maximum time period in seconds for job objects to stop
-        when halted from this manager, either due to being stopped,
+        when halted from this manager, either due to stopping,
         restarted or killed.
 
         Returns:
@@ -135,7 +164,7 @@ class JobManager:
 
     def set_global_job_stop_timeout(self, timeout: Optional[float]):
         """Set the maximum time period in seconds for job objects to stop
-        when halted from this manager, either due to being stopped,
+        when halted from this manager, either due to stopping,
         restarted or killed.
 
         Args:
@@ -148,7 +177,7 @@ class JobManager:
         self._global_job_stop_timeout = timeout
 
     @staticmethod
-    def unpickle_dict(byte_data):
+    def _unpickle_dict(byte_data):
         unpickled_data = pickle.loads(byte_data)
 
         if not isinstance(unpickled_data, dict):
@@ -159,7 +188,7 @@ class JobManager:
         return unpickled_data
 
     @staticmethod
-    def pickle_dict(target_dict):
+    def _pickle_dict(target_dict):
         if not isinstance(target_dict, dict):
             raise TypeError(
                 f"argument 'target_dict' must be of type 'dict', "
@@ -169,19 +198,32 @@ class JobManager:
         pickled_data = pickle.dumps(target_dict)
         return pickled_data
 
-    async def initialize(self):
-        """Initialize this job manager, if it hasn't yet been initialized."""
+    async def initialize(self) -> bool:
+        """Initialize this job manager, if it hasn't yet been initialized.
+
+        Returns:
+            bool: Whether the call was successful.
+        """
 
         if not self._initialized:
             self._initialized = True
+            self._is_running = True
+            self._thread_pool_executor = ThreadPoolExecutor(max_workers=4)
+            self._process_pool_executor = ProcessPoolExecutor(max_workers=4)
             self._manager_job = self._get_job_from_proxy(
                 await self.create_and_register_job(JobManagerJob)
             )
+            return True
+
+        return False
 
     async def job_scheduling_loop(self):
         """Run one iteration of the job scheduling loop of this
         job manager object.
         """
+
+        self._check_init_and_running()
+        self._check_scheduling_init()
 
         async with self._schedule_dict_lock:
             deletion_list = []
@@ -196,7 +238,7 @@ class JobManager:
                             timestamp_ns
                         ] = await self._loop.run_in_executor(
                             self._process_pool_executor,
-                            self.unpickle_dict,
+                            self._unpickle_dict,
                             timestamp_num_pickle_data,
                         )
 
@@ -215,7 +257,7 @@ class JobManager:
                                     schedule_identifier
                                 ] = schedule_data = await self._loop.run_in_executor(
                                     self._process_pool_executor,
-                                    self.unpickle_dict,
+                                    self._unpickle_dict,
                                     schedule_pickle_data,
                                 )
 
@@ -239,14 +281,14 @@ class JobManager:
                                 ] = schedule_data
                                 continue
 
-                        try:
-                            job_class = get_job_class_from_id(
-                                schedule_data["class_id"], closest_match=True
-                            )
-                        except KeyError:
+                        job_class = get_job_class_from_scheduling_identifier(
+                            schedule_data["class_scheduling_identifier"], None
+                        )
+                        if job_class is None:
                             print(
-                                f"Job initiation failed: Could not find job type called "
-                                f"'{schedule_data['class_id']}'"
+                                f"Job initiation failed: Could not find job class "
+                                "with a scheduling identifier of "
+                                f'\'{schedule_data["class_scheduling_identifier"]}\''
                             )
                             deletion_list.append(schedule_identifier)
                             self._schedule_ids.remove(schedule_identifier)
@@ -273,7 +315,7 @@ class JobManager:
                             continue
                         else:
                             try:
-                                await self.register_job(job)
+                                await self.register_job(job._proxy)
                             except Exception as e:
                                 print(
                                     "Job registration failed due to an exception:\n"
@@ -315,15 +357,23 @@ class JobManager:
     def _dump_job_scheduling_data_helper(data_set, data_dict):
         return pickle.dumps({"identifiers": list(data_set), "data": data_dict})
 
-    async def dump_job_scheduling_data(self):
+    async def dump_job_scheduling_data(self) -> bytes:
         """Return the current job scheduling data as
-        a `bytes` object of pickled data.
+        a `bytes` object of pickled data. This is only
+        possible while a job manager is running or it
+        was quit without its executors being shut down.
 
         Returns:
             bytes: The scheduling data.
         """
 
+        self._check_init()
+        self._check_has_executors()
+
         dump_dict = {}
+
+        if self._process_pool_executor is None:
+            pass
 
         async with self._schedule_dict_lock:
             for timestamp_ns_str, schedules_dict in self._schedule_dict.items():
@@ -338,7 +388,7 @@ class JobManager:
                                     scheduling_id
                                 ] = await self._loop.run_in_executor(
                                     self._process_pool_executor,
-                                    self.pickle_dict,
+                                    self._pickle_dict,
                                     schedule_dict,
                                 )
 
@@ -348,7 +398,7 @@ class JobManager:
                     async with self._process_pool_executor_lock:
                         dump_dict[timestamp_ns_str] = await self._loop.run_in_executor(
                             self._process_pool_executor,
-                            self.pickle_dict,
+                            self._pickle_dict,
                             dump_dict[timestamp_ns_str],
                         )
 
@@ -357,7 +407,7 @@ class JobManager:
 
         result = None
 
-        del dump_dict[0]  # don't export error schedulings
+        del dump_dict["0"]  # don't export error schedulings
 
         async with self._process_pool_executor_lock:
             result = await self._loop.run_in_executor(
@@ -389,13 +439,13 @@ class JobManager:
                     '123456789-42069-69420': ...,
                     '556456789-52069-6969': {
                         "schedule_identifier": '556456789-52069-6969696969',
-                        "scheduler_identifier": '556456789-53223236969',
+                        "invoker_identifier": '556456789-53223236969',
                         "schedule_timestamp_ns_str": "6969",
                         "timestamp_ns_str": "52069",
                         "recur_interval": 878787, # in seconds
                         "occurences": 0,
                         "max_recurrences": 10,
-                        "class_id": "AddReaction-1234567876",
+                        "class_scheduling_identifier": "AddReaction-1234567876",
                         "job_args": (..., ...),
                         "job_kwargs": {...: ..., ...},
                         }
@@ -425,6 +475,8 @@ class JobManager:
             TypeError: Invalid structure of `data`.
         """
 
+        self._check_init_and_running()
+
         if self._scheduling_is_initialized:
             raise RuntimeError(
                 "cannot load scheduling data while job scheduling is initialized."
@@ -433,7 +485,7 @@ class JobManager:
         elif len(self._schedule_dict) > 1 and not overwrite:
             raise RuntimeError(
                 "unintentional overwrite of preexisting scheduling data"
-                " was prevented"
+                " at risk, aborted"
             )
 
         data_dict = None
@@ -464,7 +516,7 @@ class JobManager:
                         timestamp_ns_str
                     ] = schedules_dict = await self._loop.run_in_executor(
                         self._process_pool_executor,
-                        self.unpickle_dict,
+                        self._unpickle_dict,
                         schedules_dict,
                     )
 
@@ -476,7 +528,7 @@ class JobManager:
                                 scheduling_id
                             ] = await self._loop.run_in_executor(
                                 self._process_pool_executor,
-                                self.unpickle_dict,
+                                self._unpickle_dict,
                                 schedule_dict,
                             )
 
@@ -484,22 +536,35 @@ class JobManager:
             self._schedule_ids = data_set
             self._schedule_dict.clear()
             self._schedule_dict.update(data_dict)
-            if 0 not in self._schedule_dict:
-                self._schedule_dict[0] = {}
+            if "0" not in self._schedule_dict:
+                self._schedule_dict["0"] = {}
 
-    def initialize_job_scheduling(self):
-        """Initialize the job scheduling process of this job manager."""
+    def initialize_job_scheduling(self) -> bool:
+        """Initialize the job scheduling process of this job manager.
+
+        Returns:
+            bool: Whether the call was successful.
+        """
+
+        self._check_init_and_running()
+
         if not self._scheduling_is_initialized:
             self._scheduling_is_initialized = True
             for fut in self._scheduling_initialized_futures:
                 if not fut.cancelled():
                     fut.set_result(True)
 
-    def job_scheduling_is_initialized(self):
+            return True
+
+        return False
+
+    def job_scheduling_is_initialized(self) -> bool:
         """Whether the job scheduling process of this job manager is initialized."""
         return self._scheduling_is_initialized
 
-    def wait_for_job_scheduling_initialization(self, timeout: Optional[float] = None):
+    def wait_for_job_scheduling_initialization(
+        self, timeout: Optional[float] = None
+    ) -> Coroutine:
         """This method returns a coroutine that can be used to wait until job
         scheduling is initialized.
 
@@ -511,13 +576,16 @@ class JobManager:
         """
 
         if not self._scheduling_is_initialized:
+            self._check_init_and_running()
             fut = self._loop.create_future()
             self._scheduling_initialized_futures.append(fut)
             return asyncio.wait_for(fut, timeout)
 
         raise RuntimeError("Job scheduling is already initialized.")
 
-    def wait_for_job_scheduling_uninitialization(self, timeout: Optional[float] = None):
+    def wait_for_job_scheduling_uninitialization(
+        self, timeout: Optional[float] = None
+    ) -> Coroutine:
         """This method returns a coroutine that can be used to wait until job
         scheduling is uninitialized.
 
@@ -529,194 +597,215 @@ class JobManager:
         """
 
         if self._scheduling_is_initialized:
+            self._check_init_and_running()
             fut = self._loop.create_future()
             self._scheduling_uninitialized_futures.append(fut)
             return asyncio.wait_for(fut, timeout)
 
         raise RuntimeError("Job scheduling is not initialized.")
 
-    def uninitialize_job_scheduling(self):
-        """End the job scheduling process of this job manager."""
+    def uninitialize_job_scheduling(self) -> bool:
+        """End the job scheduling process of this job manager.
+
+        Returns:
+            bool: Whether the call was successful.
+        """
+
+        output = False
+
         if self._scheduling_is_initialized:
             self._scheduling_is_initialized = False
+            output = True
 
-        for fut in self._scheduling_initialized_futures:
-            if not fut.cancelled():
-                fut.cancel(f"initialization was aborted")
+            for fut in self._scheduling_initialized_futures:
+                if not fut.cancelled():
+                    fut.cancel(
+                        f"initialization of {self.__class__.__name__}"
+                        f"(ID={self._identifier}) was aborted"
+                    )
 
-        for fut in self._scheduling_uninitialized_futures:
-            if not fut.cancelled():
-                fut.set_result(True)
+            for fut in self._scheduling_uninitialized_futures:
+                if not fut.cancelled():
+                    fut.set_result(True)
+
+        return output
 
     def _verify_permissions(
         self,
         invoker: Union[EventJobBase, IntervalJobBase],
-        op: str,
-        target: Union[EventJobBase, IntervalJobBase] = None,
+        op: JobVerbs,
+        target: Optional[
+            Union[EventJobBase, IntervalJobBase, "proxies.JobProxy"]
+        ] = None,
         target_cls=None,
         schedule_identifier=None,
-        scheduler_identifier=None,
+        invoker_identifier=None,
         raise_exceptions=True,
-    ):
+    ) -> bool:
+
         invoker_cls = invoker.__class__
+
+        if target is not None:
+            if isinstance(target, proxies.JobProxy):
+                target = self._get_job_from_proxy(target)
+
+            elif not isinstance(target, (EventJobBase, IntervalJobBase)):
+                raise TypeError(
+                    "argument 'target' must be a an instance of a job object or a job proxy"
+                )
 
         target_cls = target.__class__ if target else target_cls
 
         invoker_cls_permission_level = get_job_class_permission_level(invoker_cls)
 
         target_cls_permission_level = None
-        if not isinstance(op, str):
+
+        if not isinstance(op, JobVerbs):
             raise TypeError(
-                "argument 'op' must be a string defined in the 'JOB_VERBS' "
-                "class namespace"
-            )
-
-        elif op not in JOB_VERBS.__dict__:
-            raise ValueError(
-                "argument 'op' must be a string defined in the 'JOB_VERBS' "
-                "class namespace"
+                "argument 'op' must be an enum value defined in the 'JobVerbs' " "enum"
             )
 
         elif (
-            op.startswith(JOB_VERBS.FIND)
-            and invoker_cls_permission_level < PERM_LEVELS.LOW
+            op is JobVerbs.FIND
+            and invoker_cls_permission_level < JobPermissionLevels.LOW
         ):
             if raise_exceptions:
                 raise JobPermissionError(
-                    f"insufficient permission level of {invoker_cls.__name__}"
-                    f" ({PERM_LEVELS.get_name(invoker_cls_permission_level)})"
-                    f" for {JOB_VERBS._PRESENT_CONTINUOUS_TENSE[op].lower()} job objects"
+                    f"insufficient permission level of {invoker_cls.__qualname__} "
+                    f"({invoker_cls_permission_level.name}) "
+                    f"for {_JOB_VERBS_PRES_CONT[op.name].lower()} "
+                    "job objects"
                 )
             return False
 
         elif (
-            op.startswith(JOB_VERBS.CUSTOM_EVENT_DISPATCH)
-            and invoker_cls_permission_level < PERM_LEVELS.HIGH
+            op is JobVerbs.CUSTOM_EVENT_DISPATCH
+            and invoker_cls_permission_level < JobPermissionLevels.HIGH
         ):
             if raise_exceptions:
                 raise JobPermissionError(
-                    f"insufficient permission level of {invoker_cls.__name__}"
-                    f" ({PERM_LEVELS.get_name(invoker_cls_permission_level)})"
-                    f" for dispatching custom events to job objects"
+                    f"insufficient permission level of {invoker_cls.__qualname__} "
+                    f"({invoker_cls_permission_level.name}) "
+                    f"for dispatching custom events to job objects "
                 )
             return False
 
         elif (
-            op.startswith(JOB_VERBS.EVENT_DISPATCH)
-            and invoker_cls_permission_level < PERM_LEVELS.HIGH
+            op is JobVerbs.EVENT_DISPATCH
+            and invoker_cls_permission_level < JobPermissionLevels.HIGH
         ):
             if raise_exceptions:
                 raise JobPermissionError(
-                    f"insufficient permission level of {invoker_cls.__name__}"
-                    f" ({PERM_LEVELS.get_name(invoker_cls_permission_level)})"
-                    f" for dispatching non-custom events to job objects"
+                    f"insufficient permission level of {invoker_cls.__qualname__} "
+                    f"({invoker_cls_permission_level.name}) "
+                    f"for dispatching non-custom events to job objects "
                 )
             return False
 
-        elif op.startswith(JOB_VERBS.UNSCHEDULE):
-            if schedule_identifier is None or scheduler_identifier is None:
+        elif op is JobVerbs.UNSCHEDULE:
+            if schedule_identifier is None or invoker_identifier is None:
                 raise TypeError(
-                    "argument 'schedule_identifier' and 'scheduler_identifier'"
-                    " cannot be None if argument 'op' is 'UNSCHEDULE'"
+                    "argument 'schedule_identifier' and 'invoker_identifier' "
+                    "cannot be None if argument 'op' is 'UNSCHEDULE'"
                 )
 
-            if invoker_cls_permission_level < PERM_LEVELS.MEDIUM:
+            if invoker_cls_permission_level < JobPermissionLevels.MEDIUM:
                 if raise_exceptions:
                     raise JobPermissionError(
-                        f"insufficient permission level of {invoker_cls.__name__}"
-                        f" ({PERM_LEVELS.get_name(invoker_cls_permission_level)})"
-                        f" for {JOB_VERBS._PRESENT_CONTINUOUS_TENSE[op].lower()} job objects"
+                        f"insufficient permission level of {invoker_cls.__qualname__} "
+                        f"({invoker_cls_permission_level.name}) "
+                        f"for {_JOB_VERBS_PRES_CONT[op.name].lower()} "
+                        "job objects"
                     )
                 return False
 
             if (
-                scheduler_identifier in self._job_id_map
+                invoker_identifier in self._job_id_map
             ):  # the schedule operation belongs to an alive job
-                target = self._job_id_map[scheduler_identifier]
+                target = self._job_id_map[invoker_identifier]
                 # the target is now the job that scheduled a specific operation
                 target_cls = target.__class__
 
                 target_cls_permission_level = get_job_class_permission_level(target_cls)
 
                 if (
-                    invoker_cls_permission_level == PERM_LEVELS.MEDIUM
-                    and invoker._identifier != scheduler_identifier
+                    invoker_cls_permission_level == JobPermissionLevels.MEDIUM
+                    and invoker._identifier != invoker_identifier
                 ):
                     if raise_exceptions:
                         raise JobPermissionError(
-                            f"insufficient permission level of '{invoker_cls.__name__}'"
-                            f" ({PERM_LEVELS.get_name(invoker_cls_permission_level)})"
-                            f" for {JOB_VERBS._PRESENT_CONTINUOUS_TENSE[op].lower()}"
-                            f" jobs that were scheduled by the class '{target_cls.__name__}'"
-                            f" ({PERM_LEVELS.get_name(target_cls_permission_level)})"
-                            " when the scheduler job is still alive and is not the"
-                            " invoker job"
+                            f"insufficient permission level of '{invoker_cls.__qualname__}' "
+                            f"({invoker_cls_permission_level.name}) "
+                            f"for {_JOB_VERBS_PRES_CONT[op.name].lower()} "
+                            "jobs that were scheduled by the class "
+                            f"'{target_cls.__qualname__}' "
+                            f"({target_cls_permission_level.name}) "
+                            "when the scheduler job is still alive and is not the "
+                            "invoker job"
                         )
                     return False
 
                 elif (
-                    invoker_cls_permission_level == PERM_LEVELS.HIGH
-                    and target_cls_permission_level >= PERM_LEVELS.HIGH
+                    invoker_cls_permission_level == JobPermissionLevels.HIGH
+                    and target_cls_permission_level >= JobPermissionLevels.HIGH
                 ):
                     if raise_exceptions:
                         raise JobPermissionError(
-                            f"insufficient permission level of '{invoker_cls.__name__}'"
-                            f" ({PERM_LEVELS.get_name(invoker_cls_permission_level)})"
-                            f" for {JOB_VERBS._PRESENT_CONTINUOUS_TENSE[op].lower()}"
-                            f" jobs that were scheduled by the class '{target_cls.__name__}'"
-                            f" ({PERM_LEVELS.get_name(target_cls_permission_level)})"
+                            f"insufficient permission level of '{invoker_cls.__qualname__}' "
+                            f"({invoker_cls_permission_level.name}) "
+                            f"for {_JOB_VERBS_PRES_CONT[op.name].lower()} "
+                            f"jobs that were scheduled by the class '{target_cls.__qualname__}' "
+                            f"({target_cls_permission_level.name}) "
                         )
                     return False
 
-        if op.startswith(
-            (
-                JOB_VERBS.CREATE,
-                JOB_VERBS.INITIALIZE,
-                JOB_VERBS.REGISTER,
-                JOB_VERBS.SCHEDULE,
-            )
+        if op in (
+            JobVerbs.CREATE,
+            JobVerbs.INITIALIZE,
+            JobVerbs.REGISTER,
+            JobVerbs.SCHEDULE,
         ):
             target_cls_permission_level = get_job_class_permission_level(target_cls)
 
-            if invoker_cls_permission_level < PERM_LEVELS.MEDIUM:
+            if invoker_cls_permission_level < JobPermissionLevels.MEDIUM:
                 if raise_exceptions:
                     raise JobPermissionError(
-                        f"insufficient permission level of {invoker_cls.__name__}"
-                        f" ({PERM_LEVELS.get_name(invoker_cls_permission_level)})"
-                        f" for {JOB_VERBS._PRESENT_CONTINUOUS_TENSE[op].lower()} job objects"
+                        f"insufficient permission level of {invoker_cls.__qualname__} "
+                        f"({invoker_cls_permission_level.name}) "
+                        f"for {_JOB_VERBS_PRES_CONT[op.name].lower()} job objects"
                     )
                 return False
 
-            elif invoker_cls_permission_level == PERM_LEVELS.MEDIUM:
-                if target_cls_permission_level >= PERM_LEVELS.MEDIUM:
+            elif invoker_cls_permission_level == JobPermissionLevels.MEDIUM:
+                if target_cls_permission_level >= JobPermissionLevels.MEDIUM:
                     if raise_exceptions:
                         raise JobPermissionError(
-                            f"insufficient permission level of '{invoker_cls.__name__}'"
-                            f" ({PERM_LEVELS.get_name(invoker_cls_permission_level)})"
-                            f" for {JOB_VERBS._PRESENT_CONTINUOUS_TENSE[op].lower()}"
-                            f" job objects of the specified class '{target_cls.__name__}'"
-                            f" ({PERM_LEVELS.get_name(target_cls_permission_level)})"
+                            f"insufficient permission level of '{invoker_cls.__qualname__}' "
+                            f"({invoker_cls_permission_level.name}) "
+                            f"for {_JOB_VERBS_PRES_CONT[op.name].lower()} "
+                            f"job objects of the specified class '{target_cls.__qualname__}' "
+                            f"({target_cls_permission_level.name})"
                         )
                     return False
 
             elif (
-                invoker_cls_permission_level == PERM_LEVELS.HIGH
-                and target_cls_permission_level > PERM_LEVELS.HIGH
+                invoker_cls_permission_level == JobPermissionLevels.HIGH
+                and target_cls_permission_level > JobPermissionLevels.HIGH
             ) or (
-                invoker_cls_permission_level == PERM_LEVELS.HIGHEST
-                and target_cls_permission_level > PERM_LEVELS.HIGHEST
+                invoker_cls_permission_level == JobPermissionLevels.HIGHEST
+                and target_cls_permission_level > JobPermissionLevels.HIGHEST
             ):
                 if raise_exceptions:
                     raise JobPermissionError(
-                        f"insufficient permission level of '{invoker_cls.__name__}'"
-                        f" ({PERM_LEVELS.get_name(invoker_cls_permission_level)})"
-                        f" for {JOB_VERBS._PRESENT_CONTINUOUS_TENSE[op].lower()}"
-                        f" job objects of the specified class '{target_cls.__name__}'"
-                        f" ({PERM_LEVELS.get_name(target_cls_permission_level)})"
+                        f"insufficient permission level of '{invoker_cls.__qualname__}' "
+                        f"({invoker_cls_permission_level.name}) "
+                        f"for {_JOB_VERBS_PRES_CONT[op.name].lower()} "
+                        f"job objects of the specified class '{target_cls.__qualname__}' "
+                        f"({target_cls_permission_level.name})"
                     )
                 return False
 
-        elif op.startswith((JOB_VERBS.GUARD, JOB_VERBS.UNGUARD)):
+        elif op in (JobVerbs.GUARD, JobVerbs.UNGUARD):
 
             if target is None:
                 raise TypeError(
@@ -727,38 +816,36 @@ class JobManager:
 
             target_cls_permission_level = get_job_class_permission_level(target_cls)
 
-            if invoker_cls_permission_level < PERM_LEVELS.HIGH:
+            if invoker_cls_permission_level < JobPermissionLevels.HIGH:
                 if raise_exceptions:
                     raise JobPermissionError(
-                        f"insufficient permission level of {invoker_cls.__name__}"
-                        f" ({PERM_LEVELS.get_name(invoker_cls_permission_level)})"
-                        f" for {JOB_VERBS._PRESENT_CONTINUOUS_TENSE[op].lower()} job objects"
+                        f"insufficient permission level of {invoker_cls.__qualname__} "
+                        f"({invoker_cls_permission_level.name}) "
+                        f"for {_JOB_VERBS_PRES_CONT[op.name].lower()} job objects"
                     )
                 return False
 
             elif invoker_cls_permission_level in (
-                PERM_LEVELS.HIGH,
-                PERM_LEVELS.HIGHEST,
+                JobPermissionLevels.HIGH,
+                JobPermissionLevels.HIGHEST,
             ):
                 if target._creator is not invoker:
                     if raise_exceptions:
                         raise JobPermissionError(
-                            f"insufficient permission level of '{invoker_cls.__name__}'"
-                            f" ({PERM_LEVELS.get_name(invoker_cls_permission_level)})"
-                            f" for {JOB_VERBS._PRESENT_CONTINUOUS_TENSE[op].lower()}"
-                            f" job objects of the specified class '{target_cls.__name__}'"
-                            f" ({PERM_LEVELS.get_name(target_cls_permission_level)})"
-                            " its instance did not create."
+                            f"insufficient permission level of '{invoker_cls.__qualname__}' "
+                            f"({invoker_cls_permission_level.name}) "
+                            f"for {_JOB_VERBS_PRES_CONT[op.name].lower()} "
+                            f"job objects of the specified class '{target_cls.__qualname__}' "
+                            f"({target_cls_permission_level.name}) "
+                            "its instance did not create."
                         )
                     return False
 
-        elif op.startswith(
-            (
-                JOB_VERBS.START,
-                JOB_VERBS.RESTART,
-                JOB_VERBS.STOP,
-                JOB_VERBS.KILL,
-            )
+        elif op in (
+            JobVerbs.START,
+            JobVerbs.RESTART,
+            JobVerbs.STOP,
+            JobVerbs.KILL,
         ):
             if target is None:
                 raise TypeError(
@@ -769,60 +856,60 @@ class JobManager:
 
             target_cls_permission_level = get_job_class_permission_level(target_cls)
 
-            if invoker_cls_permission_level < PERM_LEVELS.MEDIUM:
+            if invoker_cls_permission_level < JobPermissionLevels.MEDIUM:
                 raise JobPermissionError(
-                    f"insufficient permission level of {invoker_cls.__name__}"
-                    f" ({PERM_LEVELS.get_name(invoker_cls_permission_level)})"
-                    f" for {JOB_VERBS._PRESENT_CONTINUOUS_TENSE[op].lower()} job objects"
+                    f"insufficient permission level of {invoker_cls.__qualname__}"
+                    f" ({invoker_cls_permission_level.name})"
+                    f" for {_JOB_VERBS_PRES_CONT[op.name].lower()} job objects"
                 )
-            elif invoker_cls_permission_level == PERM_LEVELS.MEDIUM:
+            elif invoker_cls_permission_level == JobPermissionLevels.MEDIUM:
                 if (
-                    target_cls_permission_level < PERM_LEVELS.MEDIUM
+                    target_cls_permission_level < JobPermissionLevels.MEDIUM
                     and target._creator is not invoker
                 ):
                     if raise_exceptions:
                         raise JobPermissionError(
-                            f"insufficient permission level of '{invoker_cls.__name__}'"
-                            f" ({PERM_LEVELS.get_name(invoker_cls_permission_level)})"
-                            f" for {JOB_VERBS._PRESENT_CONTINUOUS_TENSE[op].lower()}"
-                            f" job objects of the specified class '{target_cls.__name__}'"
-                            f" ({PERM_LEVELS.get_name(target_cls_permission_level)}) that"
-                            " its instance did not create."
+                            f"insufficient permission level of '{invoker_cls.__qualname__}' "
+                            f"({invoker_cls_permission_level.name}) "
+                            f"for {_JOB_VERBS_PRES_CONT[op.name].lower()} "
+                            f"job objects of the specified class '{target_cls.__qualname__}' "
+                            f"({target_cls_permission_level.name}) that "
+                            "its instance did not create."
                         )
                     return False
 
-                elif target_cls_permission_level >= PERM_LEVELS.MEDIUM:
+                elif target_cls_permission_level >= JobPermissionLevels.MEDIUM:
                     if raise_exceptions:
                         raise JobPermissionError(
-                            f"insufficient permission level of '{invoker_cls.__name__}'"
-                            f" ({PERM_LEVELS.get_name(invoker_cls_permission_level)})"
-                            f" for {JOB_VERBS._PRESENT_CONTINUOUS_TENSE[op].lower()}"
-                            f" job objects of the specified class '{target_cls.__name__}'"
-                            f" ({PERM_LEVELS.get_name(target_cls_permission_level)})"
+                            f"insufficient permission level of '{invoker_cls.__qualname__}' "
+                            f"({invoker_cls_permission_level.name}) "
+                            f"for {_JOB_VERBS_PRES_CONT[op.name].lower()} "
+                            f"job objects of the specified class '{target_cls.__qualname__}' "
+                            f"({target_cls_permission_level.name})"
                         )
                     return False
 
-            elif invoker_cls_permission_level == PERM_LEVELS.HIGH:
-                if target_cls_permission_level >= PERM_LEVELS.HIGH:
+            elif invoker_cls_permission_level == JobPermissionLevels.HIGH:
+                if target_cls_permission_level >= JobPermissionLevels.HIGH:
                     if raise_exceptions:
                         raise JobPermissionError(
-                            f"insufficient permission level of '{invoker_cls.__name__}'"
-                            f" ({PERM_LEVELS.get_name(invoker_cls_permission_level)})"
-                            f" for {JOB_VERBS._PRESENT_CONTINUOUS_TENSE[op].lower()}"
-                            f" job objects of the specified class '{target_cls.__name__}'"
-                            f" ({PERM_LEVELS.get_name(target_cls_permission_level)})"
+                            f"insufficient permission level of '{invoker_cls.__qualname__}' "
+                            f"({invoker_cls_permission_level.name}) "
+                            f"for {_JOB_VERBS_PRES_CONT[op.name].lower()} "
+                            f"job objects of the specified class '{target_cls.__qualname__}' "
+                            f"({target_cls_permission_level.name})"
                         )
                     return False
 
-            elif invoker_cls_permission_level == PERM_LEVELS.HIGHEST:
-                if target_cls_permission_level > PERM_LEVELS.HIGHEST:
+            elif invoker_cls_permission_level == JobPermissionLevels.HIGHEST:
+                if target_cls_permission_level > JobPermissionLevels.HIGHEST:
                     if raise_exceptions:
                         raise JobPermissionError(
-                            f"insufficient permission level of '{invoker_cls.__name__}'"
-                            f" ({PERM_LEVELS.get_name(invoker_cls_permission_level)})"
-                            f" for {JOB_VERBS._PRESENT_CONTINUOUS_TENSE[op].lower()}"
-                            f" job objects of the specified class '{target_cls.__name__}'"
-                            f" ({PERM_LEVELS.get_name(target_cls_permission_level)})"
+                            f"insufficient permission level of '{invoker_cls.__qualname__}' "
+                            f"({invoker_cls_permission_level.name}) "
+                            f"for {_JOB_VERBS_PRES_CONT[op.name].lower()} "
+                            f"job objects of the specified class '{target_cls.__qualname__}' "
+                            f"({target_cls_permission_level.name})"
                         )
                     return False
 
@@ -833,9 +920,9 @@ class JobManager:
         cls: Union[Type[EventJobBase], Type[IntervalJobBase]],
         *args,
         _return_proxy=True,
-        _invoker: Optional[Union[EventJobBase, IntervalJobBase]] = None,
+        _iv: Optional[Union[EventJobBase, IntervalJobBase]] = None,
         **kwargs,
-    ):
+    ) -> "proxies.JobProxy":
         """Create an instance of a job class, and return it.
 
         Args:
@@ -849,17 +936,16 @@ class JobManager:
             JobProxy: A job proxy object.
         """
 
-        if not self._initialized:
-            raise RuntimeError("This job manager object is not initialized.")
+        self._check_init_and_running()
 
-        if isinstance(_invoker, (EventJobBase, IntervalJobBase)):
-            self._verify_permissions(_invoker, op=JOB_VERBS.CREATE, target_cls=cls)
+        if isinstance(_iv, (EventJobBase, IntervalJobBase)):
+            self._verify_permissions(_iv, op=JobVerbs.CREATE, target_cls=cls)
         else:
-            _invoker = self._manager_job
+            _iv = self._manager_job
 
         job = cls(*args, **kwargs)
-        job._manager = JobManagerProxy(self, job)
-        job._creator = _invoker
+        job._manager = proxies.JobManagerProxy(self, job)
+        job._creator = _iv
         proxy = job._proxy
 
         if _return_proxy:
@@ -867,7 +953,7 @@ class JobManager:
         return job
 
     def _get_job_from_proxy(
-        self, job_proxy: JobProxy
+        self, job_proxy: "proxies.JobProxy"
     ) -> Union[EventJobBase, IntervalJobBase]:
         try:
             job = job_proxy._JobProxy__j
@@ -877,13 +963,14 @@ class JobManager:
 
     async def initialize_job(
         self,
-        job_or_proxy: Union[EventJobBase, IntervalJobBase, JobProxy],
+        job_proxy: "proxies.JobProxy",
         raise_exceptions: bool = True,
-        _invoker: Optional[Union[EventJobBase, IntervalJobBase]] = None,
-    ):
+        _iv: Optional[Union[EventJobBase, IntervalJobBase]] = None,
+    ) -> bool:
         """Initialize a job object.
 
         Args:
+            job_proxy (JobProxy): The proxy to the job object.
             raise_exceptions (bool, optional): Whether exceptions should be raised.
               Defaults to True.
 
@@ -894,18 +981,16 @@ class JobManager:
             bool: Whether the initialization attempt was successful.
         """
 
-        job = (
-            self._get_job_from_proxy(job_or_proxy)
-            if isinstance(job_or_proxy, JobProxy)
-            else job_or_proxy
-        )
+        self._check_init_and_running()
 
-        if isinstance(_invoker, (EventJobBase, IntervalJobBase)):
-            self._verify_permissions(_invoker, op=JOB_VERBS.INITIALIZE, target=job)
+        job = self._get_job_from_proxy(job_proxy)
+
+        if isinstance(_iv, (EventJobBase, IntervalJobBase)):
+            self._verify_permissions(_iv, op=JobVerbs.INITIALIZE, target=job)
         else:
-            _invoker = self._manager_job
+            _iv = self._manager_job
 
-        if job._is_being_guarded and _invoker is not job._guardian:
+        if job._is_being_guarded and _iv is not job._guardian:
             raise JobStateError(
                 "the given target job object is being guarded by another job"
             ) from None
@@ -930,16 +1015,15 @@ class JobManager:
 
     async def register_job(
         self,
-        job_or_proxy: Union[EventJobBase, IntervalJobBase, JobProxy],
+        job_proxy: "proxies.JobProxy",
         start: bool = True,
-        _invoker: Optional[Union[EventJobBase, IntervalJobBase]] = None,
+        _iv: Optional[Union[EventJobBase, IntervalJobBase]] = None,
     ):
         """Register a job object to this JobManager,
         while initializing it if necessary.
 
         Args:
-            job (Union[EventJobBase, IntervalJobBase, JobProxy]): The job object
-              to be registered.
+            job (JobProxy): The job object to be registered.
             start (bool): Whether the given job object should start automatically
               upon registration.
 
@@ -949,21 +1033,16 @@ class JobManager:
             RuntimeError: This job manager object is not initialized.
         """
 
-        if not self._initialized:
-            raise RuntimeError("This job manager object is not initialized.")
+        self._check_init_and_running()
 
-        job = (
-            self._get_job_from_proxy(job_or_proxy)
-            if isinstance(job_or_proxy, JobProxy)
-            else job_or_proxy
-        )
+        job = self._get_job_from_proxy(job_proxy)
 
-        if isinstance(_invoker, (EventJobBase, IntervalJobBase)):
-            self._verify_permissions(_invoker, op=JOB_VERBS.REGISTER, target=job)
+        if isinstance(_iv, (EventJobBase, IntervalJobBase)):
+            self._verify_permissions(_iv, op=JobVerbs.REGISTER, target=job)
         else:
-            _invoker = self._manager_job
+            _iv = self._manager_job
 
-        if job._is_being_guarded and _invoker is not job._guardian:
+        if job._is_being_guarded and _iv is not job._guardian:
             raise JobStateError(
                 "the given target job object is being guarded by another job"
             ) from None
@@ -972,7 +1051,7 @@ class JobManager:
             raise JobStateError("cannot register a killed job object")
 
         if not job._initialized:
-            await self.initialize_job(job)
+            await self.initialize_job(job._proxy)
 
         if (
             isinstance(job, _SingletonMixinJobBase)
@@ -981,7 +1060,7 @@ class JobManager:
         ):
             raise JobError(
                 "cannot have more than one instance of a"
-                f" '{job.__class__.__name__}' job registered at a time."
+                f" '{job.__class__.__qualname__}' job registered at a time."
             )
 
         self._add_job(job, start=start)
@@ -993,9 +1072,9 @@ class JobManager:
         *args,
         start: bool = True,
         _return_proxy: bool = True,
-        _invoker: Optional[Union[EventJobBase, IntervalJobBase]] = None,
+        _iv: Optional[Union[EventJobBase, IntervalJobBase]] = None,
         **kwargs,
-    ):
+    ) -> "proxies.JobProxy":
         """Create an instance of a job class, and register it to this `BotTaskManager`.
 
         Args:
@@ -1008,9 +1087,10 @@ class JobManager:
             JobProxy: A job proxy object.
         """
         j = self.create_job(cls, *args, _return_proxy=False, **kwargs)
-        await self.register_job(j, start=start, _invoker=_invoker)
+        await self.register_job(j._proxy, start=start, _iv=_iv)
         if _return_proxy:
             return j._proxy
+        return j
 
     async def create_job_schedule(
         self,
@@ -1020,8 +1100,8 @@ class JobManager:
         max_recurrences: int = -1,
         job_args: tuple = (),
         job_kwargs: Optional[dict] = None,
-        _invoker: Optional[Union[EventJobBase, IntervalJobBase]] = None,
-    ):
+        _iv: Optional[Union[EventJobBase, IntervalJobBase]] = None,
+    ) -> str:
         """Schedule a job of a specific type to be instantiated and to run at
         one or more specific periods of time. Each job can receive positional
         or keyword arguments which are passed to this method.
@@ -1046,32 +1126,31 @@ class JobManager:
             job_kwargs (dict, optional): Keyword arguments to pass to the scheduled
               job upon instantiation. Defaults to None.
 
+        Returns:
+            str: The string identifier of the scheduling operation.
+
         Raises:
             RuntimeError: The job manager has not yet initialized job scheduling,
               or this job manager object is not initialized.
             TypeError: Invalid argument types were given.
-
-        Returns:
-            str: The string identifier of the scheduling operation
         """
+
+        self._check_init_and_running()
+        self._check_scheduling_init()
 
         if not issubclass(cls, (EventJobBase, IntervalJobBase)):
             raise TypeError(
                 f"argument 'cls' must be of a subclass of 'EventJobBase' or 'IntervalJobBase', not '{cls}'"
             ) from None
 
-        if isinstance(_invoker, (EventJobBase, IntervalJobBase)):
-            self._verify_permissions(_invoker, op=JOB_VERBS.SCHEDULE, target_cls=cls)
+        if isinstance(_iv, (EventJobBase, IntervalJobBase)):
+            self._verify_permissions(_iv, op=JobVerbs.SCHEDULE, target_cls=cls)
         else:
-            _invoker = self._manager_job
+            _iv = self._manager_job
 
-        if not self._initialized:
-            raise RuntimeError("This job manager object is not initialized.")
-
-        elif not self._scheduling_is_initialized:
-            raise RuntimeError(
-                "JobManager scheduling has not been initialized"
-            ) from None
+        class_scheduling_identifier = get_job_class_scheduling_identifier(cls, None)
+        if class_scheduling_identifier is None:
+            raise TypeError(f"job class '{cls.__qualname__}' is not schedulable")
 
         if isinstance(timestamp, datetime.datetime):
             timestamp = timestamp.astimezone(datetime.timezone.utc)
@@ -1146,21 +1225,23 @@ class JobManager:
         )
 
         new_data = {
-            "scheduler_identifier": _invoker.identifier if _invoker is not None else "",
+            "invoker_identifier": _iv.identifier if _iv is not None else "",
             "schedule_identifier": "",
             "schedule_timestamp_ns_str": schedule_timestamp_ns_str,
             "timestamp_ns_str": timestamp_ns_str,
             "recur_interval": recur_interval_num,
             "occurences": 0,
             "max_recurrences": max_recurrences,
-            "class_id": get_job_class_id(cls),
+            "class_scheduling_identifier": class_scheduling_identifier,
             "job_args": tuple(job_args),
             "job_kwargs": job_kwargs if job_kwargs is not None else {},
         }
 
-        new_data["schedule_identifier"] = schedule_identifier = (
-            f"{self._identifier}-" f"{timestamp_ns_str}-" f"{schedule_timestamp_ns_str}"
-        )
+        new_data[
+            "schedule_identifier"
+        ] = (
+            schedule_identifier
+        ) = f"{self._identifier}-{timestamp_ns_str}-{schedule_timestamp_ns_str}"
 
         async with self._schedule_dict_lock:
             if timestamp_ns_str not in self._schedule_dict:
@@ -1171,7 +1252,7 @@ class JobManager:
 
         return schedule_identifier
 
-    def get_job_schedule_identifiers(self):
+    def get_job_schedule_identifiers(self) -> Optional[tuple[str]]:
         """Return a tuple of all job schedule identifiers pointing to
         scheduling data.
 
@@ -1181,7 +1262,7 @@ class JobManager:
 
         return tuple(self._schedule_ids)
 
-    def job_schedule_has_failed(self, schedule_identifier: str):
+    def job_schedule_has_failed(self, schedule_identifier: str) -> bool:
         """Whether the job schedule operation with the specified schedule
         identifier failed.
 
@@ -1203,7 +1284,7 @@ class JobManager:
 
         return schedule_identifier in self._schedule_dict[0]
 
-    def has_job_schedule(self, schedule_identifier: str):
+    def has_job_schedule(self, schedule_identifier: str) -> bool:
         """Whether the job schedule operation with the specified schedule
         identifier exists.
 
@@ -1228,8 +1309,8 @@ class JobManager:
     async def remove_job_schedule(
         self,
         schedule_identifier: str,
-        _invoker: Optional[Union[EventJobBase, IntervalJobBase]] = None,
-    ):
+        _iv: Optional[Union[EventJobBase, IntervalJobBase]] = None,
+    ) -> bool:
         """Remove a job schedule operation using the string identifier
         of the schedule operation.
 
@@ -1238,10 +1319,17 @@ class JobManager:
               this structure:
               'JOB_MANAGER_IDENTIFIER-TARGET_TIMESTAMP_IN_NS-SCHEDULING_TIMESTAMP_IN_NS'
 
+        Returns:
+            bool: Whether the call was successful.
+
         Raises:
             ValueError: Invalid schedule identifier.
             KeyError: No operation matching the given schedule identifier was found.
+            JobPermissionError: Insufficient permissions.
         """
+
+        self._check_init_and_running()
+        self._check_scheduling_init()
 
         split_id = schedule_identifier.split("-")
 
@@ -1251,51 +1339,54 @@ class JobManager:
         (
             mgr_id_start,
             mgr_id_end,
-            timestamp_num_str,
+            target_timestamp_num_str,
             schedule_num_str,
         ) = split_id
 
         mgr_identifier = f"{mgr_id_start}-{mgr_id_end}"
 
-        target_timestamp_num = int(timestamp_num_str)
-
         async with self._schedule_dict_lock:
-            if target_timestamp_num in self._schedule_dict:
-                schedules_data = self._schedule_dict[target_timestamp_num]
+            if target_timestamp_num_str in self._schedule_dict:
+                schedules_data = self._schedule_dict[target_timestamp_num_str]
                 if isinstance(schedules_data, bytes):
                     async with self._process_pool_executor_lock:
                         self._schedule_dict[
-                            target_timestamp_num
+                            target_timestamp_num_str
                         ] = await self._loop.run_in_executor(
                             self._process_pool_executor,
-                            self.unpickle_dict,
+                            self._unpickle_dict,
                             schedules_data,
                         )
 
-                if schedule_identifier in self._schedule_dict[target_timestamp_num]:
-                    if isinstance(_invoker, (EventJobBase, IntervalJobBase)):
-                        scheduler_identifier = self._schedule_dict[
-                            target_timestamp_num
-                        ][schedule_identifier]["scheduler_identifier"]
+                if schedule_identifier in self._schedule_dict[target_timestamp_num_str]:
+                    if isinstance(_iv, (EventJobBase, IntervalJobBase)):
+                        invoker_identifier = self._schedule_dict[
+                            target_timestamp_num_str
+                        ][schedule_identifier]["invoker_identifier"]
                         self._verify_permissions(
-                            _invoker,
-                            op=JOB_VERBS.UNSCHEDULE,
+                            _iv,
+                            op=JobVerbs.UNSCHEDULE,
                             schedule_identifier=schedule_identifier,
-                            scheduler_identifier=scheduler_identifier,
+                            invoker_identifier=invoker_identifier,
                         )
                     else:
-                        _invoker = None
+                        _iv = self._manager_job
 
-                    del self._schedule_dict[target_timestamp_num][schedule_identifier]
+                    del self._schedule_dict[target_timestamp_num_str][
+                        schedule_identifier
+                    ]
                     self._schedule_ids.remove(schedule_identifier)
+                    return True
 
             raise KeyError(
                 f"cannot find any scheduled operation with the identifier '{schedule_identifier}'"
             )
 
+        return True
+
     async def clear_job_schedules(
         self,
-        _invoker: Optional[Union[EventJobBase, IntervalJobBase]] = None,
+        _iv: Optional[Union[EventJobBase, IntervalJobBase]] = None,
     ):
         """Remove all job schedule operations. This obviously can't
         be undone. This will stop job scheduling, clear data, and restart
@@ -1306,7 +1397,6 @@ class JobManager:
 
         if was_init:
             self.uninitialize_job_scheduling()
-            await self.wait_for_job_scheduling_uninitialization()
 
         async with self._schedule_dict_lock:
             fails = self._schedule_dict[0]
@@ -1319,7 +1409,7 @@ class JobManager:
             self.initialize_job_scheduling()
 
     def __iter__(self):
-        return iter(self._job_id_map)
+        return iter(job._proxy for job in self._job_id_map.values())
 
     def _add_job(
         self,
@@ -1328,6 +1418,7 @@ class JobManager:
     ):
         """
         THIS METHOD IS ONLY MEANT FOR INTERNAL USE BY THIS CLASS.
+
         Add the given job object to this job manager, and start it.
 
         Args:
@@ -1345,10 +1436,7 @@ class JobManager:
             JobInitializationError: An uninitialized job was given as input.
         """
 
-        if not self._initialized:
-            raise RuntimeError("This job manager object is not initialized.")
-
-        elif job._completed or job._killed:
+        if job._completed or job._killed:
             raise JobStateError(
                 "cannot add a job that has is not alive to a JobManager instance"
             ) from None
@@ -1372,7 +1460,7 @@ class JobManager:
         else:
             raise TypeError(
                 f"expected an instance of EventJobBase or IntervalJobBase subclasses, "
-                f"not {job.__class__.__name__}"
+                f"not {job.__class__.__qualname__}"
             ) from None
 
         if job.__class__._IDENTIFIER not in self._job_type_count_dict:
@@ -1388,11 +1476,13 @@ class JobManager:
             job._task_loop.start()
 
     def _remove_job(self, job: Union[EventJobBase, IntervalJobBase]):
-        """THIS METHOD IS ONLY MEANT FOR INTERNAL USE BY THIS CLASS.
+        """THIS METHOD IS ONLY MEANT FOR INTERNAL USE BY THIS CLASS and job manager
+        proxies.
+
         Remove the given job object from this job manager.
 
         Args:
-            *jobs: Union[EventJobBase, IntervalJobBase]:
+            *jobs (Union[EventJobBase, IntervalJobBase]):
                 The job to be removed, if present.
         Raises:
             TypeError: An invalid object was given as a job.
@@ -1400,7 +1490,7 @@ class JobManager:
         if not isinstance(job, (EventJobBase, IntervalJobBase)):
             raise TypeError(
                 f"expected an instance of class EventJobBase or IntervalJobBase "
-                f", not {job.__class__.__name__}"
+                f", not {job.__class__.__qualname__}"
             ) from None
 
         if (
@@ -1430,6 +1520,7 @@ class JobManager:
     def _remove_jobs(self, *jobs: Union[EventJobBase, IntervalJobBase]):
         """
         THIS METHOD IS ONLY MEANT FOR INTERNAL USE BY THIS CLASS.
+
         Remove the given job objects from this job manager.
 
         Args:
@@ -1441,24 +1532,24 @@ class JobManager:
         for job in jobs:
             self._remove_job(job)
 
-    def has_job(self, job_or_proxy: Union[EventJobBase, IntervalJobBase, JobProxy]):
+    def has_job(self, job_proxy: "proxies.JobProxy") -> bool:
         """Whether a job is contained in this job manager.
 
         Args:
-            job_or_proxy (Union[EventJobBase, IntervalJobBase]): The job object to look
+            job_proxy (JobProxy): The proxy to the job object to look
               for.
 
         Returns:
             bool: True/False
         """
-        job = (
-            self._get_job_from_proxy(job_or_proxy)
-            if isinstance(job_or_proxy, JobProxy)
-            else job_or_proxy
-        )
-        return job._identifier in self._job_id_map
 
-    def has_identifier(self, identifier: str):
+        self._check_init_and_running()
+
+        job = self._get_job_from_proxy(job_proxy)
+
+        return job in self._job_id_map.values()
+
+    def has_job_identifier(self, identifier: str) -> bool:
         """Whether a job with the given identifier is contained in this job manager.
 
         Args:
@@ -1467,6 +1558,9 @@ class JobManager:
         Returns:
             bool: True/False
         """
+
+        self._check_init_and_running()
+
         return identifier in self._job_id_map
 
     def find_job(
@@ -1475,8 +1569,8 @@ class JobManager:
         identifier: Optional[str] = None,
         created_at: Optional[datetime.datetime] = None,
         _return_proxy: bool = True,
-        _invoker: Optional[Union[EventJobBase, IntervalJobBase]] = None,
-    ):
+        _iv: Optional[Union[EventJobBase, IntervalJobBase]] = None,
+    ) -> Optional["proxies.JobProxy"]:
         """Find the first job that matches the given criteria specified as arguments,
         and return a proxy to it, otherwise return `None`.
 
@@ -1492,12 +1586,15 @@ class JobManager:
 
         Returns:
             JobProxy: The proxy of the job object, if present.
+            None: No matching job object found.
         """
 
-        if isinstance(_invoker, (EventJobBase, IntervalJobBase)):
-            self._verify_permissions(_invoker, op=JOB_VERBS.FIND)
+        self._check_init_and_running()
+
+        if isinstance(_iv, (EventJobBase, IntervalJobBase)):
+            self._verify_permissions(_iv, op=JobVerbs.FIND)
         else:
-            _invoker = self._manager_job
+            _iv = self._manager_job
 
         if identifier is not None:
             if isinstance(identifier, str):
@@ -1529,38 +1626,39 @@ class JobManager:
     def find_jobs(
         self,
         *,
-        classes: Optional[
+        classes: tuple[
             Union[
                 Type[EventJobBase],
                 Type[IntervalJobBase],
-                tuple[Union[Type[EventJobBase], Type[IntervalJobBase]]],
             ]
-        ] = None,
+        ] = tuple(),
         exact_class_match: bool = False,
         created_before: Optional[datetime.datetime] = None,
         created_after: Optional[datetime.datetime] = None,
-        permission_level: Optional[int] = None,
-        above_permission_level: Optional[int] = None,
-        below_permission_level: Optional[int] = PERM_LEVELS.SYSTEM,
+        permission_level: Optional[JobPermissionLevels] = None,
+        above_permission_level: Optional[JobPermissionLevels] = None,
+        below_permission_level: Optional[
+            JobPermissionLevels
+        ] = JobPermissionLevels.SYSTEM,
         alive: Optional[bool] = None,
         is_starting: Optional[bool] = None,
         is_running: Optional[bool] = None,
         is_idling: Optional[bool] = None,
         is_awaiting: Optional[bool] = None,
-        is_being_stopped: Optional[bool] = None,
-        is_being_restarted: Optional[bool] = None,
+        is_stopping: Optional[bool] = None,
+        is_restarting: Optional[bool] = None,
         is_being_killed: Optional[bool] = None,
         is_being_completed: Optional[bool] = None,
         stopped: Optional[bool] = None,
         _return_proxy: bool = True,
-        _invoker: Optional[Union[EventJobBase, IntervalJobBase]] = None,
-    ):
+        _iv: Optional[Union[EventJobBase, IntervalJobBase]] = None,
+    ) -> tuple["proxies.JobProxy"]:
         """Find jobs that match the given criteria specified as arguments,
         and return a tuple of proxy objects to them.
 
         Args:
             classes: (
-                Optional[
+                 Optional[
                     Union[
                         Type[EventJobBase],
                         Type[IntervalJobBase],
@@ -1571,39 +1669,40 @@ class JobManager:
                             ]
                         ]
                     ]
-                ],
-            optional): The class(es) of the job objects to limit the job search
-              to, excluding subclasses. Defaults to None.
-            exact_class_match (bool): Whether an exact match is required for the
-              classes in the previous parameter, or subclasses are allowed too.
+                ]
+            , optional): The class(es) of the job objects to limit the job search to,
+              excluding subclasses. Defaults to None.
+            exact_class_match (bool, optional): Whether an exact match is required for
+              the classes in the previous parameter, or subclasses are allowed too.
               Defaults to False.
-            created_before (Optional[datetime.datetime], optional): The lower age limit of the
-              jobs to find. Defaults to None.
-            created_after (Optional[datetime.datetime], optional): The upper age limit of the
-              jobs to find. Defaults to None.
-            permission_level (Optional[int], optional): The permission level of the jobs to
-              find. Defaults to None.
-            above_permission_level (Optional[int], optional): The lower permission level
-              value of the jobs to find. Defaults to None.
-            below_permission_level (Optional[int], optional): The upper permission level
-              value of the jobs to find. Defaults to `PERM_LEVELS.SYSTEM`.
+            created_before (Optional[datetime.datetime], optional): The lower age limit
+              of the jobs to find. Defaults to None.
+            created_after (Optional[datetime.datetime], optional): The upper age limit
+              of the jobs to find. Defaults to None.
+            permission_level (Optional[JobPermissionLevels], optional): The permission
+              level of the jobs to find. Defaults to None.
+            above_permission_level (Optional[JobPermissionLevels], optional): The lower
+              permission level value of the jobs to find. Defaults to None.
+            below_permission_level (Optional[JobPermissionLevels], optional): The upper
+              permission level value of the jobs to find. Defaults to
+              `JobPermissionLevels.SYSTEM`.
             created_before (Optional[datetime.datetime], optional): The lower age limit
               of the jobs to find. Defaults to None.
             created_after (Optional[datetime.datetime], optional): The upper age limit
               of the jobs to find. Defaults to None.
             alive (Optional[bool], optional): A boolean that a job's state should
               match. Defaults to None.
-            is_running (Optional[bool], optional): A boolean that a job's state should
-              match. Defaults to None.
-            is_idling (Optional[bool], optional): A boolean that a job's state should
-              match. Defaults to None.
-            is_awaiting (Optional[bool], optional): A boolean that a job's state should
-              match. Defaults to None.
-            is_being_stopped (Optional[bool], optional): A boolean that a job's state
+            is_running (Optional[bool], optional): A boolean that a job's state
+              should match. Defaults to None.
+            is_idling (Optional[bool], optional): A boolean that a job's state
+              should match. Defaults to None.
+            is_awaiting (Optional[bool], optional): A boolean that a job's state
+              should match. Defaults to None.
+            is_stopping (Optional[bool], optional): A boolean that a job's state
               should match. Defaults to None.
             stopped (Optional[bool], optional): A boolean that a job's state should
               match. Defaults to None.
-            is_being_restarted (Optional[bool], optional): A boolean that a job's
+            is_restarting (Optional[bool], optional): A boolean that a job's
               state should match. Defaults to None.
             is_being_killed (Optional[bool], optional): A boolean that a job's
               state should match. Defaults to None.
@@ -1614,10 +1713,12 @@ class JobManager:
             tuple: A tuple of the job object proxies that were found.
         """
 
-        if isinstance(_invoker, (EventJobBase, IntervalJobBase)):
-            self._verify_permissions(_invoker, op=JOB_VERBS.FIND)
+        self._check_init_and_running()
+
+        if isinstance(_iv, (EventJobBase, IntervalJobBase)):
+            self._verify_permissions(_iv, op=JobVerbs.FIND)
         else:
-            _invoker = self._manager_job
+            _iv = self._manager_job
 
         filter_functions = []
 
@@ -1666,64 +1767,37 @@ class JobManager:
                 ) from None
 
         if permission_level is not None:
-            if not isinstance(permission_level, int):
+            if not isinstance(permission_level, JobPermissionLevels):
                 raise TypeError(
-                    "argument 'permission_level' must be "
-                    f"of type 'int', not {below_permission_level.__class__}"
+                    "argument 'permission_level' must be an enum value from the "
+                    f"JobPermissionLevels enum"
                 )
 
-            if (
-                not permission_level % 2
-                and PERM_LEVELS.LOWEST <= permission_level <= PERM_LEVELS.SYSTEM
-            ):
-                filter_functions.append(
-                    lambda job: job.permission_level == permission_level
-                )
-            else:
-                raise ValueError(
-                    "argument 'permission_level' must be "
-                    "a valid permission level integer"
-                )
+            filter_functions.append(
+                lambda job: job.permission_level is permission_level
+            )
 
         if below_permission_level is not None:
-            if not isinstance(below_permission_level, int):
+            if not isinstance(below_permission_level, JobPermissionLevels):
                 raise TypeError(
-                    "argument 'below_permission_level' must be "
-                    f"of type 'int', not {below_permission_level.__class__}"
+                    "argument 'below_permission_level' must be an enum value from the "
+                    f"JobPermissionLevels enum"
                 )
 
-            if (
-                not below_permission_level % 2
-                and PERM_LEVELS.LOWEST <= below_permission_level <= PERM_LEVELS.SYSTEM
-            ):
-                filter_functions.append(
-                    lambda job: job.permission_level < below_permission_level
-                )
-            else:
-                raise ValueError(
-                    "argument 'below_permission_level' must be "
-                    "a valid permission level integer"
-                )
+            filter_functions.append(
+                lambda job: job.permission_level < below_permission_level
+            )
 
         if above_permission_level is not None:
-            if not isinstance(above_permission_level, int):
+            if not isinstance(above_permission_level, JobPermissionLevels):
                 raise TypeError(
-                    "argument 'above_permission_level' must be "
-                    f"of type 'int', not {above_permission_level.__class__}"
+                    "argument 'above_permission_level' must be an enum value from the "
+                    f"JobPermissionLevels enum"
                 )
 
-            if (
-                not above_permission_level % 2
-                and PERM_LEVELS.LOWEST <= above_permission_level <= PERM_LEVELS.HIGHEST
-            ):
-                filter_functions.append(
-                    lambda job: job.permission_level > above_permission_level
-                )
-            else:
-                raise ValueError(
-                    "argument 'above_permission_level' must be "
-                    "a valid permission level integer"
-                )
+            filter_functions.append(
+                lambda job: job.permission_level > above_permission_level
+            )
 
         if alive is not None:
             alive = bool(alive)
@@ -1751,17 +1825,13 @@ class JobManager:
             is_running = bool(is_awaiting)
             filter_functions.append(lambda job: job.is_awaiting() is is_awaiting)
 
-        if is_being_stopped is not None:
-            is_running = bool(is_being_stopped)
-            filter_functions.append(
-                lambda job: job.is_being_stopped() is is_being_stopped
-            )
+        if is_stopping is not None:
+            is_running = bool(is_stopping)
+            filter_functions.append(lambda job: job.is_stopping() is is_stopping)
 
-        if is_being_restarted is not None:
-            is_being_restarted = bool(is_being_restarted)
-            filter_functions.append(
-                lambda job: job.is_being_restarted() is is_being_restarted
-            )
+        if is_restarting is not None:
+            is_restarting = bool(is_restarting)
+            filter_functions.append(lambda job: job.is_restarting() is is_restarting)
 
         if is_being_killed is not None:
             is_being_killed = bool(is_being_killed)
@@ -1793,53 +1863,47 @@ class JobManager:
 
     def start_job(
         self,
-        job_or_proxy: Union[EventJobBase, IntervalJobBase, JobProxy],
-        _invoker: Optional[Union[EventJobBase, IntervalJobBase]] = None,
-    ):
+        job_proxy: "proxies.JobProxy",
+        _iv: Optional[Union[EventJobBase, IntervalJobBase]] = None,
+    ) -> bool:
 
         """Start the given job object, if is hasn't already started.
 
         Args:
-            job_or_proxy (Union[IntervalJobBase, EventJobBase]): The job object.
+            job_proxy (JobProxy): The proxy to the job object.
 
         Returns:
             bool: Whether the operation was successful.
         """
 
-        job = (
-            self._get_job_from_proxy(job_or_proxy)
-            if isinstance(job_or_proxy, JobProxy)
-            else job_or_proxy
-        )
+        self._check_init_and_running()
 
-        if isinstance(_invoker, (EventJobBase, IntervalJobBase)):
-            self._verify_permissions(_invoker, op=JOB_VERBS.START, target=job)
+        job = self._get_job_from_proxy(job_proxy)
+
+        if isinstance(_iv, (EventJobBase, IntervalJobBase)):
+            self._verify_permissions(_iv, op=JobVerbs.START, target=job)
         else:
-            _invoker = self._manager_job
+            _iv = self._manager_job
 
-        if job._is_being_guarded and _invoker is not job._guardian:
+        if job._is_being_guarded and _iv is not job._guardian:
             raise JobStateError(
                 "the given target job object is being guarded by another job"
             ) from None
 
-        if not job._task_loop.is_running():
-            job._task_loop.start()
-            return True
-
-        return False
+        return job._START_EXTERNAL()
 
     def restart_job(
         self,
-        job_or_proxy: Union[IntervalJobBase, EventJobBase, JobProxy],
+        job_proxy: Union[IntervalJobBase, EventJobBase, "proxies.JobProxy"],
         stopping_timeout: Optional[float] = None,
-        _invoker: Optional[Union[EventJobBase, IntervalJobBase]] = None,
-    ):
+        _iv: Optional[Union[EventJobBase, IntervalJobBase]] = None,
+    ) -> bool:
         """Restart the given job object. This provides a cleaner way
         to forcefully stop a job and restart it, or to wake it up from
         a stopped state.
 
         Args:
-            job_or_proxy (Union[IntervalJobBase, EventJobBase]): The job object.
+            job_proxy (JobProxy): The proxy to the job object.
             stopping_timeout (Optional[float], optional):
               An optional timeout in seconds for the maximum time period
               for stopping the job while it is restarting. This overrides
@@ -1848,18 +1912,16 @@ class JobManager:
             bool: Whether the operation was initiated by the job.
         """
 
-        job = (
-            self._get_job_from_proxy(job_or_proxy)
-            if isinstance(job_or_proxy, JobProxy)
-            else job_or_proxy
-        )
+        self._check_init_and_running()
 
-        if isinstance(_invoker, (EventJobBase, IntervalJobBase)):
-            self._verify_permissions(_invoker, op=JOB_VERBS.RESTART, target=job)
+        job = self._get_job_from_proxy(job_proxy)
+
+        if isinstance(_iv, (EventJobBase, IntervalJobBase)):
+            self._verify_permissions(_iv, op=JobVerbs.RESTART, target=job)
         else:
-            _invoker = self._manager_job
+            _iv = self._manager_job
 
-        if job._is_being_guarded and _invoker is not job._guardian:
+        if job._is_being_guarded and _iv is not job._guardian:
             raise JobStateError(
                 "the given target job object is being guarded by another job"
             ) from None
@@ -1872,15 +1934,15 @@ class JobManager:
 
     def stop_job(
         self,
-        job_or_proxy: Union[EventJobBase, IntervalJobBase, JobProxy],
+        job_proxy: "proxies.JobProxy",
         stopping_timeout: Optional[float] = None,
         force: bool = False,
-        _invoker: Optional[Union[EventJobBase, IntervalJobBase]] = None,
-    ):
+        _iv: Optional[Union[EventJobBase, IntervalJobBase]] = None,
+    ) -> bool:
         """Stop the given job object.
 
         Args:
-            job_or_proxy (Union[IntervalJobBase, EventJobBase]): The job object.
+            job_proxy (JobProxy): The proxy to the job object.
             force (bool): Whether to suspend all operations of the job forcefully.
             stopping_timeout (Optional[float], optional): An optional timeout in
               seconds for the maximum time period for stopping the job. This
@@ -1890,18 +1952,16 @@ class JobManager:
             bool: Whether the operation was successful.
         """
 
-        job = (
-            self._get_job_from_proxy(job_or_proxy)
-            if isinstance(job_or_proxy, JobProxy)
-            else job_or_proxy
-        )
+        self._check_init_and_running()
 
-        if isinstance(_invoker, (EventJobBase, IntervalJobBase)):
-            self._verify_permissions(_invoker, op=JOB_VERBS.STOP, target=job)
+        job = self._get_job_from_proxy(job_proxy)
+
+        if isinstance(_iv, (EventJobBase, IntervalJobBase)):
+            self._verify_permissions(_iv, op=JobVerbs.STOP, target=job)
         else:
-            _invoker = self._manager_job
+            _iv = self._manager_job
 
-        if job._is_being_guarded and _invoker is not job._guardian:
+        if job._is_being_guarded and _iv is not job._guardian:
             raise JobStateError(
                 "the given target job object is being guarded by another job"
             ) from None
@@ -1914,36 +1974,34 @@ class JobManager:
 
     def kill_job(
         self,
-        job_or_proxy: Union[EventJobBase, IntervalJobBase, JobProxy],
+        job_proxy: "proxies.JobProxy",
         stopping_timeout: Optional[float] = None,
-        _invoker: Optional[Union[EventJobBase, IntervalJobBase]] = None,
-    ):
+        _iv: Optional[Union[EventJobBase, IntervalJobBase]] = None,
+    ) -> bool:
         """Stops a job's current execution unconditionally and remove it from its
         job manager.
 
         Args:
-            job_or_proxy (Union[IntervalJobBase, EventJobBase]): The job object.
+            job_proxy (JobProxy): The proxy to the job object.
             stopping_timeout (Optional[float], optional):
               An optional timeout in seconds for the maximum time period for
               stopping the job while it is being killed. This overrides the
               global timeout of this job manager if present.
 
         Returns:
-            bool: Whether the operation was initiated by the job.
+            bool: Whether the operation was successful.
         """
 
-        job = (
-            self._get_job_from_proxy(job_or_proxy)
-            if isinstance(job_or_proxy, JobProxy)
-            else job_or_proxy
-        )
+        self._check_init_and_running()
 
-        if isinstance(_invoker, (EventJobBase, IntervalJobBase)):
-            self._verify_permissions(_invoker, op=JOB_VERBS.KILL, target=job)
+        job = self._get_job_from_proxy(job_proxy)
+
+        if isinstance(_iv, (EventJobBase, IntervalJobBase)):
+            self._verify_permissions(_iv, op=JobVerbs.KILL, target=job)
         else:
-            _invoker = self._manager_job
+            _iv = self._manager_job
 
-        if job._is_being_guarded and _invoker is not job._guardian:
+        if job._is_being_guarded and _iv is not job._guardian:
             raise JobStateError(
                 "the given target job object is being guarded by another job"
             ) from None
@@ -1956,43 +2014,40 @@ class JobManager:
 
     def guard_job(
         self,
-        job_or_proxy: Union[EventJobBase, IntervalJobBase, JobProxy],
-        _invoker: Optional[Union[EventJobBase, IntervalJobBase]] = None,
+        job_proxy: "proxies.JobProxy",
+        _iv: Optional[Union[EventJobBase, IntervalJobBase]] = None,
     ):
         """Place a guard on the given job object, to prevent unintended state
-        modifications by other jobs.
+        modifications by other jobs. This guard can only be broken by other
+        jobs when they have a high enough permission level.
 
         Args:
-            job_or_proxy (Union[EventJobBase, IntervalJobBase, JobProxy]): The job object.
+            job_proxy (JobProxy): The proxy to the job object.
 
         Raises:
-            JobStateError: The given target job object is already being guarded by a job.
-            JobStateError: The given target job object is already being guarded by the
-            invoker job object.
+            JobStateError: The given target job object is already being guarded.
         """
 
-        job = (
-            self._get_job_from_proxy(job_or_proxy)
-            if isinstance(job_or_proxy, JobProxy)
-            else job_or_proxy
-        )
+        self._check_init_and_running()
 
-        if isinstance(_invoker, (EventJobBase, IntervalJobBase)):
-            self._verify_permissions(_invoker, op=JOB_VERBS.GUARD, target=job)
+        job = self._get_job_from_proxy(job_proxy)
+
+        if isinstance(_iv, (EventJobBase, IntervalJobBase)):
+            self._verify_permissions(_iv, op=JobVerbs.GUARD, target=job)
         else:
-            _invoker = self._manager_job
+            _iv = self._manager_job
 
         if job._is_being_guarded:
             raise JobStateError(
                 "the given target job object is already being guarded by a job"
             )
 
-        if _invoker._guarded_job_proxies_dict is None:
-            _invoker._guarded_job_proxies_dict = {}
+        if _iv._guarded_job_proxies_dict is None:
+            _iv._guarded_job_proxies_dict = {}
 
-        if job._identifier not in _invoker._guarded_job_proxies_dict:
-            job._guardian = _invoker
-            _invoker._guarded_job_proxies_dict[job._identifier] = job._proxy
+        if job._identifier not in _iv._guarded_job_proxies_dict:
+            job._guardian = _iv
+            _iv._guarded_job_proxies_dict[job._identifier] = job._proxy
             job._is_being_guarded = True
         else:
             raise JobStateError(
@@ -2002,44 +2057,42 @@ class JobManager:
 
     def unguard_job(
         self,
-        job_or_proxy: Union[EventJobBase, IntervalJobBase, JobProxy],
-        _invoker: Optional[Union[EventJobBase, IntervalJobBase]] = None,
+        job_proxy: "proxies.JobProxy",
+        _iv: Optional[Union[EventJobBase, IntervalJobBase]] = None,
     ):
         """Remove the guard on the given job object, to prevent unintended state
         modifications by other jobs.
 
         Args:
-            job_or_proxy (Union[EventJobBase, IntervalJobBase, JobProxy]): The job
-              object.
+            job_proxy (JobProxy): The proxy to the job object.
 
         Raises:
             JobStateError: The given target job object is not being guarded by a job.
             JobStateError: The given target job object is already being guarded by
               the invoker job object.
         """
-        job = (
-            self._get_job_from_proxy(job_or_proxy)
-            if isinstance(job_or_proxy, JobProxy)
-            else job_or_proxy
-        )
 
-        if isinstance(_invoker, (EventJobBase, IntervalJobBase)):
-            self._verify_permissions(_invoker, op=JOB_VERBS.UNGUARD, target=job)
+        self._check_init_and_running()
+
+        job = self._get_job_from_proxy(job_proxy)
+
+        if isinstance(_iv, (EventJobBase, IntervalJobBase)):
+            self._verify_permissions(_iv, op=JobVerbs.UNGUARD, target=job)
         else:
-            _invoker = self._manager_job
+            _iv = self._manager_job
 
         if not job._is_being_guarded:
             raise JobStateError("the given job object is not being guarded by a job")
 
         if (
-            _invoker._guarded_job_proxies_dict is not None
-            and job._identifier in _invoker._guarded_job_proxies_dict
+            _iv._guarded_job_proxies_dict is not None
+            and job._identifier in _iv._guarded_job_proxies_dict
         ):
             job._guardian = None
             job._is_being_guarded = False
-            del _invoker._guarded_job_proxies_dict[job._identifier]
+            del _iv._guarded_job_proxies_dict[job._identifier]
 
-        elif _invoker is self._manager_job:
+        elif _iv is self._manager_job:
             guardian = job._guardian
             job._guardian = None
             job._is_being_guarded = False
@@ -2058,21 +2111,16 @@ class JobManager:
 
         job._unguard_futures.clear()
 
-    def __contains__(
-        self, job_or_proxy: Union[EventJobBase, IntervalJobBase, JobProxy]
-    ):
-        job = (
-            self._get_job_from_proxy(job_or_proxy)
-            if isinstance(job_or_proxy, JobProxy)
-            else job_or_proxy
-        )
-        return job._identifier in self._job_id_map
+    def __contains__(self, job_proxy: "proxies.JobProxy"):
+        self._check_init_and_running()
 
+        job = self._get_job_from_proxy(job_proxy)
+        return job._identifier in self._job_id_map
 
     def dispatch_event(
         self,
         event: events.BaseEvent,
-        _invoker: Optional[Union[EventJobBase, IntervalJobBase]] = None,
+        _iv: Optional[Union[EventJobBase, IntervalJobBase]] = None,
     ):
         """Dispatch an instance of a `BaseEvent` subclass to all event job
         objects in this job manager that are listening for it.
@@ -2081,25 +2129,24 @@ class JobManager:
             event (BaseEvent): The event to be dispatched.
         """
 
-        if isinstance(_invoker, (EventJobBase, IntervalJobBase)):
+        self._check_init_and_running()
+
+        if isinstance(_iv, (EventJobBase, IntervalJobBase)):
             if isinstance(event, events.BaseEvent):
                 if isinstance(event, events.CustomEvent):
-                    self._verify_permissions(
-                        _invoker, op=JOB_VERBS.CUSTOM_EVENT_DISPATCH
-                    )
+                    self._verify_permissions(_iv, op=JobVerbs.CUSTOM_EVENT_DISPATCH)
                 else:
-                    self._verify_permissions(_invoker, op=JOB_VERBS.EVENT_DISPATCH)
+                    self._verify_permissions(_iv, op=JobVerbs.EVENT_DISPATCH)
             else:
-                raise TypeError(
-                    "argument 'event' must be an instance of CustomEvent or BaseEvent"
-                )
+                raise TypeError("argument 'event' must be an instance of BaseEvent")
         else:
-            _invoker = self._manager_job
+            if not isinstance(event, events.BaseEvent):
+                raise TypeError("argument 'event' must be an instance of BaseEvent")
+            _iv = self._manager_job
 
-        if (
-            _invoker is not None
-        ):  # for cases where the default _invoker might not yet be set
-            event._dispatcher = _invoker._proxy
+        if _iv is not None:
+            # for cases where the default _iv might not yet be set
+            event._dispatcher = _iv._proxy
 
         event_class_identifier = event.__class__._IDENTIFIER
 
@@ -2130,7 +2177,7 @@ class JobManager:
         *event_types: Type[events.BaseEvent],
         check: Optional[Callable[[events.BaseEvent], bool]] = None,
         timeout: Optional[float] = None,
-    ):
+    ) -> Coroutine[Any, Any, events.BaseEvent]:
         """Wait for specific type of event to be dispatched
         and return it as an event object using the given coroutine.
 
@@ -2150,6 +2197,8 @@ class JobManager:
         Returns:
             Coroutine: A coroutine that evaluates to a valid `BaseEvent` event object.
         """
+
+        self._check_init_and_running()
 
         check = (lambda _: True) if check is None else check
         future = self._loop.create_future()
@@ -2171,15 +2220,21 @@ class JobManager:
 
         return asyncio.wait_for(future, timeout)
 
-    def kill_all_jobs(self):
-        """Kill all job objects that are in this job manager."""
-        for job in self._job_id_map.values():
-            job._KILL_EXTERNAL(awaken=True)
+    def stop_all_jobs(self, force: bool = False):
+        """Stop all job objects that are in this job manager."""
 
-    def kill_all_interval_jobs(self):
-        """Kill all job objects inheriting from `IntervalJobBase` that are in this job
+        self._check_init_and_running()
+
+        for job in self._job_id_map.values():
+            job._STOP_EXTERNAL(force=force)
+
+    def stop_all_interval_jobs(self, force: bool = True):
+        """Stop all job objects inheriting from `IntervalJobBase` that are in this job
         manager.
         """
+
+        self._check_init_and_running()
+
         for job in (
             ij
             for ij in (
@@ -2187,24 +2242,128 @@ class JobManager:
             )
         ):
             if not job.is_being_killed():
-                job._KILL_EXTERNAL(awaken=True)
+                job._STOP_EXTERNAL(force=force)
 
-    def kill_all_event_jobs(self):
+    def stop_all_event_jobs(self, force: bool = True):
+        """Stop all job objects inheriting from `EventJobBase` that are in this job
+        manager.
+        """
+
+        self._check_init_and_running()
+
+        for ej_id_set in self._event_job_ids.values():
+            for job_identifier in ej_id_set:
+                if job_identifier in self._job_id_map:
+                    job = self._job_id_map[job_identifier]
+                    if not job.is_being_killed():
+                        job._STOP_EXTERNAL(force=force)
+
+    def kill_all_jobs(self, awaken: bool = True):
+        """Kill all job objects that are in this job manager."""
+
+        self._check_init_and_running()
+
+        for job in self._job_id_map.values():
+            job._KILL_EXTERNAL(awaken=awaken)
+
+    def kill_all_interval_jobs(self, awaken: bool = True):
+        """Kill all job objects inheriting from `IntervalJobBase` that are in this job
+        manager.
+        """
+
+        self._check_init_and_running()
+
+        for job in (
+            ij
+            for ij in (
+                self._job_id_map[identifier] for identifier in self._interval_job_ids
+            )
+        ):
+            if not job.is_being_killed():
+                job._KILL_EXTERNAL(awaken=awaken)
+
+    def kill_all_event_jobs(self, awaken: bool = True):
         """Kill all job objects inheriting from `EventJobBase` that are in this job
         manager.
         """
+
+        self._check_init_and_running()
+
         for ej_id_set in self._event_job_ids.values():
             for job_identifier in ej_id_set:
-                job = self._job_id_map[job_identifier]
-                if not job.is_being_killed():
-                    job._KILL_EXTERNAL(awaken=True)
+                if job_identifier in self._job_id_map:
+                    job = self._job_id_map[job_identifier]
+                    if not job.is_being_killed():
+                        job._KILL_EXTERNAL(awaken=awaken)
 
-    def quit(self):
-        self.uninitialize_job_scheduling()
-        self._thread_pool_executor.shutdown()
-        self._process_pool_executor.shutdown()
-        self.kill_all_jobs()
-        self._running = False
+    def has_executors(self):
+        return (
+            self._thread_pool_executor is not None
+            and self._process_pool_executor is not None
+        )
+
+    def resume(self):
+        """Resume the execution of this job manager.
+
+        Raises:
+            RuntimeError: This job manager never stopped, or was never initialized.
+        """
+
+        self._check_init()
+        if self._is_running:
+            raise RuntimeError("this job manager is still running")
+
+        if self._process_pool_executor is None:
+            self._process_pool_executor = ProcessPoolExecutor(max_workers=4)
+
+        if self._thread_pool_executor is None:
+            self._thread_pool_executor = ThreadPoolExecutor(max_workers=4)
+
+        self._is_running = True
+
+    def stop(
+        self,
+        job_operation: Union[
+            Literal[JobVerbs.KILL], Literal[JobVerbs.STOP]
+        ] = JobVerbs.KILL,
+        shutdown_executors: bool = True,
+    ):
+        """Stop this job manager from running, while optionally killing/stopping the jobs in it
+        and shutting down its executors.
+
+        Args:
+            job_operation (Union[JobVerbs.KILL, JobVerbs.STOP]): The operation to
+              perform on the jobs in this job manager. Defaults to JobVerbs.KILL.
+              Killing will always be done by starting up jobs and killing them immediately.
+              Stopping will always be done by force. For more control, use the standalone
+              functions for modifiying jobs.
+            shutdown_executors (bool, optional): Whether to shut down executors used by this
+              job manager, if they aren't required for any future operations like exporting job
+              scheduling data. Defaults to True.
+
+        Raises:
+            TypeError: Invalid job operation argument.
+        """
+        if self._scheduling_is_initialized:
+            self.uninitialize_job_scheduling()
+
+        if shutdown_executors:
+            self._thread_pool_executor.shutdown()
+            self._process_pool_executor.shutdown()
+            self._thread_pool_executor = None
+            self._process_pool_executor = None
+
+        if not isinstance(job_operation, JobVerbs):
+            raise TypeError(
+                "argument 'job_operation' must be 'KILL' or 'STOP' from the JobVerbs enum"
+            )
+
+        if job_operation is JobVerbs.STOP:
+            self.stop_all_jobs(force=True)
+        elif job_operation is JobVerbs.KILL:
+            self.kill_all_jobs(awaken=True)
+
+        self._is_running = False
 
 
-from .proxies import JobProxy, JobManagerProxy
+from . import proxies
