@@ -509,8 +509,11 @@ class JobBase:
                     "argument 'permission_level' must be a usable permission "
                     "level from the 'JobPermissionLevels' enum"
                 )
+
         else:
-            permission_level = JobBase._PERMISSION_LEVEL
+            permission_level = cls._PERMISSION_LEVEL = get_job_class_permission_level(
+                cls.__mro__[1], JobPermissionLevels.MEDIUM
+            )
 
         if scheduling_identifier is not None:
             if not isinstance(scheduling_identifier, str):
