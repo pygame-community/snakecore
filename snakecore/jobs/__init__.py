@@ -10,7 +10,7 @@ from typing import Optional
 
 import discord
 
-from snakecore import config
+from snakecore import config, events
 from .jobs import (
     get_job_class_from_runtime_identifier,
     get_job_class_permission_level,
@@ -33,6 +33,7 @@ def init(client: Optional[discord.Client] = None):
     if client is not None and not config.conf.is_set("global_client"):
         config.conf.global_client = client
 
+    events.init(client=client)
     config.conf.init_mods[config.ModuleName.JOBS] = True
 
 

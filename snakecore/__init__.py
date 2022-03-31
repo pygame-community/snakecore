@@ -24,6 +24,7 @@ def init(client: Optional[discord.Client] = None):
 
     utils.init(client=client)
     events.init(client=client)
+    jobs.init(client=client)
     config.conf.init_mods[config.ModuleName.SNAKECORE] = True
 
 
