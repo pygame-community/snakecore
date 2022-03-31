@@ -4,7 +4,7 @@ This project has been licensed under the MIT license.
 Copyright (c) 2022-present PygameCommunityDiscord
 
 This module defines some internal configuration classes and utilities used
-throughout the codebase
+throughout the codebase.
 """
 
 from abc import ABC, abstractmethod

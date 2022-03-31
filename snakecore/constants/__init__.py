@@ -8,6 +8,8 @@ This file defines some constants used across the library.
 
 from typing import Any
 
+from .enums import *
+
 
 class _SingletonMeta(type):
     def __init__(cls, name, bases, dct):
@@ -55,6 +57,3 @@ UNSET: Any = _UnsetType()
 # helpful constants
 BASIC_MAX_FILE_SIZE = 8_000_000  # bytes
 ZERO_SPACE = "\u200b"  # U+200B
-
-# jobs module
-_SYSTEM_JOB_RUNTIME_IDENTIFIERS = {"JobManagerJob": "0-0"}
