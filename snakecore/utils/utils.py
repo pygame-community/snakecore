@@ -257,17 +257,17 @@ def split_long_message(message: str, limit: int = 2000):
     return split_output
 
 
-def format_code_exception(e, pops: int = 1):
+def format_code_exception(exc, pops: int = 1):
     """
     Provide a formatted exception for code snippets
     """
-    tbs = traceback.format_exception(type(e), e, e.__traceback__)
+    tbs = traceback.format_exception(type(exc), exc, exc.__traceback__)
     # Pop out the first entry in the traceback, because that's
     # this function call itself
     for _ in range(pops):
         tbs.pop(1)
 
-    ret = "".join(tbs).replace(os.getcwd(), "PgBot")
+    ret = "".join(tbs).replace(os.getcwd(), "Bot")
     if platform.system() == "Windows":
         # Hide path to python on windows
         ret = ret.replace(os.path.dirname(sys.executable), "Python")

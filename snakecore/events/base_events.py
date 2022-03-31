@@ -7,66 +7,103 @@ This file implements base classes used to capture or emit events.
 """
 
 import datetime
-from typing import Optional, Type
+from typing import Any, Optional, Type, Union
 
-from .base_events import BaseEvent
+from snakecore.constants import UNSET
 
 _EVENT_CLASS_MAP = {}
 
 
-def get_event_class_from_id(class_identifier: str, closest_match: bool = True):
+def get_event_class_from_runtime_identifier(
+    class_identifier: str, default: Any = UNSET, /, closest_match: bool = False
+) -> "BaseEvent":
 
     name, timestamp_str = class_identifier.split("-")
 
     if name in _EVENT_CLASS_MAP:
         if timestamp_str in _EVENT_CLASS_MAP[name]:
-            return _EVENT_CLASS_MAP[name][timestamp_str]
+            return _EVENT_CLASS_MAP[name][timestamp_str]["class"]
         elif closest_match:
             for ts_str in _EVENT_CLASS_MAP[name]:
-                return _EVENT_CLASS_MAP[name][ts_str]
+                return _EVENT_CLASS_MAP[name][ts_str]["class"]
 
-    raise KeyError(
-        f"cannot find event class with an identifier of "
-        f"'{class_identifier}' in the event class registry"
-    )
+    if default is UNSET:
+        raise LookupError(
+            "cannot find event class with an identifier of "
+            f"'{class_identifier}' in the event class registry"
+        )
+    return default
 
 
-def get_event_class_id(cls: Type[BaseEvent], raise_exceptions=True):
+def get_event_class_runtime_identifier(
+    cls: Type["BaseEvent"],
+    default: Any = UNSET,
+    /,
+) -> Union[str, Any]:
+    """Get a event class by its runtime identifier string. This is the safe way
+    of looking up event class runtime identifiers.
+
+    Args:
+        cls (Type[BaseEvent]): The event class whose identifier should be fetched.
+        default (Any): A default value which will be returned if this function
+          fails to produce the desired output. If omitted, exceptions will be
+          raised.
+
+    Raises:
+        TypeError: 'cls' does not inherit from a event base class.
+        LookupError: The given event class does not exist in the event class registry.
+          This exception should not occur if event classes inherit their base classes
+          correctly.
+
+    Returns:
+        str: The string identifier.
+    """
 
     if not issubclass(cls, BaseEvent):
-        raise TypeError("argument 'cls' must be a subclass of an event base class")
+        if default is UNSET:
+            raise TypeError("argument 'cls' must be a subclass of a job base class")
+        return default
 
     try:
         class_identifier = cls._IDENTIFIER
     except AttributeError:
-        raise TypeError(
-            "invalid event class, must be"
-            " a subclass of an event base class with an identifier"
-        ) from None
+        if default is UNSET:
+            raise TypeError(
+                "argument 'cls' must be a subclass of a job base class"
+            ) from None
+        return default
 
     try:
         name, timestamp_str = class_identifier.split("-")
-    except ValueError:
-        raise ValueError("invalid identifier found in the given event class") from None
+    except (ValueError, AttributeError):
+        if default is UNSET:
+            raise ValueError(
+                "invalid identifier found in the given event class"
+            ) from None
+        return default
 
     if name in _EVENT_CLASS_MAP:
         if timestamp_str in _EVENT_CLASS_MAP[name]:
-            if _EVENT_CLASS_MAP[name][timestamp_str] is cls:
+            if _EVENT_CLASS_MAP[name][timestamp_str]["class"] is cls:
                 return class_identifier
             else:
-                if raise_exceptions:
-                    raise ValueError(f"The given event class has an invalid identifier")
+                if default is UNSET:
+                    raise ValueError(
+                        "The given event class has the incorrect identifier"
+                    )
         else:
-            if raise_exceptions:
+            if default is UNSET:
                 ValueError(
-                    f"The given event class is registered under"
-                    " a different identifier in the event class registry"
+                    "The given event class is registered under "
+                    "a different identifier in the event class registry"
                 )
 
-    if raise_exceptions:
+    if default is UNSET:
         raise LookupError(
-            f"The given event class does not exist in the event class registry"
+            "The given event class does not exist in the event class registry"
         )
+
+    return default
 
 
 def get_all_slot_names(cls):
@@ -74,7 +111,7 @@ def get_all_slot_names(cls):
     cls_slot_values = getattr(cls, "__slots__", None)
     if cls_slot_values:
         slots_list.extend(cls_slot_values)
-    for base_cls in cls.__bases__:
+    for base_cls in cls.__mro__[1:]:
         slots_list.extend(get_all_slot_names(base_cls))
     return slots_list
 
@@ -132,7 +169,7 @@ class BaseEvent:
         """A proxy of the job object that dispatched this event, if available."""
         return self._dispatcher
 
-    def copy(self) -> BaseEvent:
+    def copy(self) -> "BaseEvent":
         new_obj = self.__class__.__new__(self.__class__)
         for attr in self.__base_slots__:
             setattr(new_obj, attr, getattr(self, attr))

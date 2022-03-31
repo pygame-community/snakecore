@@ -17,7 +17,8 @@ from . import base_events
 
 
 class ClientEvent(base_events.BaseEvent):
-    """The base class for all discord API websocket event wrapper objects, with values as returned by discord.py."""
+    """The base class for all discord API websocket event wrapper objects, with values
+    as returned by discord.py."""
 
     ALT_NAME: Optional[str] = None
     """The actual event name used by the current discord API wrapper,
@@ -32,9 +33,6 @@ class OnReady(ClientEvent):
 
     ALT_NAME = "ready"
     __slots__ = ()
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
 
 
 class OnTyping(ClientEvent):
@@ -77,7 +75,6 @@ class OnMessageBase(ClientEvent):
     """
 
     __slots__ = ()
-    pass
 
 
 class OnRawMessageBase(ClientEvent):
@@ -89,7 +86,6 @@ class OnRawMessageBase(ClientEvent):
     """
 
     __slots__ = ()
-    pass
 
 
 class OnMessage(OnMessageBase):
@@ -197,7 +193,6 @@ class OnReactionBase(ClientEvent):
     """
 
     __slots__ = ()
-    pass
 
 
 class OnRawReactionBase(ClientEvent):
@@ -210,7 +205,6 @@ class OnRawReactionBase(ClientEvent):
     """
 
     __slots__ = ()
-    pass
 
 
 class _OnReactionToggle(OnReactionBase):
@@ -288,8 +282,6 @@ class OnReactionAdd(_OnReactionToggle):
     __slots__ = ()
     ALT_NAME = "reaction_add"
 
-    pass
-
 
 class OnReactionRemove(_OnReactionToggle):
     """See https://discordpy.readthedocs.io/en/latest/api.html#discord.on_reaction_remove"""
@@ -297,15 +289,12 @@ class OnReactionRemove(_OnReactionToggle):
     __slots__ = ()
     ALT_NAME = "reaction_remove"
 
-    pass
-
 
 class OnRawReactionAdd(_OnRawReactionToggle):
     """See https://discordpy.readthedocs.io/en/latest/api.html#discord.on_raw_reaction_add"""
 
     __slots__ = ()
     ALT_NAME = "raw_reaction_add"
-    pass
 
 
 class OnRawReactionRemove(_OnRawReactionToggle):
@@ -313,7 +302,6 @@ class OnRawReactionRemove(_OnRawReactionToggle):
 
     __slots__ = ()
     ALT_NAME = "raw_reaction_remove"
-    pass
 
 
 class OnReactionClear(OnReactionBase):
@@ -387,7 +375,6 @@ class OnPrivateChannelBase(ClientEvent):
     """
 
     __slots__ = ()
-    pass
 
 
 class _OnPrivateChannelLifeCycle(OnPrivateChannelBase):
@@ -403,7 +390,6 @@ class OnPrivateChannelCreate(_OnPrivateChannelLifeCycle):
 
     __slots__ = ()
     ALT_NAME = "private_channel_create"
-    pass
 
 
 class OnPrivateChannelDelete(_OnPrivateChannelLifeCycle):
@@ -411,7 +397,6 @@ class OnPrivateChannelDelete(_OnPrivateChannelLifeCycle):
 
     __slots__ = ()
     ALT_NAME = "private_channel_delete"
-    pass
 
 
 class OnPrivateChannelUpdate(OnPrivateChannelBase):
@@ -469,7 +454,6 @@ class OnGuildBase(ClientEvent):
     """
 
     __slots__ = ()
-    pass
 
 
 class OnGuildChannelBase(OnGuildBase):
@@ -481,7 +465,6 @@ class OnGuildChannelBase(OnGuildBase):
     """
 
     __slots__ = ()
-    pass
 
 
 class _OnGuildChannelLifeCycle(OnGuildChannelBase):
@@ -497,7 +480,6 @@ class OnGuildChannelCreate(_OnGuildChannelLifeCycle):
 
     __slots__ = ()
     ALT_NAME = "guild_channel_create"
-    pass
 
 
 class OnGuildChannelDelete(_OnGuildChannelLifeCycle):
@@ -505,7 +487,6 @@ class OnGuildChannelDelete(_OnGuildChannelLifeCycle):
 
     __slots__ = ()
     ALT_NAME = "guild_channel_delete"
-    pass
 
 
 class OnGuildChannelUpdate(OnGuildChannelBase):
@@ -575,7 +556,6 @@ class OnMemberBase(OnGuildBase):
     """
 
     __slots__ = ()
-    pass
 
 
 class OnMemberTrafficBase(OnMemberBase):
@@ -598,7 +578,6 @@ class OnMemberJoin(OnMemberTrafficBase):
 
     __slots__ = ()
     ALT_NAME = "member_join"
-    pass
 
 
 class OnMemberRemove(OnMemberTrafficBase):
@@ -606,7 +585,6 @@ class OnMemberRemove(OnMemberTrafficBase):
 
     __slots__ = ()
     ALT_NAME = "member_remove"
-    pass
 
 
 class OnMemberUpdate(OnMemberBase):
@@ -652,7 +630,6 @@ class OnGuildJoin(OnGuildTrafficBase):
 
     __slots__ = ()
     ALT_NAME = "guild_join"
-    pass
 
 
 class OnGuildRemove(OnGuildTrafficBase):
@@ -660,7 +637,6 @@ class OnGuildRemove(OnGuildTrafficBase):
 
     __slots__ = ()
     ALT_NAME = "guild_remove"
-    pass
 
 
 class OnGuildUpdate(OnGuildBase):
@@ -684,7 +660,6 @@ class OnGuildRoleBase(OnGuildBase):
     """
 
     __slots__ = ()
-    pass
 
 
 class _OnGuildRoleLifeCycle(OnGuildRoleBase):
@@ -700,7 +675,6 @@ class OnGuildRoleCreate(_OnGuildRoleLifeCycle):
 
     __slots__ = ()
     ALT_NAME = "guild_role_create"
-    pass
 
 
 class OnGuildRoleDelete(_OnGuildRoleLifeCycle):
@@ -708,7 +682,6 @@ class OnGuildRoleDelete(_OnGuildRoleLifeCycle):
 
     __slots__ = ()
     ALT_NAME = "guild_role_delete"
-    pass
 
 
 class OnGuildRoleUpdate(OnGuildRoleBase):
@@ -761,7 +734,6 @@ class OnGuildAvailable(OnGuildAvailabilityBase):
 
     __slots__ = ()
     ALT_NAME = "guild_available"
-    pass
 
 
 class OnGuildUnavailable(OnGuildAvailabilityBase):
@@ -769,7 +741,6 @@ class OnGuildUnavailable(OnGuildAvailabilityBase):
 
     __slots__ = ()
     ALT_NAME = "guild_unavailable"
-    pass
 
 
 class OnVoiceStateUpdate(OnGuildBase):
@@ -800,7 +771,6 @@ class OnMemberBanBase(OnMemberBase):
     """
 
     __slots__ = ()
-    pass
 
 
 class _OnMemberBanToggle(OnMemberBanBase):
@@ -823,7 +793,6 @@ class OnMemberBan(_OnMemberBanToggle):
 
     __slots__ = ()
     ALT_NAME = "member_ban"
-    pass
 
 
 class OnMemberUnban(_OnMemberBanToggle):
@@ -831,7 +800,6 @@ class OnMemberUnban(_OnMemberBanToggle):
 
     __slots__ = ()
     ALT_NAME = "member_unban"
-    pass
 
 
 class OnInviteBase(OnGuildBase):
@@ -842,7 +810,6 @@ class OnInviteBase(OnGuildBase):
     """
 
     __slots__ = ()
-    pass
 
 
 class _OnInviteLifeCycle(OnInviteBase):
@@ -858,7 +825,6 @@ class OnInviteCreate(_OnInviteLifeCycle):
 
     __slots__ = ()
     ALT_NAME = "invite_create"
-    pass
 
 
 class OnInviteDelete(_OnInviteLifeCycle):
@@ -866,4 +832,3 @@ class OnInviteDelete(_OnInviteLifeCycle):
 
     __slots__ = ()
     ALT_NAME = "invite_delete"
-    pass
