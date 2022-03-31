@@ -6,9 +6,9 @@ Copyright (c) 2022-present PygameCommunityDiscord
 This file defines some basic exceptions used across the library.
 """
 
+
 class SnakeCoreException(Exception):
-    """A generic snakecore exception, the base class of all exceptions of the library.
-    """
+    """A generic snakecore exception, the base class of all exceptions of the library."""
 
 
 # utils/
