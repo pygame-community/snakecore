@@ -2884,11 +2884,10 @@ class EventJobBase(JobBase):
                     self.STOP()
                     return
             else:
-                while not self._event_queue:
-                    if not self._is_idling:
-                        self._is_idling = True
-                        self._idling_since_ts = time.time()
+                self._is_idling = True
+                self._idling_since_ts = time.time()
 
+                while not self._event_queue:
                     event_was_dispatched = False
 
                     try:
@@ -2918,11 +2917,7 @@ class EventJobBase(JobBase):
                             )
                             handle.cancel()
 
-                        self._is_idling = False
-                        self._idling_since_ts = None
-
                     except asyncio.CancelledError as exc:
-                        event_was_dispatched = None
                         if exc.args[0] == "CANCEL_BY_TASK_LOOP":
                             # stopping because of task loop cancellation
                             raise
@@ -2935,10 +2930,12 @@ class EventJobBase(JobBase):
                         return
 
                     if (
-                        event_was_dispatched is False
+                        not event_was_dispatched
                         or self._elapsed_event_queue_timeout_secs
                         >= self._empty_event_queue_timeout_secs
                     ):
+                        self._is_idling = False
+                        self._idling_since_ts = None
                         self._stopping_by_idling_timeout = True
                         self.STOP()
                         return
@@ -2946,6 +2943,10 @@ class EventJobBase(JobBase):
                     self._validate_and_pump_events()
                     # an event was dispatched, if that event did not
                     # reach the main event queue, this loop will continue
+
+                # loop exits normally because events were dispatched
+                self._is_idling = False
+                self._idling_since_ts = None
 
         elif self._loop_count == self._count:
             self.STOP()
@@ -2959,7 +2960,7 @@ class EventJobBase(JobBase):
 
         self._loop_count += 1
 
-        if self._interval_secs:
+        if self._interval_secs:  # an execution interval was set
             self._is_idling = True
             self._idling_since_ts = time.time()
 
