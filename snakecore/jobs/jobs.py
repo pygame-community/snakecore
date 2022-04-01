@@ -2868,6 +2868,12 @@ class EventJobBase(JobBase):
                                 # stopping because of task loop cancellation
                                 raise
 
+                            self._is_idling = False
+                            self._idling_since_ts = None
+                            self._STOP_EXTERNAL(force=True)
+                            # unknown source of CancelledError, stop for good measure
+                            return
+
                         self._validate_and_pump_events()
 
                     self._is_idling = False
@@ -2917,10 +2923,16 @@ class EventJobBase(JobBase):
 
                     except asyncio.CancelledError as exc:
                         event_was_dispatched = None
-                        # ignore CancelledError that is not from job task loop object
                         if exc.args[0] == "CANCEL_BY_TASK_LOOP":
                             # stopping because of task loop cancellation
                             raise
+
+                        self._elapsed_event_queue_timeout_secs = 0
+                        self._is_idling = False
+                        self._idling_since_ts = None
+                        self._STOP_EXTERNAL(force=True)
+                        # unknown source of CancelledError, stop for good measure
+                        return
 
                     if (
                         event_was_dispatched is False
