@@ -2608,6 +2608,7 @@ class EventJobBase(JobBase):
         "_last_event",
         "_max_event_checks_per_iteration",
         "_empty_event_queue_timeout_secs",
+        "_elapsed_event_queue_timeout_secs",
         "_max_event_queue_size",
         "_allow_event_queue_overflow",
         "_block_events_on_stop",
@@ -2697,6 +2698,8 @@ class EventJobBase(JobBase):
             )
         else:
             self._empty_event_queue_timeout_secs = None
+
+        self._elapsed_event_queue_timeout_secs = 0
 
         max_event_queue_size = (
             self.DEFAULT_MAX_EVENT_QUEUE_SIZE
@@ -2888,44 +2891,55 @@ class EventJobBase(JobBase):
                         )
 
                         handle = self._task_loop.loop.call_later(  # copied from asyncio.sleep
-                            self._empty_event_queue_timeout_secs,
+                            self._empty_event_queue_timeout_secs
+                            - self._elapsed_event_queue_timeout_secs,
                             lambda fut: None
                             if fut.cancelled() or fut.done()
                             else fut.set_result(False),
                             self._empty_event_queue_future,
                         )
 
+                        timeout_start_time = 0
+
                         try:
+                            timeout_start_time = time.time()
                             event_was_dispatched = (
                                 await self._empty_event_queue_future
                             )  # wait till an event is dispatched
                         finally:
+                            self._elapsed_event_queue_timeout_secs += (
+                                time.time() - timeout_start_time
+                            )
                             handle.cancel()
 
                         self._is_idling = False
                         self._idling_since_ts = None
 
                     except asyncio.CancelledError as exc:
+                        event_was_dispatched = None
                         # ignore CancelledError that is not from job task loop object
-                        print(repr(exc))
                         if exc.args[0] == "CANCEL_BY_TASK_LOOP":
                             # stopping because of task loop cancellation
                             raise
-                    else:
-                        if event_was_dispatched:
-                            # an event was dispatched, even if that event did not
-                            # reach the main event queue
-                            continue
-                        else:
-                            self._stopping_by_idling_timeout = True
-                            self.STOP()
-                            return
+
+                    if (
+                        event_was_dispatched is False
+                        or self._elapsed_event_queue_timeout_secs
+                        >= self._empty_event_queue_timeout_secs
+                    ):
+                        self._stopping_by_idling_timeout = True
+                        self.STOP()
+                        return
 
                     self._validate_and_pump_events()
+                    # an event was dispatched, if that event did not
+                    # reach the main event queue, this loop will continue
 
         elif self._loop_count == self._count:
             self.STOP()
             return
+
+        self._elapsed_event_queue_timeout_secs = 0
 
         event = self._event_queue.popleft()
         await self.on_run(event)
