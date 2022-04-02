@@ -444,6 +444,7 @@ class JobBase:
         "_told_to_complete",
         "_killed",
         "_told_to_be_killed",
+        "_internal_startup_kill",
         "_external_startup_kill",
         "_skip_on_run",
         "_told_to_stop",
