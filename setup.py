@@ -16,7 +16,16 @@ with open("snakecore/__init__.py") as f:
 with open("README.md") as f:
     readme = f.read()
 
-packages = ["snakecore"]
+packages = [
+    "snakecore",
+    "snakecore.command_handler",
+    "snakecore.constants",
+    "snakecore.db",
+    "snakecore.events",
+    "snakecore.jobs",
+    "snakecore.utils",
+]
+
 setup(
     name="snakecore",
     author="PygameCommunityDiscord",

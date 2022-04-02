@@ -9,13 +9,12 @@ throughout the codebase.
 
 from abc import ABC, abstractmethod
 from enum import Enum, auto
-from time import perf_counter
 from types import GenericAlias
 from typing import Any, Callable, Generic, Optional, Protocol, TypeVar, overload
 
 import discord
 
-from .constants import UNSET, _UnsetType
+from snakecore.constants import UNSET, _UnsetType, UnionType
 
 _T = TypeVar("_T", bound=object)
 
@@ -206,7 +205,11 @@ class Field(BaseField[_T]):
 
         # isinstance checks can't handle a GenericAlias
         if isinstance(self._var_type, GenericAlias):
-            self._var_type = self._var_type.__origin__
+            self._var_type: type[_T] = self._var_type.__origin__  # type: ignore
+
+        if isinstance(self._var_type, UnionType):
+            # needed for python 3.9
+            self._var_type: type[_T] = self._var_type.__args__  # type: ignore
 
     def validate(self, obj: _T):
         """
@@ -332,83 +335,3 @@ class CoreConfig(ConfigurationBase):
 
 
 conf = CoreConfig()
-
-if __name__ == "__main__":
-    # a few tests to make sure the config system is working
-    # TODO: move these tests to unit tests directory and expand on this
-
-    class Configuration(ConfigurationBase):
-        a = 6
-        b = Field(init_val=4.5)
-
-        try:
-            # expected error
-            c = Field()
-        except ValueError:
-            pass
-        else:
-            raise RuntimeError("This should have failed!")
-
-        # 'd' looks like 'Field[list[str] | _UnsetType]' at typecheck time, but
-        # will be a list and checked for list at runtime. Will also fail at
-        # runtime if this is modified
-        d = ConstantField("test")
-
-        # 'e' looks like 'Field[tuple[int, int, int]]' at typecheck time, but
-        # will be a list and checked for tuple at runtime
-        e = Field(init_val=(1, 2, 3), var_type=tuple[int, int, int])
-
-    class FailConfiguration(ConfigurationBase):
-        # expected error, mismatching types. This fails when the class is
-        # instantiated
-        f = Field(init_val=1, var_type=list[int])
-
-    try:
-        var = FailConfiguration()
-    except TypeError:
-        pass
-    else:
-        raise RuntimeError("This should have failed!")
-
-    c = Configuration()
-    v = None
-
-    t0 = perf_counter()
-    v = c.a
-    dt0 = perf_counter() - t0
-    print("getting speed for regular attribute:", dt0)
-
-    t0 = perf_counter()
-    c.a = 3
-    dt0 = perf_counter() - t0
-    print("setting speed for regular attribute:", dt0)
-
-    t0 = perf_counter()
-    v = c.b
-    dt0 = perf_counter() - t0
-    print("getting speed for Field:", dt0)
-
-    t0 = perf_counter()
-    c.b = 10.2
-    dt0 = perf_counter() - t0
-    print("setting speed for Field:", dt0)
-
-    try:
-        # expected error, modifying ConstantField
-        c.d = "sus".replace("s", "u")
-    except AttributeError:
-        pass
-    else:
-        raise RuntimeError("This should have failed!")
-
-    # should pass
-    c.e = (4, 5, 6)
-
-    try:
-        # expected error, wrong type
-        c.e = None
-
-    except TypeError:
-        pass
-    else:
-        raise RuntimeError("This should have failed!")
