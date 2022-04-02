@@ -11,11 +11,11 @@ from abc import ABC, abstractmethod
 from enum import Enum, auto
 from time import perf_counter
 from types import GenericAlias
-from typing import Any, Callable, Generic, Protocol, TypeVar, overload
+from typing import Any, Callable, Generic, Optional, Protocol, TypeVar, overload
 
 import discord
 
-from .constants import _UnsetType, UNSET
+from .constants import UNSET, _UnsetType
 
 _T = TypeVar("_T", bound=object)
 
@@ -318,6 +318,7 @@ class ModuleName(Enum):
     SNAKECORE = auto()
     UTILS = auto()
     EVENTS = auto()
+    DB = auto()
 
 
 class CoreConfig(ConfigurationBase):
@@ -327,6 +328,7 @@ class CoreConfig(ConfigurationBase):
 
     global_client = Field(var_type=discord.Client, write_once=True)
     init_mods = Field(init_constr=dict, var_type=dict[ModuleName, bool])
+    db_channel = Field(init_val=None, var_type=Optional[discord.TextChannel])
 
 
 conf = CoreConfig()

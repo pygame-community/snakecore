@@ -18,13 +18,22 @@ __copyright__ = "Copyright 2022-present PygameCommunityDiscord"
 __version__ = "0.1.0"
 
 
-def init(client: Optional[discord.Client] = None):
+async def init(client: Optional[discord.Client] = None):
     if client is not None and not config.conf.is_set("global_client"):
         config.conf.global_client = client
 
-    utils.init(client=client)
-    events.init(client=client)
+    utils.init()
+    events.init()
+    await db.init()
     config.conf.init_mods[config.ModuleName.SNAKECORE] = True
+
+
+async def quit():
+    # call any quit hooks here
+    await db.quit()
+
+    for key in config.conf.init_mods:
+        config.conf.init_mods[key] = False
 
 
 def is_init():

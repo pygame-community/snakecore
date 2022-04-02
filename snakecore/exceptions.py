@@ -15,3 +15,7 @@ class SnakeCoreException(Exception):
 ## serializers
 class DeserializationError(SnakeCoreException):
     """Failed to deserialize the serialized data of a serializer object."""
+
+
+class DBException(SnakeCoreException):
+    """Exceptions raised during DB handling"""
