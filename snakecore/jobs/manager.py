@@ -23,7 +23,6 @@ from snakecore.constants.enums import (
 )
 from snakecore.exceptions import (
     JobException,
-    JobInitializationError,
     JobPermissionError,
     JobStateError,
 )
@@ -35,7 +34,6 @@ from .jobs import (
     _SingletonMixinJobBase,
     JobManagerJob,
     get_job_class_from_scheduling_identifier,
-    get_job_class_from_runtime_identifier,
     get_job_class_permission_level,
     get_job_class_scheduling_identifier,
 )

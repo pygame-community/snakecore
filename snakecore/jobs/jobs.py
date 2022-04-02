@@ -1071,6 +1071,47 @@ class JobBase:
             file=sys.stderr,
         )
 
+    def told_to_stop(self):
+        """Whether this job object has been requested to stop from
+        an internal or external source. If `True`, this job will
+        attempt to stop as soon at it becomes possible, be it gracefully
+        or forcefully.
+
+        Returns:
+            bool: True/False
+        """
+        return self._told_to_stop
+
+    def told_to_restart(self):
+        """Whether this job object has been requested to restart from
+        an internal or external source. If `True`, this job will
+        attempt to restart as soon as it becomes possible.
+
+        Returns:
+            bool: True/False
+        """
+        return self._told_to_restart
+
+    def told_to_be_killed(self):
+        """Whether this job object has been requested to get killed from
+        an internal or external source. If `True`, this job will
+        attempt to be killed as soon as it becomes possible.
+
+        Returns:
+            bool: True/False
+        """
+        return self._told_to_be_killed
+
+    def told_to_complete(self):
+        """Whether this job object has been requested to complete from
+        an internal source. If `True`, this job will
+        attempt to complete as soon as it becomes possible.
+
+        Returns:
+            bool: True/False
+        """
+        return self._told_to_complete
+
     def is_stopping(self) -> bool:
         """Whether this job object is stopping.
 
