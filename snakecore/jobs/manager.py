@@ -22,7 +22,7 @@ from snakecore.constants.enums import (
     JobVerbs,
 )
 from snakecore.exceptions import (
-    JobError,
+    JobException,
     JobInitializationError,
     JobPermissionError,
     JobStateError,
@@ -982,7 +982,7 @@ class JobManager:
               Defaults to True.
 
         Raises:
-            JobInitializationError: The job given was already initialized.
+            JobStateError: The job given was already initialized.
 
         Returns:
             bool: Whether the initialization attempt was successful.
@@ -1010,7 +1010,7 @@ class JobManager:
                 ValueError,
                 TypeError,
                 LookupError,
-                JobError,
+                JobException,
                 AssertionError,
                 discord.DiscordException,
             ):
@@ -1019,9 +1019,7 @@ class JobManager:
                     raise
         else:
             if raise_exceptions:
-                raise JobInitializationError(
-                    "this job object is already initialized"
-                ) from None
+                raise JobStateError("this job object is already initialized") from None
             else:
                 return False
 
@@ -1043,7 +1041,7 @@ class JobManager:
 
         Raises:
             JobStateError: Invalid job state for registration.
-            JobError: job-specific errors preventing registration.
+            JobException: job-specific errors preventing registration.
             RuntimeError: This job manager object is not initialized.
         """
 
@@ -1072,7 +1070,7 @@ class JobManager:
             and job.__class__._IDENTIFIER in self._job_type_count_dict
             and self._job_type_count_dict[job.__class__._IDENTIFIER]
         ):
-            raise JobError(
+            raise JobException(
                 "cannot have more than one instance of a"
                 f" '{job.__class__.__qualname__}' job registered at a time."
             )
@@ -1449,7 +1447,7 @@ class JobManager:
             RuntimeError:
                 A job was given that was already present in the
                 manager, or this job manager has not been initialized.
-            JobInitializationError: An uninitialized job was given as input.
+            JobStateError: An uninitialized job was given as input.
         """
 
         if job._completed or job._killed:
@@ -1463,7 +1461,7 @@ class JobManager:
             ) from None
 
         elif not job._initialized:
-            raise JobInitializationError("the given job was not initialized") from None
+            raise JobStateError("the given job was not initialized") from None
 
         if isinstance(job, EventJobBase):
             for ce_type in job.EVENT_TYPES:
@@ -1898,6 +1896,9 @@ class JobManager:
 
         job = self._get_job_from_proxy(job_proxy)
 
+        if not job._initialized:
+            raise JobStateError("the given job was not initialized") from None
+
         if isinstance(_iv, (EventJobBase, IntervalJobBase)):
             self._verify_permissions(_iv, op=JobVerbs.START, target=job)
         else:
@@ -1933,6 +1934,9 @@ class JobManager:
         self._check_init_and_running()
 
         job = self._get_job_from_proxy(job_proxy)
+
+        if not job._initialized:
+            raise JobStateError("the given job was not initialized") from None
 
         if isinstance(_iv, (EventJobBase, IntervalJobBase)):
             self._verify_permissions(_iv, op=JobVerbs.RESTART, target=job)
@@ -1974,6 +1978,9 @@ class JobManager:
 
         job = self._get_job_from_proxy(job_proxy)
 
+        if not job._initialized:
+            raise JobStateError("the given job was not initialized") from None
+
         if isinstance(_iv, (EventJobBase, IntervalJobBase)):
             self._verify_permissions(_iv, op=JobVerbs.STOP, target=job)
         else:
@@ -2014,6 +2021,9 @@ class JobManager:
 
         job = self._get_job_from_proxy(job_proxy)
 
+        if not job._initialized:
+            raise JobStateError("the given job was not initialized") from None
+
         if isinstance(_iv, (EventJobBase, IntervalJobBase)):
             self._verify_permissions(_iv, op=JobVerbs.KILL, target=job)
         else:
@@ -2049,6 +2059,9 @@ class JobManager:
         self._check_init_and_running()
 
         job = self._get_job_from_proxy(job_proxy)
+
+        if not job._initialized:
+            raise JobStateError("the given job was not initialized") from None
 
         if isinstance(_iv, (EventJobBase, IntervalJobBase)):
             self._verify_permissions(_iv, op=JobVerbs.GUARD, target=job)
@@ -2093,6 +2106,9 @@ class JobManager:
         self._check_init_and_running()
 
         job = self._get_job_from_proxy(job_proxy)
+
+        if not job._initialized:
+            raise JobStateError("the given job was not initialized") from None
 
         if isinstance(_iv, (EventJobBase, IntervalJobBase)):
             self._verify_permissions(_iv, op=JobVerbs.UNGUARD, target=job)

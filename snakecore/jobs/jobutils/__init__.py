@@ -13,7 +13,7 @@ from typing import Any, Callable, Coroutine, Optional
 import discord
 
 from snakecore.constants.enums import JobPermissionLevels
-from snakecore.exceptions import JobError
+from snakecore.exceptions import JobException
 from snakecore.jobs.jobs import IntervalJobBase, EventJobBase, publicjobmethod
 from snakecore.jobs.proxies import JobProxy
 from snakecore import events
@@ -106,7 +106,7 @@ class RegisterDelayedJobGroup(JobGroup):
                     ValueError,
                     TypeError,
                     LookupError,
-                    JobError,
+                    JobException,
                     AssertionError,
                     discord.DiscordException,
                 ):

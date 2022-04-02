@@ -369,6 +369,11 @@ class CustomLoop(tasks.Loop):
     for getting more control over the `Task` cancelling process.
     """
 
+    def __init__(self, coro, seconds, hours, minutes, count, reconnect, loop):
+        super().__init__(coro, seconds, hours, minutes, count, reconnect, loop)
+        self.clear_exception_types()
+        self.add_exception_type(*DEFAULT_JOB_EXCEPTION_WHITELIST)
+
     def cancel(self):
         """Cancels the internal task, if it is running."""
         if self._can_be_cancelled():
@@ -439,7 +444,7 @@ class JobBase:
         "_told_to_complete",
         "_killed",
         "_told_to_be_killed",
-        "_startup_kill",
+        "_external_startup_kill",
         "_skip_on_run",
         "_told_to_stop",
         "_stop_by_self",
@@ -657,6 +662,7 @@ class JobBase:
 
         self._unguard_futures: Optional[list[asyncio.Future]] = None
         self._guardian: Optional[JobBase] = None
+
         self._guarded_job_proxies_dict: Optional[dict[str, "proxies.JobProxy"]] = None
         # will be assigned by job manager
 
@@ -675,7 +681,14 @@ class JobBase:
 
         self._killed = False
         self._told_to_be_killed = False
-        self._startup_kill = False
+
+        self._internal_startup_kill = False
+        # needed for jobs to react to killing at
+        # startup, to send them to `on_stop()` immediately
+
+        self._external_startup_kill = (
+            False  # kill and give a job a chance to react to it
+        )
 
         self._told_to_stop = False
         self._stop_by_self = False
@@ -801,7 +814,7 @@ class JobBase:
         self._idling_since_ts = None
 
         try:
-            if not self._startup_kill:
+            if not self._external_startup_kill:
                 await self.on_start()
 
         except Exception as exc:
@@ -860,7 +873,8 @@ class JobBase:
 
         self._skip_on_run = False
         self._is_starting = False
-        self._startup_kill = False
+        self._internal_startup_kill = False
+        self._external_startup_kill = False
 
         self._told_to_stop = False
         self._stop_by_self = False
@@ -1326,7 +1340,7 @@ class JobBase:
     def COMPLETE(self) -> bool:
         """DO NOT CALL THIS METHOD FROM OUTSIDE YOUR JOB SUBCLASS.
 
-        Stops this job object forcefullys, before removing it
+        Stops this job object forcefully, before removing it
         from its job manager. Any job that was completed
         has officially finished execution, and all jobs waiting
         for this job to complete will be notified. If a job had
@@ -1357,13 +1371,25 @@ class JobBase:
         """
 
         if not self._told_to_be_killed and not self._told_to_complete:
-            if not self._is_stopping:
-                self.STOP(force=True)
-
-            self._told_to_be_killed = True
-            return True
+            if self.__KILL():
+                self._told_to_be_killed = True
+                return True
 
         return False
+
+    def __KILL(self):
+        success = False
+        if self._is_starting:
+            # ensure that a job will always
+            # notice when it is killed while it is
+            # in `on_start()`
+            self._internal_startup_kill = True
+            success = True
+
+        elif not self._is_stopping:
+            success = self.STOP(force=True)
+
+        return success
 
     def _KILL_EXTERNAL(self, awaken=True) -> bool:
         """DO NOT CALL THIS METHOD MANUALLY.
@@ -1382,22 +1408,30 @@ class JobBase:
         """
 
         if not self._told_to_be_killed and not self._told_to_complete:
-            if self.is_running():
-                if not self._is_stopping:
-                    self._STOP_EXTERNAL(force=True)
-
-            elif awaken:
-                self._startup_kill = True  # start and kill as fast as possible
-                self._START_EXTERNAL()
-
-            else:
+            if self.__KILL_EXTERNAL(awaken=awaken):
                 self._told_to_be_killed = True
-                self._stop_cleanup(reason=JobStopReasons.External.KILLING)
-
-            self._told_to_be_killed = True
-            return True
+                return True
 
         return False
+
+    def __KILL_EXTERNAL(self, awaken=True):
+        success = False
+        if self.is_running():
+            if not self._is_stopping:
+                success = self._STOP_EXTERNAL(force=True)
+
+        elif awaken:
+            self._external_startup_kill = True  # start and kill as fast as possible
+            successs = self._START_EXTERNAL()
+            # don't set `_told_to_be_killed` to True so that this method
+            # can be called again to perform the actual kill
+
+        else:
+            self._told_to_be_killed = True  # required for next method
+            self._stop_cleanup(reason=JobStopReasons.External.KILLING)
+            success = True
+
+        return success
 
     async def wait_for(
         self, awaitable: Awaitable, timeout: Optional[float] = None
@@ -1615,7 +1649,11 @@ class JobBase:
         This is useful for knowing if a job skipped `on_start()` and `on_run()`
         due to that, and can be checked for within `on_stop()`.
         """
-        return self._startup_kill and self._is_stopping and self._told_to_be_killed
+        return (
+            self._external_startup_kill
+            and self._is_stopping
+            and self._told_to_be_killed
+        )
 
     def completed(self) -> bool:
         """Whether this job completed successfully.
@@ -2530,8 +2568,12 @@ class IntervalJobBase(JobBase):
         pass
 
     async def _on_run(self):
-        if self._startup_kill:
-            self._KILL_EXTERNAL()
+        if self._external_startup_kill:
+            self.__KILL_EXTERNAL()
+            return
+
+        elif self._internal_startup_kill:
+            self.__KILL()
             return
 
         elif self._skip_on_run:
@@ -2839,8 +2881,12 @@ class EventJobBase(JobBase):
         self._idling_since_ts = None
         self._stopping_by_idling_timeout = False
 
-        if self._startup_kill:
-            self._KILL_EXTERNAL()
+        if self._external_startup_kill:
+            self.__KILL_EXTERNAL()
+            return
+
+        elif self._internal_startup_kill:
+            self.__KILL()
             return
 
         elif self._skip_on_run:

@@ -63,6 +63,9 @@ UNSET: Any = _UnsetType()
 BASIC_MAX_FILE_SIZE = 8_000_000  # bytes
 ZERO_SPACE = "\u200b"  # U+200B
 
+
+# jobs
+_SYSTEM_JOB_RUNTIME_IDENTIFIERS = {"JobManagerJob": "0-0"}
 DEFAULT_JOB_EXCEPTION_WHITELIST = (
     OSError,
     discord.GatewayNotFound,
