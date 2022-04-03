@@ -18,8 +18,9 @@ import re
 import sys
 import time
 from types import FunctionType, SimpleNamespace
-from typing import Any, Awaitable, Callable, Coroutine, Optional, Type, Union
+from typing import Any, Awaitable, Callable, Coroutine, Optional, Sequence, Type, Union
 
+import discord.utils
 from discord.ext import tasks
 
 from snakecore.constants import (
@@ -369,8 +370,8 @@ class CustomLoop(tasks.Loop):
     for getting more control over the `Task` cancelling process.
     """
 
-    def __init__(self, coro, seconds, hours, minutes, count, reconnect, loop):
-        super().__init__(coro, seconds, hours, minutes, count, reconnect, loop)
+    def __init__(self, coro, seconds, hours, minutes, time, count, reconnect):
+        super().__init__(coro, seconds, hours, minutes, time, count, reconnect)
         self.clear_exception_types()
         self.add_exception_type(*DEFAULT_JOB_EXCEPTION_WHITELIST)
 
@@ -410,6 +411,7 @@ class JobBase:
 
     __slots__ = (
         "_interval_secs",
+        "_time",
         "_count",
         "_reconnect",
         "_loop_count",
@@ -627,6 +629,7 @@ class JobBase:
 
     def __init__(self):
         self._interval_secs = 0
+        self._time = None
         self._count = None
         self._reconnect = False
 
@@ -2519,6 +2522,7 @@ class IntervalJobBase(JobBase):
     """
 
     DEFAULT_INTERVAL = datetime.timedelta()
+    DEFAULT_TIME: Union[datetime.time, Sequence[datetime.time]] = None
 
     DEFAULT_COUNT: Optional[int] = None
     DEFAULT_RECONNECT = True
@@ -2526,6 +2530,7 @@ class IntervalJobBase(JobBase):
     def __init__(
         self,
         interval: Optional[datetime.timedelta] = None,
+        time: Optional[Union[datetime.time, Sequence[datetime.time]]] = None,
         count: Union[int, _UnsetType] = UNSET,
         reconnect: Optional[bool] = None,
     ):
@@ -2550,12 +2555,21 @@ class IntervalJobBase(JobBase):
             self.DEFAULT_RECONNECT if reconnect is None else reconnect
         )
 
+        self._reconnect = not not (
+            self.DEFAULT_RECONNECT if reconnect is None else reconnect
+        )
+
+        self._time = (
+            self.DEFAULT_TIME if time is None else time
+        )
+
         self._loop_count = 0
         self._task_loop = CustomLoop(
             self._on_run,
             seconds=self._interval_secs,
             hours=0,
             minutes=0,
+            time=self._time or discord.utils.MISSING,
             count=self._count,
             reconnect=self._reconnect,
             loop=None,
