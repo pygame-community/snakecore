@@ -318,7 +318,8 @@ class ConfigurationBase(SupportsField):
 
 
 class ModuleName(Enum):
-    SNAKECORE = auto()
+    SNAKECORE_SYNC = auto()  # fake module for synchronously initialized modules
+    SNAKECORE_ASYNC = auto()  # fake module for asynchronously initialized modules
     UTILS = auto()
     EVENTS = auto()
     DB = auto()
