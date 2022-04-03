@@ -236,6 +236,4 @@ def is_init():
     Returns:
         bool: True/False
     """
-    return config.conf.init_mods.get(
-        config.ModuleName.SNAKECORE_SYNC, False
-    ) and config.conf.init_mods.get(config.ModuleName.SNAKECORE_ASYNC, False)
+    return is_sync_init() and is_async_init()
