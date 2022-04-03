@@ -7,9 +7,10 @@ A set of core APIs to facilitate the creation of feature-rich Discord bots.
 """
 
 from typing import Optional, Union
+
 import discord
 
-from . import config, utils, command_handler, db, events, jobs
+from . import command_handler, config, constants, db, events, jobs, utils
 
 __title__ = "snakecore"
 __author__ = "PygameCommunityDiscord"
@@ -18,13 +19,22 @@ __copyright__ = "Copyright 2022-present PygameCommunityDiscord"
 __version__ = "0.1.0"
 
 
-def init(client: Optional[discord.Client] = None):
+async def init(client: Optional[discord.Client] = None):
     if client is not None and not config.conf.is_set("global_client"):
         config.conf.global_client = client
 
-    utils.init(client=client)
-    events.init(client=client)
+    utils.init()
+    events.init()
+    await db.init()
     config.conf.init_mods[config.ModuleName.SNAKECORE] = True
+
+
+async def quit():
+    # call any quit hooks here
+    await db.quit()
+
+    for key in config.conf.init_mods:
+        config.conf.init_mods[key] = False
 
 
 def is_init():

@@ -6,9 +6,16 @@ Copyright (c) 2022-present PygameCommunityDiscord
 This file defines some constants used across the library.
 """
 
-from typing import Any
+from typing import Any, Optional
 
 from .enums import *
+
+import sys
+
+if sys.version_info >= (3, 10):
+    from types import UnionType
+else:
+    UnionType = type(Optional[int])
 
 
 class _SingletonMeta(type):
