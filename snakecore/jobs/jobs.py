@@ -34,6 +34,8 @@ from snakecore.utils import utils
 from snakecore import events
 from snakecore.constants import _SYSTEM_JOB_RUNTIME_IDENTIFIERS, UNSET, _UnsetType
 
+NoneType = type(None)
+
 _JOB_CLASS_MAP = {}
 # A dictionary of all Job subclasses that were created.
 # Do not access outside of this module.
@@ -44,10 +46,10 @@ _JOB_CLASS_SCHEDULING_MAP = {}
 
 
 def get_job_class_from_runtime_identifier(
-    class_identifier: str, default: Any = UNSET, /, closest_match: bool = False
+    class_runtime_identifier: str, default: Any = UNSET, /, closest_match: bool = False
 ) -> "JobBase":
 
-    name, timestamp_str = class_identifier.split("-")
+    name, timestamp_str = class_runtime_identifier.split("-")
 
     if name in _JOB_CLASS_MAP:
         if timestamp_str in _JOB_CLASS_MAP[name]:
@@ -59,7 +61,7 @@ def get_job_class_from_runtime_identifier(
     if default is UNSET:
         raise LookupError(
             f"cannot find job class with an identifier of "
-            f"'{class_identifier}' in the job class registry"
+            f"'{class_runtime_identifier}' in the job class registry"
         )
     return default
 
@@ -170,7 +172,7 @@ def get_job_class_runtime_identifier(
         return default
 
     try:
-        class_identifier = cls._IDENTIFIER
+        class_runtime_identifier = cls._RUNITME_IDENTIFIER
     except AttributeError:
         if default is UNSET:
             raise TypeError(
@@ -179,7 +181,7 @@ def get_job_class_runtime_identifier(
         return default
 
     try:
-        name, timestamp_str = class_identifier.split("-")
+        name, timestamp_str = class_runtime_identifier.split("-")
     except (ValueError, AttributeError):
         if default is UNSET:
             raise ValueError(
@@ -190,7 +192,7 @@ def get_job_class_runtime_identifier(
     if name in _JOB_CLASS_MAP:
         if timestamp_str in _JOB_CLASS_MAP[name]:
             if _JOB_CLASS_MAP[name][timestamp_str]["class"] is cls:
-                return class_identifier
+                return class_runtime_identifier
             else:
                 if default is UNSET:
                     raise ValueError(
@@ -223,7 +225,7 @@ def get_job_class_permission_level(
         return default
 
     try:
-        class_identifier = cls._IDENTIFIER
+        class_runtime_identifier = cls._RUNITME_IDENTIFIER
     except AttributeError:
         if default is UNSET:
             raise TypeError(
@@ -232,7 +234,7 @@ def get_job_class_permission_level(
         return default
 
     try:
-        name, timestamp_str = class_identifier.split("-")
+        name, timestamp_str = class_runtime_identifier.split("-")
     except (ValueError, AttributeError):
         if default is UNSET:
             raise ValueError(
@@ -311,7 +313,7 @@ def _sysjob(cls: Type["JobBase"]) -> Type["JobBase"]:
     if issubclass(cls, JobBase):
         _SystemLevelMixinJobBase.register(cls)
 
-        name, created_timestamp_ns_str = cls._IDENTIFIER.split("-")
+        name, created_timestamp_ns_str = cls._RUNITME_IDENTIFIER.split("-")
 
         if name not in _JOB_CLASS_MAP:
             _JOB_CLASS_MAP[name] = {}
@@ -421,7 +423,7 @@ class JobBase:
         "_registered_at_ts",
         "_completed_at_ts",
         "_killed_at_ts",
-        "_identifier",
+        "_runtime_identifier",
         "_schedule_identifier",
         "_data",
         "_output_fields",
@@ -467,7 +469,7 @@ class JobBase:
     )
 
     _CREATED_AT = datetime.datetime.now(datetime.timezone.utc)
-    _IDENTIFIER = f"JobBase-{int(_CREATED_AT.timestamp()*1_000_000_000)}"
+    _RUNITME_IDENTIFIER = f"JobBase-{int(_CREATED_AT.timestamp()*1_000_000_000)}"
     _SCHEDULING_IDENTIFIER: Optional[str] = None
     _PERMISSION_LEVEL: JobPermissionLevels = JobPermissionLevels.MEDIUM
 
@@ -539,7 +541,7 @@ class JobBase:
 
             _JOB_CLASS_SCHEDULING_MAP[scheduling_identifier] = cls
 
-        cls._IDENTIFIER = f"{name}-{created_timestamp_ns_str}"
+        cls._RUNITME_IDENTIFIER = f"{name}-{created_timestamp_ns_str}"
 
         if name not in _JOB_CLASS_MAP:
             _JOB_CLASS_MAP[name] = {}
@@ -628,27 +630,29 @@ class JobBase:
         setattr(cls, f"{cls.__qualname__}_INIT", True)
 
     def __init__(self):
-        self._interval_secs = 0
+        self._interval_secs: int = 0
         self._time = None
-        self._count = None
-        self._reconnect = False
+        self._count: Optional[int] = None
+        self._reconnect: bool = False
 
-        self._loop_count = 0
+        self._loop_count: int = 0
 
         self._manager: Optional["proxies.JobManagerProxy"] = None
         self._creator: Optional["proxies.JobProxy"] = None
         self._created_at_ts = time.time()
-        self._registered_at_ts = None
-        self._completed_at_ts = None
-        self._killed_at_ts = None
-        self._identifier = f"{id(self)}-{int(self._created_at_ts*1_000_000_000)}"
-        self._schedule_identifier = None
-        self._data = self.NAMESPACE_CLASS()
+        self._registered_at_ts: Optional[float] = None
+        self._completed_at_ts: Optional[float] = None
+        self._killed_at_ts: Optional[float] = None
+        self._runtime_identifier: str = (
+            f"{id(self)}-{int(self._created_at_ts*1_000_000_000)}"
+        )
+        self._schedule_identifier: Optional[str] = None
+        self._data: JobNamespace = self.NAMESPACE_CLASS()
 
         self._done_futures: list[asyncio.Future] = []
-        self._output_field_futures = None
+        self._output_field_futures: Optional[dict[str, asyncio.Future[Any]]] = None
 
-        self._output_fields = None
+        self._output_fields: Optional[dict[str, Any]] = None
         self._output_queue_proxies: Optional[list["proxies.JobOutputQueueProxy"]] = None
 
         if self.OutputFields is not None:
@@ -662,9 +666,9 @@ class JobBase:
 
         self._task_loop: Optional[CustomLoop] = None
 
-        self._proxy = proxies.JobProxy(self)
+        self._proxy: "proxies.JobProxy" = proxies.JobProxy(self)
 
-        self._unguard_futures: Optional[list[asyncio.Future]] = None
+        self._unguard_futures: Optional[list[asyncio.Future[bool]]] = None
         self._guardian: Optional[JobBase] = None
 
         self._guarded_job_proxies_dict: Optional[dict[str, "proxies.JobProxy"]] = None
@@ -672,9 +676,9 @@ class JobBase:
 
         self._is_being_guarded = False
 
-        self._on_start_exception = None
-        self._on_run_exception = None
-        self._on_stop_exception = None
+        self._on_start_exception: Optional[BaseException] = None
+        self._on_run_exception: Optional[BaseException] = None
+        self._on_stop_exception: Optional[BaseException] = None
 
         self._is_awaiting = False
         self._is_initializing = False
@@ -708,12 +712,34 @@ class JobBase:
 
         self._is_idling = False
 
-        self._initialized_since_ts = None
+        self._initialized_since_ts: Optional[float] = None
         self._alive_since_ts: Optional[float] = None
         self._awaiting_since_ts: Optional[float] = None
         self._idling_since_ts: Optional[float] = None
         self._running_since_ts: Optional[float] = None
         self._stopped_since_ts: Optional[float] = None
+
+    @classmethod
+    def get_class_permission_level(self) -> JobPermissionLevels:
+        """Get the permission level of this job class.
+        This permission level applies to all of its
+        job instances.
+
+        Returns:
+            JobPermissionLevels: The permission level.
+        """
+        return self._PERMISSION_LEVEL
+
+    @classmethod
+    def get_class_runtime_identifier(self) -> JobPermissionLevels:
+        """Get the permission level of this job class.
+        This permission level applies to all of its
+        job instances.
+
+        Returns:
+            JobPermissionLevels: The permission level.
+        """
+        return self._RUNITME_IDENTIFIER
 
     @classmethod
     def schedulable(cls: Type["JobBase"]) -> bool:
@@ -729,11 +755,11 @@ class JobBase:
         return bool(get_job_class_scheduling_identifier(cls, False))
 
     @property
-    def identifier(self) -> str:
-        return self._identifier
+    def runtime_identifier(self) -> str:
+        return self._runtime_identifier
 
     @property
-    def created_at(self) -> Optional[datetime.datetime]:
+    def created_at(self) -> datetime.datetime:
         return datetime.datetime.fromtimestamp(
             self._created_at_ts, tz=datetime.timezone.utc
         )
@@ -745,10 +771,6 @@ class JobBase:
                 self._registered_at_ts, tz=datetime.timezone.utc
             )
         return None
-
-    @property
-    def permission_level(self) -> JobPermissionLevels:
-        return self._PERMISSION_LEVEL
 
     @property
     def data(self):
@@ -1669,8 +1691,9 @@ class JobBase:
         """Whether this job was killed."""
         return self._killed
 
+    @property
     def killed_at(self) -> Optional[datetime.datetime]:
-        """The last time at which this job object was killed, if available.
+        """The time at which this job object was killed, if available.
 
         Returns:
             datetime.datetime: The time, if available.
@@ -1708,8 +1731,9 @@ class JobBase:
         """
         return self._completed
 
+    @property
     def completed_at(self) -> Optional[datetime.datetime]:
-        """The last time at which this job object completed successfully,
+        """The time at which this job object completed successfully,
         if available.
 
         Returns:
@@ -2495,7 +2519,7 @@ class JobBase:
     def __str__(self):
         output_str = (
             f"<{self.__class__.__qualname__} "
-            f"(ID={self._identifier} CREATED_AT={self.created_at} "
+            f"(ID={self._runtime_identifier} CREATED_AT={self.created_at} "
             f"PERM_LVL={self._PERMISSION_LEVEL.name} "
             f"STATUS={self.status().name})>"
         )
@@ -2503,7 +2527,9 @@ class JobBase:
         return output_str
 
     def __repr__(self):
-        output_str = f"<{self.__class__.__qualname__} " f"(ID={self._identifier})>"
+        output_str = (
+            f"<{self.__class__.__qualname__} " f"(ID={self._runtime_identifier})>"
+        )
 
         return output_str
 
@@ -2511,8 +2537,7 @@ class JobBase:
 class IntervalJobBase(JobBase):
     """Base class for interval based jobs.
     Subclasses are expected to overload the `on_run()` method.
-    `on_start()` and `on_stop()` and `on_run_error(exc)`
-    can optionally be overloaded.
+    Other methods prefixed with `on_` can optionally be overloaded.
 
     One can override the class variables `DEFAULT_INTERVAL`,
     `DEFAULT_COUNT` and `DEFAULT_RECONNECT` in subclasses.
@@ -2522,26 +2547,19 @@ class IntervalJobBase(JobBase):
     """
 
     DEFAULT_INTERVAL = datetime.timedelta()
-    DEFAULT_TIME: Union[datetime.time, Sequence[datetime.time]] = None
+    DEFAULT_TIME: Optional[Union[datetime.time, Sequence[datetime.time]]] = None
 
     DEFAULT_COUNT: Optional[int] = None
     DEFAULT_RECONNECT = True
 
     def __init__(
         self,
-        interval: Optional[datetime.timedelta] = None,
+        interval: Union[datetime.timedelta, _UnsetType] = UNSET,
         time: Optional[Union[datetime.time, Sequence[datetime.time]]] = None,
-        count: Union[int, _UnsetType] = UNSET,
-        reconnect: Optional[bool] = None,
+        count: Union[int, NoneType, _UnsetType] = UNSET,
+        reconnect: Union[bool, _UnsetType] = UNSET,
     ):
-        """Create a new `IntervalJobBase` instance.
-
-        Args:
-            interval (Optional[datetime.timedelta], optional):
-            count (Optional[int], optional):
-            reconnect (Optional[bool], optional): Overrides for the default class
-              variables for an `IntervalJobBase` instance.
-        """
+        """Create a new `IntervalJobBase` instance."""
 
         super().__init__()
         self._interval_secs = (
@@ -2552,7 +2570,7 @@ class IntervalJobBase(JobBase):
         self._count = self.DEFAULT_COUNT if count is UNSET else count
 
         self._reconnect = not not (
-            self.DEFAULT_RECONNECT if reconnect is None else reconnect
+            self.DEFAULT_RECONNECT if reconnect is UNSET else reconnect
         )
 
         self._reconnect = not not (
@@ -2572,7 +2590,6 @@ class IntervalJobBase(JobBase):
             time=self._time or discord.utils.MISSING,
             count=self._count,
             reconnect=self._reconnect,
-            loop=None,
         )
 
         self._task_loop.before_loop(self._on_start)
@@ -2600,25 +2617,34 @@ class IntervalJobBase(JobBase):
 
     def change_interval(
         self,
-        seconds: int = 0,
-        minutes: int = 0,
-        hours: int = 0,
+        *,
+        seconds: float = 0,
+        minutes: float = 0,
+        hours: float = 0,
+        time: Union[datetime.time, Sequence[datetime.time], _UnsetType] = UNSET
     ):
         """Change the interval at which this job will run its `on_run()` method.
         This will only be applied on the next iteration of `on_run()`.
 
         Args:
-            seconds (Optional[Union[int, float]], optional): Defaults to 0.
-            minutes (Optional[Union[int, float]], optional): Defaults to 0.
-            hours (Optional[Union[int, float]], optional): Defaults to 0.
+            seconds (float, optional): Defaults to 0.
+            minutes (float, optional): Defaults to 0.
+            hours (float, optional): Defaults to 0.
+            time (Union[datetime.time, Sequence[datetime.time]], optional):
+              Defaults to 0.
         """
         self._task_loop.change_interval(
             seconds=seconds,
             minutes=minutes,
             hours=hours,
+            time=time if time is not UNSET else discord.utils.MISSING
         )
 
-        self._interval_secs = seconds + (minutes * 60.0) + (hours * 3600.0)
+        if time is not UNSET:
+            self._time = time
+        else:
+            self._interval_secs = seconds + (minutes * 60.0) + (hours * 3600.0)
+        
 
     async def on_start(self):  # make this optional for subclasses
         pass
@@ -2665,8 +2691,8 @@ class EventJobBase(JobBase):
     """A job base class for jobs that run in reaction to specific events
     passed to them by their job manager object.
     Subclasses are expected to overload the `on_run(self, event)` method.
-    `on_start()` and `on_stop()` and `on_run_error(self, exc)` can
-    optionally be overloaded.
+    Other methods prefixed with `on_` can optionally be overloaded.
+
     One can also override the class variables `DEFAULT_COUNT` and `DEFAULT_RECONNECT`
     in subclasses. They are derived from the keyword arguments of the
     `discord.ext.tasks.loop` decorator. Unlike `IntervalJobBase` class instances,
@@ -2745,19 +2771,21 @@ class EventJobBase(JobBase):
 
     def __init__(
         self,
-        interval: Optional[datetime.timedelta] = None,
-        count: Union[int, _UnsetType] = UNSET,
-        reconnect: Optional[bool] = None,
-        max_event_checks_per_iteration: Optional[Union[int, _UnsetType]] = UNSET,
-        empty_event_queue_timeout: Optional[
-            Union[datetime.timedelta, _UnsetType]
+        interval: Union[datetime.timedelta, _UnsetType] = UNSET,
+        count: Union[int, NoneType, _UnsetType] = UNSET,
+        reconnect: Union[bool, _UnsetType] = UNSET,
+        max_event_checks_per_iteration: Optional[
+            Union[int, NoneType, _UnsetType]
         ] = UNSET,
-        max_event_queue_size: Optional[int] = None,
-        allow_event_queue_overflow: Optional[bool] = None,
-        block_events_on_stop: Optional[bool] = None,
-        block_events_while_stopped: Optional[bool] = None,
-        clear_events_at_startup: Optional[bool] = None,
-        start_on_dispatch: Optional[bool] = None,
+        empty_event_queue_timeout: Optional[
+            Union[datetime.timedelta, NoneType, _UnsetType]
+        ] = UNSET,
+        max_event_queue_size: Union[int, NoneType, _UnsetType] = UNSET,
+        allow_event_queue_overflow: Union[bool, _UnsetType] = UNSET,
+        block_events_on_stop: Union[bool, _UnsetType] = UNSET,
+        block_events_while_stopped: Union[bool, _UnsetType] = UNSET,
+        clear_events_at_startup: Union[bool, _UnsetType] = UNSET,
+        start_on_dispatch: Union[bool, _UnsetType] = UNSET,
     ):
         super().__init__()
 
@@ -2769,7 +2797,7 @@ class EventJobBase(JobBase):
         self._count = self.DEFAULT_COUNT if count is UNSET else count
 
         self._reconnect = not not (
-            self.DEFAULT_RECONNECT if reconnect is None else reconnect
+            self.DEFAULT_RECONNECT if reconnect is UNSET else reconnect
         )
 
         max_event_checks_per_iteration = (
@@ -2811,28 +2839,28 @@ class EventJobBase(JobBase):
 
         self._allow_event_queue_overflow = not not (
             self.DEFAULT_ALLOW_EVENT_QUEUE_OVERFLOW
-            if allow_event_queue_overflow is None
+            if allow_event_queue_overflow is UNSET
             else allow_event_queue_overflow
         )
 
         self._block_events_on_stop = not not (
             self.DEFAULT_BLOCK_EVENTS_ON_STOP
-            if block_events_on_stop is None
+            if block_events_on_stop is UNSET
             else block_events_on_stop
         )
         self._start_on_dispatch = not not (
             self.DEFAULT_START_ON_DISPATCH
-            if start_on_dispatch is None
+            if start_on_dispatch is UNSET
             else start_on_dispatch
         )
         self._block_events_while_stopped = not not (
             self.DEFAULT_BLOCK_EVENTS_WHILE_STOPPED
-            if block_events_while_stopped is None
+            if block_events_while_stopped is UNSET
             else block_events_while_stopped
         )
         self._clear_events_at_startup = not not (
             self.DEFAULT_CLEAR_EVENTS_AT_STARTUP
-            if clear_events_at_startup is None
+            if clear_events_at_startup is UNSET
             else clear_events_at_startup
         )
 
@@ -2856,9 +2884,9 @@ class EventJobBase(JobBase):
             seconds=self._interval_secs,
             hours=0,
             minutes=0,
+            time=discord.utils.MISSING,
             count=None,
             reconnect=self._reconnect,
-            loop=None,
         )
         self._task_loop.before_loop(self._on_start)
         self._task_loop.after_loop(self._on_stop)
@@ -3187,7 +3215,7 @@ class JobManagerJob(IntervalJobBase):
 
     def __init__(self):
         super().__init__()
-        self._identifier = _SYSTEM_JOB_RUNTIME_IDENTIFIERS["JobManagerJob"]
+        self._runtime_identifier = _SYSTEM_JOB_RUNTIME_IDENTIFIERS["JobManagerJob"]
 
     async def on_run(self):
         await self.await_done()

@@ -14,7 +14,7 @@ from types import FunctionType
 from typing import Any, Callable, Optional, Sequence, Type, Union
 
 from snakecore import events
-from snakecore.constants import UNSET
+from snakecore.constants import UNSET, _UnsetType
 from .jobs import (
     JobPermissionLevels,
     EventJobBase,
@@ -26,6 +26,10 @@ from . import manager
 
 
 class JobProxy:
+    """A proxy class that provides an interface for safe access to job objects at
+    runtime.
+    """
+
     __slots__ = (
         "__j",
         "__job_class",
@@ -37,50 +41,53 @@ class JobProxy:
     def __init__(self, job):
         self.__j = job
         self.__job_class = job.__class__
-        self.__identifier = job._identifier
+        self.__identifier = job._runtime_identifier
         self.__created_at = job.created_at
-        self.__registered_at = job.registered_at
 
     @property
-    def job_class(self):
+    def job_class(self) -> JobBase:
         return self.__job_class
 
     @property
-    def identifier(self):
+    def runtime_identifier(self) -> str:
         return self.__identifier
 
     @property
-    def creator(self):
-        """The `JobProxy` of the creator of this job object."""
+    def creator(self) -> Optional[JobBase]:
+        """The `JobProxy` of the creator of this job."""
         return self.__j._creator
 
     @property
-    def guardian(self):
-        """The `JobProxy` of the current guardian of this job object."""
+    def guardian(self) -> Optional[JobBase]:
+        """The `JobProxy` of the current guardian of this job."""
         return self.__j._guardian
 
     @property
-    def created_at(self):
+    def created_at(self) -> datetime.datetime:
         return self.__created_at
 
     @property
-    def registered_at(self):
-        return self.__registered_at
+    def registered_at(self) -> Optional[datetime.datetime]:
+        return self.__j._registered_at
 
     @property
-    def schedule_identifier(self):
+    def killed_at(self) -> Optional[datetime.datetime]:
+        return self.__job_class.killed_at.fget(self.__j)
+
+    @property
+    def completed_at(self) -> Optional[datetime.datetime]:
+        return self.__job_class.completed_at.fget(self.__j)
+
+    @property
+    def schedule_identifier(self) -> Optional[str]:
         """The identfier of the scheduling operation that instantiated
-        this job object, if available.
+        this job, if available.
         """
         return self.__j._schedule_identifier
 
-    @property
-    def permission_level(self):
-        return self.__job_class._PERMISSION_LEVEL
-
     loop_count = (
         JobBase.loop_count
-    )  # fool autocompetion tools by overriding at runtime prevent duplicate docstrings
+    )  # fool autocompetion tools by overriding at runtime to prevent duplicate docstrings
 
     initialized = JobBase.initialized
 
@@ -118,15 +125,11 @@ class JobProxy:
 
     killed = JobBase.killed
 
-    killed_at = JobBase.killed_at
-
     is_being_killed = JobBase.is_being_killed
 
     is_being_startup_killed = JobBase.is_being_startup_killed
 
     completed = JobBase.completed
-
-    completed_at = JobBase.completed_at
 
     is_completing = JobBase.is_completing
 
@@ -180,7 +183,7 @@ class JobProxy:
 
     run_public_method = JobBase.run_public_method
 
-    def interval_job_next_iteration(self):
+    def interval_job_next_iteration(self) -> Optional[datetime.datetime]:
         """
         THIS METHOD WILL ONLY WORK ON PROXIES TO JOB OBJECTS
         THAT ARE INSTANCES OF `IntervalJobBase`.
@@ -188,12 +191,12 @@ class JobProxy:
         When the next iteration of `.on_run()` will occur.
         If not known, this method will return `None`.
 
-        Raises:
-            TypeError: The class of this job proxy's job is not an 'IntervalJobBase' subclass.
-
         Returns:
             datetime.datetime: The time at which the next iteration will occur,
             if available.
+
+        Raises:
+            TypeError: The class of this job proxy's job is not an 'IntervalJobBase' subclass.
         """
         try:
             return self.__j.next_iteration()
@@ -203,7 +206,7 @@ class JobProxy:
                 " proxy is not an 'IntervalJobBase' subclass"
             ) from None
 
-    def interval_job_get_interval(self):
+    def interval_job_get_interval(self) -> tuple[int, int, int]:
         """
         THIS METHOD WILL ONLY WORK ON PROXIES TO JOB OBJECTS
         THAT ARE `IntervalJobBase` SUBCLASSES.
@@ -211,11 +214,11 @@ class JobProxy:
         Returns a tuple of the seconds, minutes and hours at which this job
         object is executing its `.on_run()` method.
 
-        Raises:
-            TypeError: The class of this job proxy's job is not an 'IntervalJobBase' subclass.
-
         Returns:
             tuple: `(seconds, minutes, hours)`
+
+        Raises:
+            TypeError: The class of this job proxy's job is not an 'IntervalJobBase' subclass.
         """
         try:
             return self.__j.get_interval()
@@ -244,7 +247,7 @@ class _JobProxy:
     def __init__(self, job):
         self.__j = job
         self.__job_class = job.__class__
-        self.__identifier = job._identifier
+        self.__identifier = job._runtime_identifier
         self.__created_at = job.created_at
         self.__registered_at = job.registered_at
 
@@ -1010,9 +1013,10 @@ class _JobManagerProxy:  # hidden implementation to trick type-checker engines
     def find_job(
         self,
         *,
-        identifier: Optional[str] = None,
-        created_at: Optional[datetime.datetime] = None,
+        identifier: Union[str, _UnsetType] = None,
+        created_at: Union[datetime.datetime, _UnsetType] = None,
     ) -> Optional["JobProxy"]:
+
         return self.__mgr.find_job(
             identifier=identifier,
             created_at=created_at,
@@ -1030,23 +1034,21 @@ class _JobManagerProxy:  # hidden implementation to trick type-checker engines
             ]
         ] = tuple(),
         exact_class_match: bool = False,
-        created_before: Optional[datetime.datetime] = None,
-        created_after: Optional[datetime.datetime] = None,
-        permission_level: Optional[JobPermissionLevels] = None,
-        above_permission_level: Optional[JobPermissionLevels] = None,
-        below_permission_level: Optional[
-            JobPermissionLevels
-        ] = JobPermissionLevels.SYSTEM,
-        alive: Optional[bool] = None,
-        is_starting: Optional[bool] = None,
-        is_running: Optional[bool] = None,
-        is_idling: Optional[bool] = None,
-        is_awaiting: Optional[bool] = None,
-        is_stopping: Optional[bool] = None,
-        is_restarting: Optional[bool] = None,
-        is_being_killed: Optional[bool] = None,
-        is_being_completed: Optional[bool] = None,
-        stopped: Optional[bool] = None,
+        created_before: Union[datetime.datetime, _UnsetType] = UNSET,
+        created_after: Union[datetime.datetime, _UnsetType] = UNSET,
+        permission_level: Union[JobPermissionLevels, _UnsetType] = UNSET,
+        above_permission_level: Union[JobPermissionLevels, _UnsetType] = UNSET,
+        below_permission_level: JobPermissionLevels = JobPermissionLevels.SYSTEM,
+        alive: Union[bool, _UnsetType] = UNSET,
+        is_starting: Union[bool, _UnsetType] = UNSET,
+        is_running: Union[bool, _UnsetType] = UNSET,
+        is_idling: Union[bool, _UnsetType] = UNSET,
+        is_awaiting: Union[bool, _UnsetType] = UNSET,
+        is_stopping: Union[bool, _UnsetType] = UNSET,
+        is_restarting: Union[bool, _UnsetType] = UNSET,
+        is_being_killed: Union[bool, _UnsetType] = UNSET,
+        is_being_completed: Union[bool, _UnsetType] = UNSET,
+        stopped: Union[bool, _UnsetType] = UNSET,
     ) -> tuple["JobProxy"]:
 
         return self.__mgr.find_jobs(

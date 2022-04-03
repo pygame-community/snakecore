@@ -15,6 +15,7 @@ import time
 from typing import Any, Callable, Coroutine, Literal, Optional, Sequence, Type, Union
 
 import discord
+from snakecore.constants import UNSET, _UnsetType
 
 from snakecore.constants.enums import (
     _JOB_VERBS_PRES_CONT,
@@ -62,7 +63,7 @@ class JobManager:
                 self._loop = asyncio.get_event_loop()
 
         self._created_at = datetime.datetime.now(datetime.timezone.utc)
-        self._identifier = (
+        self._runtime_identifier = (
             f"{id(self)}-{int(self._created_at.timestamp()*1_000_000_000)}"
         )
 
@@ -626,7 +627,7 @@ class JobManager:
                 if not fut.cancelled():
                     fut.cancel(
                         f"initialization of {self.__class__.__name__}"
-                        f"(ID={self._identifier}) was aborted"
+                        f"(ID={self._runtime_identifier}) was aborted"
                     )
 
             for fut in self._scheduling_uninitialized_futures:
@@ -735,7 +736,7 @@ class JobManager:
 
                 if (
                     invoker_cls_permission_level == JobPermissionLevels.MEDIUM
-                    and invoker._identifier != invoker_identifier
+                    and invoker._runtime_identifier != invoker_identifier
                 ):
                     if raise_exceptions:
                         raise JobPermissionError(
@@ -1065,8 +1066,8 @@ class JobManager:
 
         if (
             isinstance(job, _SingletonMixinJobBase)
-            and job.__class__._IDENTIFIER in self._job_type_count_dict
-            and self._job_type_count_dict[job.__class__._IDENTIFIER]
+            and job.__class__._RUNTIME_IDENTIFIER in self._job_type_count_dict
+            and self._job_type_count_dict[job.__class__._RUNTIME_IDENTIFIER]
         ):
             raise JobException(
                 "cannot have more than one instance of a"
@@ -1252,7 +1253,7 @@ class JobManager:
             "schedule_identifier"
         ] = (
             schedule_identifier
-        ) = f"{self._identifier}-{timestamp_ns_str}-{schedule_timestamp_ns_str}"
+        ) = f"{self._runtime_identifier}-{timestamp_ns_str}-{schedule_timestamp_ns_str}"
 
         async with self._schedule_dict_lock:
             if timestamp_ns_str not in self._schedule_dict:
@@ -1453,7 +1454,7 @@ class JobManager:
                 "cannot add a job that has is not alive to a JobManager instance"
             ) from None
 
-        elif job._identifier in self._job_id_map:
+        elif job._runtime_identifier in self._job_id_map:
             raise RuntimeError(
                 "the given job is already present in this manager"
             ) from None
@@ -1465,22 +1466,22 @@ class JobManager:
             for ce_type in job.EVENT_TYPES:
                 if ce_type._IDENTIFIER not in self._event_job_ids:
                     self._event_job_ids[ce_type._IDENTIFIER] = set()
-                self._event_job_ids[ce_type._IDENTIFIER].add(job._identifier)
+                self._event_job_ids[ce_type._IDENTIFIER].add(job._runtime_identifier)
 
         elif isinstance(job, IntervalJobBase):
-            self._interval_job_ids.add(job._identifier)
+            self._interval_job_ids.add(job._runtime_identifier)
         else:
             raise TypeError(
                 "expected an instance of EventJobBase or IntervalJobBase subclasses, "
                 f"not {job.__class__.__qualname__}"
             ) from None
 
-        if job.__class__._IDENTIFIER not in self._job_type_count_dict:
-            self._job_type_count_dict[job.__class__._IDENTIFIER] = 0
+        if job.__class__._RUNTIME_IDENTIFIER not in self._job_type_count_dict:
+            self._job_type_count_dict[job.__class__._RUNTIME_IDENTIFIER] = 0
 
-        self._job_type_count_dict[job.__class__._IDENTIFIER] += 1
+        self._job_type_count_dict[job.__class__._RUNTIME_IDENTIFIER] += 1
 
-        self._job_id_map[job._identifier] = job
+        self._job_id_map[job._runtime_identifier] = job
 
         job._registered_at_ts = time.time()
 
@@ -1507,27 +1508,30 @@ class JobManager:
 
         if (
             isinstance(job, IntervalJobBase)
-            and job._identifier in self._interval_job_ids
+            and job._runtime_identifier in self._interval_job_ids
         ):
-            self._interval_job_ids.remove(job._identifier)
+            self._interval_job_ids.remove(job._runtime_identifier)
 
         elif isinstance(job, EventJobBase):
             for ce_type in job.EVENT_TYPES:
                 if (
                     ce_type._IDENTIFIER in self._event_job_ids
-                    and job._identifier in self._event_job_ids[ce_type._IDENTIFIER]
+                    and job._runtime_identifier
+                    in self._event_job_ids[ce_type._IDENTIFIER]
                 ):
-                    self._event_job_ids[ce_type._IDENTIFIER].remove(job._identifier)
+                    self._event_job_ids[ce_type._IDENTIFIER].remove(
+                        job._runtime_identifier
+                    )
                 if not self._event_job_ids[ce_type._IDENTIFIER]:
                     del self._event_job_ids[ce_type._IDENTIFIER]
 
-        if job._identifier in self._job_id_map:
-            del self._job_id_map[job._identifier]
+        if job._runtime_identifier in self._job_id_map:
+            del self._job_id_map[job._runtime_identifier]
 
-        self._job_type_count_dict[job.__class__._IDENTIFIER] -= 1
+        self._job_type_count_dict[job.__class__._RUNTIME_IDENTIFIER] -= 1
 
-        if not self._job_type_count_dict[job.__class__._IDENTIFIER]:
-            del self._job_type_count_dict[job.__class__._IDENTIFIER]
+        if not self._job_type_count_dict[job.__class__._RUNTIME_IDENTIFIER]:
+            del self._job_type_count_dict[job.__class__._RUNTIME_IDENTIFIER]
 
     def _remove_jobs(self, *jobs: Union[EventJobBase, IntervalJobBase]):
         """
@@ -1578,8 +1582,8 @@ class JobManager:
     def find_job(
         self,
         *,
-        identifier: Optional[str] = None,
-        created_at: Optional[datetime.datetime] = None,
+        identifier: Union[str, _UnsetType] = None,
+        created_at: Union[datetime.datetime, _UnsetType] = None,
         _return_proxy: bool = True,
         _iv: Optional[Union[EventJobBase, IntervalJobBase]] = None,
     ) -> Optional["proxies.JobProxy"]:
@@ -1588,9 +1592,9 @@ class JobManager:
 
         Args:
 
-            identifier (Optional[str], optional): The exact identifier of the job to find. This
+            identifier (str, optional): The exact identifier of the job to find. This
               argument overrides any other parameter below. Defaults to None.
-            created_at (Optional[datetime.datetime], optional): The exact creation date of the
+            created_at (datetime.datetime, optional): The exact creation date of the
               job to find. Defaults to None.
 
         Raises:
@@ -1645,23 +1649,21 @@ class JobManager:
             ]
         ] = tuple(),
         exact_class_match: bool = False,
-        created_before: Optional[datetime.datetime] = None,
-        created_after: Optional[datetime.datetime] = None,
-        permission_level: Optional[JobPermissionLevels] = None,
-        above_permission_level: Optional[JobPermissionLevels] = None,
-        below_permission_level: Optional[
-            JobPermissionLevels
-        ] = JobPermissionLevels.SYSTEM,
-        alive: Optional[bool] = None,
-        is_starting: Optional[bool] = None,
-        is_running: Optional[bool] = None,
-        is_idling: Optional[bool] = None,
-        is_awaiting: Optional[bool] = None,
-        is_stopping: Optional[bool] = None,
-        is_restarting: Optional[bool] = None,
-        is_being_killed: Optional[bool] = None,
-        is_being_completed: Optional[bool] = None,
-        stopped: Optional[bool] = None,
+        created_before: Union[datetime.datetime, _UnsetType] = UNSET,
+        created_after: Union[datetime.datetime, _UnsetType] = UNSET,
+        permission_level: Union[JobPermissionLevels, _UnsetType] = UNSET,
+        above_permission_level: Union[JobPermissionLevels, _UnsetType] = UNSET,
+        below_permission_level: JobPermissionLevels = JobPermissionLevels.SYSTEM,
+        alive: Union[bool, _UnsetType] = UNSET,
+        is_starting: Union[bool, _UnsetType] = UNSET,
+        is_running: Union[bool, _UnsetType] = UNSET,
+        is_idling: Union[bool, _UnsetType] = UNSET,
+        is_awaiting: Union[bool, _UnsetType] = UNSET,
+        is_stopping: Union[bool, _UnsetType] = UNSET,
+        is_restarting: Union[bool, _UnsetType] = UNSET,
+        is_being_killed: Union[bool, _UnsetType] = UNSET,
+        is_being_completed: Union[bool, _UnsetType] = UNSET,
+        stopped: Union[bool, _UnsetType] = UNSET,
         _return_proxy: bool = True,
         _iv: Optional[Union[EventJobBase, IntervalJobBase]] = None,
     ) -> tuple["proxies.JobProxy"]:
@@ -1687,38 +1689,38 @@ class JobManager:
             exact_class_match (bool, optional): Whether an exact match is required for
               the classes in the previous parameter, or subclasses are allowed too.
               Defaults to False.
-            created_before (Optional[datetime.datetime], optional): The lower age limit
+            created_before (datetime.datetime, optional): The lower age limit
               of the jobs to find. Defaults to None.
-            created_after (Optional[datetime.datetime], optional): The upper age limit
+            created_after (datetime.datetime, optional): The upper age limit
               of the jobs to find. Defaults to None.
-            permission_level (Optional[JobPermissionLevels], optional): The permission
+            permission_level (JobPermissionLevels, optional): The permission
               level of the jobs to find. Defaults to None.
-            above_permission_level (Optional[JobPermissionLevels], optional): The lower
+            above_permission_level (JobPermissionLevels, optional): The lower
               permission level value of the jobs to find. Defaults to None.
-            below_permission_level (Optional[JobPermissionLevels], optional): The upper
+            below_permission_level (JobPermissionLevels, optional): The upper
               permission level value of the jobs to find. Defaults to
               `JobPermissionLevels.SYSTEM`.
-            created_before (Optional[datetime.datetime], optional): The lower age limit
+            created_before (datetime.datetime, optional): The lower age limit
               of the jobs to find. Defaults to None.
-            created_after (Optional[datetime.datetime], optional): The upper age limit
+            created_after (datetime.datetime, optional): The upper age limit
               of the jobs to find. Defaults to None.
-            alive (Optional[bool], optional): A boolean that a job's state should
+            alive (bool, optional): A boolean that a job's state should
               match. Defaults to None.
-            is_running (Optional[bool], optional): A boolean that a job's state
+            is_running (bool, optional): A boolean that a job's state
               should match. Defaults to None.
-            is_idling (Optional[bool], optional): A boolean that a job's state
+            is_idling (bool, optional): A boolean that a job's state
               should match. Defaults to None.
-            is_awaiting (Optional[bool], optional): A boolean that a job's state
+            is_awaiting (bool, optional): A boolean that a job's state
               should match. Defaults to None.
-            is_stopping (Optional[bool], optional): A boolean that a job's state
+            is_stopping (bool, optional): A boolean that a job's state
               should match. Defaults to None.
-            stopped (Optional[bool], optional): A boolean that a job's state should
+            stopped (bool, optional): A boolean that a job's state should
               match. Defaults to None.
-            is_restarting (Optional[bool], optional): A boolean that a job's
+            is_restarting (bool, optional): A boolean that a job's
               state should match. Defaults to None.
-            is_being_killed (Optional[bool], optional): A boolean that a job's
+            is_being_killed (bool, optional): A boolean that a job's
               state should match. Defaults to None.
-            is_being_completed (Optional[bool], optional): A boolean that a job's state
+            is_being_completed (bool, optional): A boolean that a job's state
               should match. Defaults to None.
 
         Returns:
@@ -1760,7 +1762,7 @@ class JobManager:
             else:
                 filter_functions.append(lambda job: isinstance(job, classes))
 
-        if created_before is not None:
+        if created_before is not UNSET:
             if isinstance(created_before, datetime.datetime):
                 filter_functions.append(lambda job: job.created_at < created_before)
             else:
@@ -1769,7 +1771,7 @@ class JobManager:
                     f"{type(created_before)}"
                 ) from None
 
-        if created_after is not None:
+        if created_after is not UNSET:
             if isinstance(created_after, datetime.datetime):
                 filter_functions.append(
                     lambda job, created_after=None: job.created_at > created_after
@@ -1780,7 +1782,7 @@ class JobManager:
                     f"{type(created_after)}"
                 ) from None
 
-        if permission_level is not None:
+        if permission_level is not UNSET:
             if not isinstance(permission_level, JobPermissionLevels):
                 raise TypeError(
                     "argument 'permission_level' must be an enum value from the "
@@ -1791,7 +1793,7 @@ class JobManager:
                 lambda job: job.permission_level is permission_level
             )
 
-        if below_permission_level is not None:
+        if below_permission_level is not UNSET:
             if not isinstance(below_permission_level, JobPermissionLevels):
                 raise TypeError(
                     "argument 'below_permission_level' must be an enum value from the "
@@ -1802,7 +1804,7 @@ class JobManager:
                 lambda job: job.permission_level < below_permission_level
             )
 
-        if above_permission_level is not None:
+        if above_permission_level is not UNSET:
             if not isinstance(above_permission_level, JobPermissionLevels):
                 raise TypeError(
                     "argument 'above_permission_level' must be an enum value from the "
@@ -1813,47 +1815,47 @@ class JobManager:
                 lambda job: job.permission_level > above_permission_level
             )
 
-        if alive is not None:
+        if alive is not UNSET:
             alive = bool(alive)
             filter_functions.append(lambda job: job.alive() is alive)
 
-        if is_starting is not None:
+        if is_starting is not UNSET:
             is_starting = bool(is_starting)
             filter_functions.append(lambda job: job.is_starting() is is_starting)
 
-        if is_running is not None:
+        if is_running is not UNSET:
             is_running = bool(is_running)
             filter_functions.append(lambda job: job.is_running() is is_running)
 
-        if is_idling is not None:
+        if is_idling is not UNSET:
             is_running = bool(is_idling)
             filter_functions.append(
                 lambda job, is_idling=None: job.is_idling() is is_idling
             )
 
-        if stopped is not None:
+        if stopped is not UNSET:
             stopped = bool(stopped)
             filter_functions.append(lambda job: job.stopped() is stopped)
 
-        if is_awaiting is not None:
+        if is_awaiting is not UNSET:
             is_running = bool(is_awaiting)
             filter_functions.append(lambda job: job.is_awaiting() is is_awaiting)
 
-        if is_stopping is not None:
+        if is_stopping is not UNSET:
             is_running = bool(is_stopping)
             filter_functions.append(lambda job: job.is_stopping() is is_stopping)
 
-        if is_restarting is not None:
+        if is_restarting is not UNSET:
             is_restarting = bool(is_restarting)
             filter_functions.append(lambda job: job.is_restarting() is is_restarting)
 
-        if is_being_killed is not None:
+        if is_being_killed is not UNSET:
             is_being_killed = bool(is_being_killed)
             filter_functions.append(
                 lambda job: job.is_being_killed() is is_being_killed
             )
 
-        if is_being_completed is not None:
+        if is_being_completed is not UNSET:
             is_being_completed = bool(is_being_completed)
             filter_functions.append(
                 lambda job: job.is_being_completed() is is_being_completed
@@ -2074,9 +2076,9 @@ class JobManager:
         if _iv._guarded_job_proxies_dict is None:
             _iv._guarded_job_proxies_dict = {}
 
-        if job._identifier not in _iv._guarded_job_proxies_dict:
+        if job._runtime_identifier not in _iv._guarded_job_proxies_dict:
             job._guardian = _iv
-            _iv._guarded_job_proxies_dict[job._identifier] = job._proxy
+            _iv._guarded_job_proxies_dict[job._runtime_identifier] = job._proxy
             job._is_being_guarded = True
         else:
             raise JobStateError(
@@ -2118,18 +2120,18 @@ class JobManager:
 
         if (
             _iv._guarded_job_proxies_dict is not None
-            and job._identifier in _iv._guarded_job_proxies_dict
+            and job._runtime_identifier in _iv._guarded_job_proxies_dict
         ):
             job._guardian = None
             job._is_being_guarded = False
-            del _iv._guarded_job_proxies_dict[job._identifier]
+            del _iv._guarded_job_proxies_dict[job._runtime_identifier]
 
         elif _iv is self._manager_job:
             guardian = job._guardian
             job._guardian = None
             job._is_being_guarded = False
 
-            del guardian._guarded_job_proxies_dict[job._identifier]
+            del guardian._guarded_job_proxies_dict[job._runtime_identifier]
 
         else:
             raise JobStateError(
@@ -2147,7 +2149,7 @@ class JobManager:
         self._check_init_and_running()
 
         job = self._get_job_from_proxy(job_proxy)
-        return job._identifier in self._job_id_map
+        return job._runtime_identifier in self._job_id_map
 
     def dispatch_event(
         self,
