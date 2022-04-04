@@ -12,7 +12,7 @@ import platform
 import re
 import sys
 import traceback
-from typing import Any, Callable, Iterable, Optional, Union
+from typing import Any, Callable, Iterable, Optional, Sequence, Union
 
 import discord
 
@@ -440,56 +440,66 @@ def code_block(string: str, max_characters: int = 2048, code_type: str = "") -> 
         return f"```{code_type}\n{string}```"
 
 
-def check_channel_permissions(
-    member: Union[discord.Member, discord.User],
-    channel: discord.abc.GuildChannel,
-    bool_func: Callable[[Iterable], bool] = all,
-    permissions: Iterable[str] = (
-        "view_channel",
-        "send_messages",
-    ),
+def have_permissions_on_channels(
+    member_or_role: Union[discord.Member, discord.Role, Sequence[Union[discord.Member, discord.Role]]],
+    *permissions: str,
+    channel: Union[discord.abc.GuildChannel, Sequence[discord.abc.GuildChannel]],
+    member_role_bool_func: Callable[[Iterable[bool]], bool] = all,
+    permission_bool_func: Callable[[Iterable[bool]], bool] = all,
+    channel_bool_func: Callable[[Iterable[bool]], bool] = all,
 ) -> bool:
+    """Checks if the given permission(s) apply to the given member(s) or role in the
+    given Discord channel(s) and returns a boolean value. This function allows you
+    to evaluate this kind of query: Does ... of the given member(s) or role(s) have ...
+    of the given permissions in ... of the given channels?
 
+    Args:
+        member_or_role (Union[discord.Member, discord.Role]):
+          The target Discord member or role.
+        *permissions (str): The lowercase attribute name(s) to check for
+          the `discord.Permissions` data class, which represent the different available
+          permissions.
+        channel (Union[discord.abc.GuildChannel, Sequence[discord.abc.GuildChannel]]):
+          The target guild channel(s) to check permissions on.
+        member_role_bool_func (Callable[[Iterable[bool]], bool], optional): A function
+          that takes in the result of `channel_bool_func()` for every of the given
+          role(s) or member(s) as an iterable and returns a boolean value. Defaults to
+          the built-in `all()` function.
+        permission_bool_func (Callable[[Iterable[bool]], bool], optional): A function
+          that takes in an iterable of the boolean values for every permission
+          and returns a boolean value. Defaults to the built-in `all()` function.
+        channel_bool_func (Callable[[Iterable[bool]], bool], optional): A function
+          that takes in the result of `permission_bool_func()` for every of the given
+          channel(s) as an iterable and returns a boolean value. Defaults to
+          the built-in `all()` function.
+
+    Returns:
+        bool: True/False
     """
-    Checks if the given permissions apply to the given member in the given channel.
-    """
 
-    channel_perms = channel.permissions_for(member)
-    return bool_func(getattr(channel_perms, perm_name) for perm_name in permissions)
+    channels = None
+    members_or_roles = None
 
-
-def check_channels_permissions(
-    member: Union[discord.Member, discord.User],
-    *channels: discord.abc.GuildChannel,
-    bool_func: Callable[[Iterable], bool] = all,
-    skip_invalid_channels: bool = False,
-    permissions: Iterable[str] = (
-        "view_channel",
-        "send_messages",
-    ),
-) -> tuple[bool, ...]:
-
-    """
-    Checks if the given permissions apply to the given member in the given channels.
-    """
-
-    if skip_invalid_channels:
-        booleans = tuple(
-            bool_func(getattr(channel_perms, perm_name) for perm_name in permissions)
-            for channel_perms in (
-                channel.permissions_for(member)
-                for channel in channels
-                if isinstance(channel, discord.TextChannel)
-            )
-        )
+    if isinstance(channel, discord.abc.GuildChannel):
+        channels = (channel,)
     else:
-        booleans = tuple(
-            bool_func(getattr(channel_perms, perm_name) for perm_name in permissions)
-            for channel_perms in (
-                channel.permissions_for(member) for channel in channels
+        channels = channel
+    
+    if isinstance(member_or_role, (discord.Member, discord.Role)):
+        members_or_roles = (member_or_role,)
+    else:
+        members_or_roles = member_or_role
+    
+
+    return member_role_bool_func(
+        channel_bool_func(
+            permission_bool_func(
+                getattr(channel_perms, perm_name) for perm_name in permissions
+            ) for channel_perms in (
+                ch.permissions_for(m_or_r) for ch in channels
             )
-        )
-    return booleans
+        ) for m_or_r in members_or_roles
+    )
 
 
 def create_markdown_timestamp(
