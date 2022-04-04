@@ -15,10 +15,10 @@ _EVENT_CLASS_MAP = {}
 
 
 def get_event_class_from_runtime_identifier(
-    class_identifier: str, default: Any = UNSET, /, closest_match: bool = False
+    class_runtime_identifier: str, default: Any = UNSET, /, closest_match: bool = False
 ) -> "BaseEvent":
 
-    name, timestamp_str = class_identifier.split("-")
+    name, timestamp_str = class_runtime_identifier.split("-")
 
     if name in _EVENT_CLASS_MAP:
         if timestamp_str in _EVENT_CLASS_MAP[name]:
@@ -30,7 +30,7 @@ def get_event_class_from_runtime_identifier(
     if default is UNSET:
         raise LookupError(
             "cannot find event class with an identifier of "
-            f"'{class_identifier}' in the event class registry"
+            f"'{class_runtime_identifier}' in the event class registry"
         )
     return default
 
@@ -65,7 +65,7 @@ def get_event_class_runtime_identifier(
         return default
 
     try:
-        class_identifier = cls._IDENTIFIER
+        class_runtime_identifier = cls._RUNTIME_IDENTIFIER
     except AttributeError:
         if default is UNSET:
             raise TypeError(
@@ -74,7 +74,7 @@ def get_event_class_runtime_identifier(
         return default
 
     try:
-        name, timestamp_str = class_identifier.split("-")
+        name, timestamp_str = class_runtime_identifier.split("-")
     except (ValueError, AttributeError):
         if default is UNSET:
             raise ValueError(
@@ -85,7 +85,7 @@ def get_event_class_runtime_identifier(
     if name in _EVENT_CLASS_MAP:
         if timestamp_str in _EVENT_CLASS_MAP[name]:
             if _EVENT_CLASS_MAP[name][timestamp_str]["class"] is cls:
-                return class_identifier
+                return class_runtime_identifier
             else:
                 if default is UNSET:
                     raise ValueError(
@@ -120,7 +120,7 @@ class BaseEvent:
     """The base class for all events."""
 
     _CREATED_AT = datetime.datetime.now(datetime.timezone.utc)
-    _IDENTIFIER = f"BaseEvent-{int(_CREATED_AT.timestamp()*1_000_000_000)}"
+    _RUNTIME_IDENTIFIER = f"BaseEvent-{int(_CREATED_AT.timestamp()*1_000_000_000)}"
 
     __slots__ = ("_event_created_at", "_dispatcher")
 
@@ -135,7 +135,7 @@ class BaseEvent:
         name = cls.__name__
         timestamp = f"{int(cls._CREATED_AT.timestamp()*1_000_000_000)}"
 
-        cls._IDENTIFIER = f"{name}-{timestamp}"
+        cls._RUNTIME_IDENTIFIER = f"{name}-{timestamp}"
 
         if name not in _EVENT_CLASS_MAP:
             _EVENT_CLASS_MAP[name] = {}
@@ -180,7 +180,9 @@ class BaseEvent:
     def __repr__(self):
         attrs = " ".join(
             f"{attr}={val}"
-            for attr, val in ((k, getattr(self, k)) for k in self.__slots__)
+            for attr, val in (
+                (k, getattr(self, k)) for k in self.__slots__ if not k.startswith("_")
+            )
         )
         return f"<{self.__class__.__name__}({attrs})>"
 
