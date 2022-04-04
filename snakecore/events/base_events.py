@@ -7,6 +7,7 @@ This file implements base classes used to capture or emit events.
 """
 
 import datetime
+import time
 from typing import Any, Optional, Type, Union
 
 from snakecore.constants import UNSET
@@ -122,7 +123,7 @@ class BaseEvent:
     _CREATED_AT = datetime.datetime.now(datetime.timezone.utc)
     _RUNTIME_IDENTIFIER = f"BaseEvent-{int(_CREATED_AT.timestamp()*1_000_000_000)}"
 
-    __slots__ = ("_event_created_at", "_dispatcher")
+    __slots__ = ("_dispatcher", "_event_created_at_ts", "_runtime_identifier")
 
     __base_slots__ = __slots__
     # helper class attribute for faster copying by skipping initialization when
@@ -145,15 +146,37 @@ class BaseEvent:
         cls.__base_slots__ = tuple(get_all_slot_names(cls))
 
     def __init__(self, event_created_at: Optional[datetime.datetime] = None):
-        if event_created_at:
-            self._event_created_at = event_created_at
+        if event_created_at is None:
+            self._event_created_at_ts = time.time()
         else:
-            self._event_created_at = datetime.datetime.now(datetime.timezone.utc)
+            self._event_created_at_ts = event_created_at.timestamp()
 
+        self._runtime_identifier = (
+            f"{id(self)}-{int(self._event_created_at_ts*1_000_000_000)}"
+        )
         self._dispatcher = None
 
+    @classmethod
+    def get_class_runtime_identifier(cls) -> str:
+        """Get the runtime identifier of this event class.
+
+        Returns:
+            str: The runtime identifier.
+        """
+        return cls._RUNTIME_IDENTIFIER
+
     @property
-    def event_created_at(self):
+    def runtime_identifier(self) -> str:
+        """The runtime identifier of this event object.
+
+        Returns:
+            str: The runtime identifier.
+        """
+
+        return self._runtime_identifier
+
+    @property
+    def event_created_at(self) -> datetime.datetime:
         """The time at which this event occured or was
         created at, which can be optionally set
         during instantiation. Defaults to the time
@@ -162,7 +185,10 @@ class BaseEvent:
         Returns:
             datetime.datetime: The time.
         """
-        return self._event_created_at
+        return datetime.datetime.fromtimestamp(
+            self._event_created_at_ts,
+            tz=datetime.timezone.utc,
+        )
 
     @property
     def dispatcher(self):
