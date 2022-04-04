@@ -278,94 +278,156 @@ def format_code_exception(exc, pops: int = 1):
     return ret
 
 
-def extract_markdown_mention_id(mention: str) -> int:
-    """Extract the id '123456789696969' from a Discord role, user or channel mention
-    markdown string with the structures '<@{6969...}>', '<@!{6969...}>',
-    '<@!{6969...}>' or '<#{6969...}>'.
+def extract_markdown_mention_id(markdown_mention: str) -> int:
+    """Extract the id '123456789696969' from a Discord role, user or channel markdown
+    mention string with the structures '<@{6969...}>', '<@!{6969...}>', '<@&{6969...}>'
+    or '<#{6969...}>'.
     Does not validate for the existence of those ids.
 
     Args:
-        mention (str): The mention string.
+        markdown_mention (str): The mention string.
 
     Returns:
         int: The extracted integer id.
 
     Raises:
-        ValueError: Invalid mention string.
+        ValueError: Invalid Discord markdown mention string.
     """
 
     men_pattern = r"\<((\@[&!]?)|\#){1}[0-9]+\>"
     id_pattern = r"[0-9]+"
 
-    match = re.match(men_pattern, mention)
+    match = re.match(men_pattern, markdown_mention)
     if match is None:
         raise ValueError(
-            "invalid Discord mention string: Must be a guild role, channel or user mention"
+            "invalid Discord markdown mention string: Must be a guild role, channel "
+            "or user mention"
         )
 
-    id_str = mention[slice(*re.search(id_pattern, mention).span())]
+    id_str = markdown_mention[slice(*re.search(id_pattern, markdown_mention).span())]
 
     return int(id_str)
 
 
-def is_markdown_mention(mention: str) -> bool:
+def is_markdown_mention(string: str) -> bool:
     """Whether the given input string matches one of the structures of a valid Discord
-    mention markdown string which are '<@{6969...}>', '<@!{6969...}>',
-    '<@&{6969...}>' or '<#{6969...}>'.
+    markdown mention string which are '<@{6969...}>', '<@!{6969...}>', '<@&{6969...}>'
+    or '<#{6969...}>'.
     Does not validate for the actual existence of the mention targets.
 
     Args:
-        mention (str): The mention string.
+        string (str): The string to check for.
 
     Returns:
         bool: True/False
     """
-    return bool(re.match(r"\<((\@[&!]?)|\#){1}[0-9]+\>", mention))
+    return bool(re.match(r"\<((\@[&!]?)|\#){1}[0-9]+\>", string))
 
 
-def extract_markdown_custom_emoji_id(emoji_markdown: str) -> int:
+def extract_markdown_custom_emoji_id(markdown_emoji: str) -> int:
     """
-    Extract the id '123456789696969' from a custom Discord emoji markdown string with
+    Extract the id '123456789696969' from a Discord markdown custom emoji string with
     the structure '<:custom_emoji:123456789696969>'. Also includes animated emojis.
     Does not validate for the existence of the ids.
 
     Args:
-        emoji_markdown (str): The emoji markdown string.
+        markdown_emoji (str): The markdown custom emoji string.
 
     Returns:
         int: The extracted integer id.
 
     Raises:
-        ValueError: Invalid emoji markdown string.
+        ValueError: Invalid Discord markdown custom emoji string.
     """
 
     emoji_pattern = r"<a?\:\S+\:[0-9]+\>"
     id_pattern = r"[0-9]+"
 
-    match = re.match(emoji_pattern, emoji_markdown)
+    match = re.match(emoji_pattern, markdown_emoji)
     if match is None:
         raise ValueError(
-            "invalid emoji markdown string: Must have the structure '<[a]:emoji_name:emoji_id>'"
+            "invalid Discord markdown custom emoji string: Must have the structure "
+            "'<[a]:emoji_name:emoji_id>'"
         )
 
-    id_str = emoji_markdown[slice(*re.search(id_pattern, emoji_markdown).span())]
+    id_str = markdown_emoji[slice(*re.search(id_pattern, markdown_emoji).span())]
     return int(id_str)
 
 
-def is_markdown_custom_emoji(emoji_markdown: str) -> bool:
+def is_markdown_custom_emoji(string: str) -> bool:
     """
-    Whether the given string matches the structure for a custom Discord emoji markdown
+    Whether the given string matches the structure of a custom Discord markdown emoji
     string with the structure '<:custom_emoji:123456789696969>'. Also includes animated
     emojis.
     Does not validate for the existence of the specified emoji markdown.
 
     Args:
-        emoji_markdown (str): The emoji markdown string.
+        string (str): The string to check for.
 
     Returns:
         bool: True/False
     """
-    return bool(re.match(r"<a?\:\S+\:[0-9]+\>", emoji_markdown))
+    return bool(re.match(r"<a?\:\S+\:[0-9]+\>", string))
+
+
+def is_emoji_shortcode(string: str) -> bool:
+    """Whether the given string matches the structure of an emoji shortcode,
+    which is ':{unicode_characters}:'. No whitespace is allowed.
+    Does not validate for the existence of the emoji shortcodes on Discord.
+
+    Args:
+        string (str): The string to check for.
+
+    Returns:
+        bool: True/False
+    """
+    return bool(re.match(r"\:\S+\:", string))
+
+
+def extract_markdown_timestamp(markdown_timestamp: str) -> int:
+    """Extract the UNIX timestamp '123456789696969' from a Discord markdown
+    timestamp string with the structure '<t:{6969...}>' or
+    '<t:{6969...}[:t|T|d|D|f|F|R]>'.
+    Does not check the extracted timestamps for validity.
+
+    Args:
+        markdown_timestamp (str): The markdown timestamp string.
+
+    Returns:
+        int: The extracted UNIX timestamp.
+
+    Raises:
+        ValueError: Invalid Discord markdown timestamp string.
+    """
+
+    ts_md_pattern = r"\<t\:-?[0-9]+(\:[tTdDfFR])?\>"
+    ts_pattern = r"-?[0-9]+"
+
+    match = re.match(ts_md_pattern, markdown_timestamp)
+    if match is None:
+        raise ValueError("invalid Discord markdown timestamp string")
+
+    return int(
+        markdown_timestamp[slice(*re.search(ts_pattern, markdown_timestamp).span())]
+    )
+
+
+def is_markdown_timestamp(string: str) -> int:
+    """Whether the given string matches the structure of a Discord markdown timestamp
+    string with the structure '<t:{6969...}>' or '<t:{6969...}[:t|T|d|D|f|F|R]>'.
+    Does not check timestamps for validity.
+
+    Args:
+        string (str): The string to check for.
+
+    Returns:
+        bool: True/False
+
+    Raises:
+        ValueError: Invalid Discord markdown timestamp string.
+    """
+
+    return bool(re.match(r"\<t\:-?[0-9]+(\:[tTdDfFR])?\>", string))
 
 
 def is_emoji_code(emoji_code: str) -> bool:
