@@ -731,13 +731,11 @@ class JobBase:
         return self._PERMISSION_LEVEL
 
     @classmethod
-    def get_class_runtime_identifier(self) -> JobPermissionLevels:
-        """Get the permission level of this job class.
-        This permission level applies to all of its
-        job instances.
+    def get_class_runtime_identifier(self) -> str:
+        """Get the runtime identifier of this job class.
 
         Returns:
-            JobPermissionLevels: The permission level.
+            str: The runtime identifier.
         """
         return self._RUNITME_IDENTIFIER
 
