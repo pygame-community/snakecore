@@ -441,7 +441,9 @@ def code_block(string: str, max_characters: int = 2048, code_type: str = "") -> 
 
 
 def have_permissions_on_channels(
-    member_or_role: Union[discord.Member, discord.Role, Sequence[Union[discord.Member, discord.Role]]],
+    member_or_role: Union[
+        discord.Member, discord.Role, Sequence[Union[discord.Member, discord.Role]]
+    ],
     *permissions: str,
     channel: Union[discord.abc.GuildChannel, Sequence[discord.abc.GuildChannel]],
     member_role_bool_func: Callable[[Iterable[bool]], bool] = all,
@@ -484,21 +486,20 @@ def have_permissions_on_channels(
         channels = (channel,)
     else:
         channels = channel
-    
+
     if isinstance(member_or_role, (discord.Member, discord.Role)):
         members_or_roles = (member_or_role,)
     else:
         members_or_roles = member_or_role
-    
 
     return member_role_bool_func(
         channel_bool_func(
             permission_bool_func(
                 getattr(channel_perms, perm_name) for perm_name in permissions
-            ) for channel_perms in (
-                ch.permissions_for(m_or_r) for ch in channels
             )
-        ) for m_or_r in members_or_roles
+            for channel_perms in (ch.permissions_for(m_or_r) for ch in channels)
+        )
+        for m_or_r in members_or_roles
     )
 
 
