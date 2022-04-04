@@ -275,7 +275,7 @@ def format_code_exception(exc, pops: int = 1):
     return ret
 
 
-def extract_mention_id(mention: str) -> int:
+def extract_markdown_mention_id(mention: str) -> int:
     """Extract the id '123456789696969' from a Discord role, user or channel mention
     markdown string with the structures '<@{6969...}>', '<@!{6969...}>',
     '<@!{6969...}>' or '<#{6969...}>'.
@@ -305,7 +305,7 @@ def extract_mention_id(mention: str) -> int:
     return int(id_str)
 
 
-def is_valid_mention(mention: str) -> bool:
+def is_markdown_mention(mention: str) -> bool:
     """Whether the given input string matches one of the structures of a valid Discord
     mention markdown string which are '<@{6969...}>', '<@!{6969...}>',
     '<@&{6969...}>' or '<#{6969...}>'.
@@ -320,22 +320,7 @@ def is_valid_mention(mention: str) -> bool:
     return bool(re.match(r"\<((\@[&!]?)|\#){1}[0-9]+\>", mention))
 
 
-def is_emoji_code(emoji_code: str) -> bool:
-    """Whether the given string matches the structure of an emoji code,
-    which is ':{unicode_characters}:'. No whitespace is allowed.
-    Does not validate for the existence of the emoji codes
-    of the input strings.
-
-    Args:
-        emoji_code (str): The emoji code string.
-
-    Returns:
-        bool: True/False
-    """
-    return bool(re.match(r"\:\S+\:", emoji_code))
-
-
-def extract_custom_emoji_id(emoji_markdown: str) -> int:
+def extract_markdown_custom_emoji_id(emoji_markdown: str) -> int:
     """
     Extract the id '123456789696969' from a custom Discord emoji markdown string with
     the structure '<:custom_emoji:123456789696969>'. Also includes animated emojis.
@@ -364,7 +349,7 @@ def extract_custom_emoji_id(emoji_markdown: str) -> int:
     return int(id_str)
 
 
-def is_valid_custom_emoji(emoji_markdown: str) -> bool:
+def is_markdown_custom_emoji(emoji_markdown: str) -> bool:
     """
     Whether the given string matches the structure for a custom Discord emoji markdown
     string with the structure '<:custom_emoji:123456789696969>'. Also includes animated
@@ -378,6 +363,67 @@ def is_valid_custom_emoji(emoji_markdown: str) -> bool:
         bool: True/False
     """
     return bool(re.match(r"<a?\:\S+\:[0-9]+\>", emoji_markdown))
+
+
+def is_emoji_code(emoji_code: str) -> bool:
+    """Whether the given string matches the structure of an emoji code,
+    which is ':{unicode_characters}:'. No whitespace is allowed.
+    Does not validate for the existence of the emoji codes
+    of the input strings.
+
+    Args:
+        emoji_code (str): The emoji code string.
+
+    Returns:
+        bool: True/False
+    """
+    return bool(re.match(r"\:\S+\:", emoji_code))
+
+
+def extract_markdown_timestamp(markdown_timestamp: str) -> int:
+    """Extract the timestamp '123456789696969' from a Discord markdown
+    timestamp string with the structure '<t:{6969...}>' or
+    '<t:{6969...}[:t|T|d|D|f|F|R]>'.
+    Does not check the extracted timestamps for validity.
+
+    Args:
+        markdown_timestamp (str): The markdown timestamp string.
+
+    Returns:
+        int: The extracted integer id.
+
+    Raises:
+        ValueError: Invalid mention string.
+    """
+
+    ts_md_pattern = r"\<t\:-?[0-9]+(\:[tTdDfFR])?\>"
+    ts_pattern = r"[0-9]+"
+
+    match = re.match(ts_md_pattern, markdown_timestamp)
+    if match is None:
+        raise ValueError("invalid Discord markdown timestamp string")
+
+    return int(
+        markdown_timestamp[slice(*re.search(ts_pattern, markdown_timestamp).span())]
+    )
+
+
+def is_markdown_timestamp(markdown_timestamp: str) -> int:
+    """Whether the given string matches the structure of a Discord markdown timestamp
+    string with the structure '<t:{6969...}>' or '<t:{6969...}[:t|T|d|D|f|F|R]>'.
+    Does not check timestamps for validity.
+
+    Args:
+        markdown_timestamp (str): The markdown timestamp string.
+
+    Returns:
+        bool: True/False
+
+    Raises:
+        ValueError: Invalid mention string.
+    """
+
+    return bool(re.match(r"\<t\:-?[0-9]+(\:[tTdDfFR])?\>", markdown_timestamp))
 
 
 def code_block(string: str, max_characters: int = 2048, code_type: str = "") -> str:
@@ -445,7 +491,7 @@ def check_channels_permissions(
     return booleans
 
 
-def create_timestamp_markdown(
+def create_markdown_timestamp(
     dt: Union[int, float, datetime.datetime], tformat: str = "f"
 ) -> str:
     """
