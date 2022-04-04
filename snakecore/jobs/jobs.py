@@ -172,7 +172,7 @@ def get_job_class_runtime_identifier(
         return default
 
     try:
-        class_runtime_identifier = cls._RUNITME_IDENTIFIER
+        class_runtime_identifier = cls._RUNTIME_IDENTIFIER
     except AttributeError:
         if default is UNSET:
             raise TypeError(
@@ -225,7 +225,7 @@ def get_job_class_permission_level(
         return default
 
     try:
-        class_runtime_identifier = cls._RUNITME_IDENTIFIER
+        class_runtime_identifier = cls._RUNTIME_IDENTIFIER
     except AttributeError:
         if default is UNSET:
             raise TypeError(
@@ -313,7 +313,7 @@ def _sysjob(cls: Type["JobBase"]) -> Type["JobBase"]:
     if issubclass(cls, JobBase):
         _SystemLevelMixinJobBase.register(cls)
 
-        name, created_timestamp_ns_str = cls._RUNITME_IDENTIFIER.split("-")
+        name, created_timestamp_ns_str = cls._RUNTIME_IDENTIFIER.split("-")
 
         if name not in _JOB_CLASS_MAP:
             _JOB_CLASS_MAP[name] = {}
@@ -469,7 +469,7 @@ class JobBase:
     )
 
     _CREATED_AT = datetime.datetime.now(datetime.timezone.utc)
-    _RUNITME_IDENTIFIER = f"JobBase-{int(_CREATED_AT.timestamp()*1_000_000_000)}"
+    _RUNTIME_IDENTIFIER = f"JobBase-{int(_CREATED_AT.timestamp()*1_000_000_000)}"
     _SCHEDULING_IDENTIFIER: Optional[str] = None
     _PERMISSION_LEVEL: JobPermissionLevels = JobPermissionLevels.MEDIUM
 
@@ -541,7 +541,7 @@ class JobBase:
 
             _JOB_CLASS_SCHEDULING_MAP[scheduling_identifier] = cls
 
-        cls._RUNITME_IDENTIFIER = f"{name}-{created_timestamp_ns_str}"
+        cls._RUNTIME_IDENTIFIER = f"{name}-{created_timestamp_ns_str}"
 
         if name not in _JOB_CLASS_MAP:
             _JOB_CLASS_MAP[name] = {}
@@ -737,7 +737,7 @@ class JobBase:
         Returns:
             str: The runtime identifier.
         """
-        return self._RUNITME_IDENTIFIER
+        return self._RUNTIME_IDENTIFIER
 
     @classmethod
     def schedulable(cls: Type["JobBase"]) -> bool:
@@ -2575,9 +2575,7 @@ class IntervalJobBase(JobBase):
             self.DEFAULT_RECONNECT if reconnect is None else reconnect
         )
 
-        self._time = (
-            self.DEFAULT_TIME if time is None else time
-        )
+        self._time = self.DEFAULT_TIME if time is None else time
 
         self._loop_count = 0
         self._task_loop = CustomLoop(
@@ -2619,7 +2617,7 @@ class IntervalJobBase(JobBase):
         seconds: float = 0,
         minutes: float = 0,
         hours: float = 0,
-        time: Union[datetime.time, Sequence[datetime.time], _UnsetType] = UNSET
+        time: Union[datetime.time, Sequence[datetime.time], _UnsetType] = UNSET,
     ):
         """Change the interval at which this job will run its `on_run()` method.
         This will only be applied on the next iteration of `on_run()`.
@@ -2635,14 +2633,13 @@ class IntervalJobBase(JobBase):
             seconds=seconds,
             minutes=minutes,
             hours=hours,
-            time=time if time is not UNSET else discord.utils.MISSING
+            time=time if time is not UNSET else discord.utils.MISSING,
         )
 
         if time is not UNSET:
             self._time = time
         else:
             self._interval_secs = seconds + (minutes * 60.0) + (hours * 3600.0)
-        
 
     async def on_start(self):  # make this optional for subclasses
         pass

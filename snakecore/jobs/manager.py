@@ -1466,7 +1466,9 @@ class JobManager:
             for ce_type in job.EVENT_TYPES:
                 if ce_type._RUNTIME_IDENTIFIER not in self._event_job_ids:
                     self._event_job_ids[ce_type._RUNTIME_IDENTIFIER] = set()
-                self._event_job_ids[ce_type._RUNTIME_IDENTIFIER].add(job._runtime_identifier)
+                self._event_job_ids[ce_type._RUNTIME_IDENTIFIER].add(
+                    job._runtime_identifier
+                )
 
         elif isinstance(job, IntervalJobBase):
             self._interval_job_ids.add(job._runtime_identifier)
