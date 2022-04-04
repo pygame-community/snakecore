@@ -1464,9 +1464,9 @@ class JobManager:
 
         if isinstance(job, EventJobBase):
             for ce_type in job.EVENT_TYPES:
-                if ce_type._IDENTIFIER not in self._event_job_ids:
-                    self._event_job_ids[ce_type._IDENTIFIER] = set()
-                self._event_job_ids[ce_type._IDENTIFIER].add(job._runtime_identifier)
+                if ce_type._RUNTIME_IDENTIFIER not in self._event_job_ids:
+                    self._event_job_ids[ce_type._RUNTIME_IDENTIFIER] = set()
+                self._event_job_ids[ce_type._RUNTIME_IDENTIFIER].add(job._runtime_identifier)
 
         elif isinstance(job, IntervalJobBase):
             self._interval_job_ids.add(job._runtime_identifier)
@@ -1515,15 +1515,15 @@ class JobManager:
         elif isinstance(job, EventJobBase):
             for ce_type in job.EVENT_TYPES:
                 if (
-                    ce_type._IDENTIFIER in self._event_job_ids
+                    ce_type._RUNTIME_IDENTIFIER in self._event_job_ids
                     and job._runtime_identifier
-                    in self._event_job_ids[ce_type._IDENTIFIER]
+                    in self._event_job_ids[ce_type._RUNTIME_IDENTIFIER]
                 ):
-                    self._event_job_ids[ce_type._IDENTIFIER].remove(
+                    self._event_job_ids[ce_type._RUNTIME_IDENTIFIER].remove(
                         job._runtime_identifier
                     )
-                if not self._event_job_ids[ce_type._IDENTIFIER]:
-                    del self._event_job_ids[ce_type._IDENTIFIER]
+                if not self._event_job_ids[ce_type._RUNTIME_IDENTIFIER]:
+                    del self._event_job_ids[ce_type._RUNTIME_IDENTIFIER]
 
         if job._runtime_identifier in self._job_id_map:
             del self._job_id_map[job._runtime_identifier]
@@ -2182,7 +2182,7 @@ class JobManager:
             # for cases where the default _iv might not yet be set
             event._dispatcher = _iv._proxy
 
-        event_class_identifier = event.__class__._IDENTIFIER
+        event_class_identifier = event.__class__._RUNTIME_IDENTIFIER
 
         if event_class_identifier in self._event_waiting_queues:
             target_event_waiting_queue = self._event_waiting_queues[
@@ -2247,10 +2247,10 @@ class JobManager:
         wait_list = [event_types, check, future]
 
         for event_type in event_types:
-            if event_type._IDENTIFIER not in self._event_waiting_queues:
-                self._event_waiting_queues[event_type._IDENTIFIER] = []
+            if event_type._RUNTIME_IDENTIFIER not in self._event_waiting_queues:
+                self._event_waiting_queues[event_type._RUNTIME_IDENTIFIER] = []
 
-            self._event_waiting_queues[event_type._IDENTIFIER].append(wait_list)
+            self._event_waiting_queues[event_type._RUNTIME_IDENTIFIER].append(wait_list)
 
         return asyncio.wait_for(future, timeout)
 
