@@ -486,7 +486,7 @@ def recursive_dict_compare(
     if compare_func is None:
         compare_func = lambda d1, d2: d1 == d2
 
-    if not ignore_keys_missing_in_source and target_dict.keys() != source_dict.keys():
+    if not ignore_keys_missing_in_source and (target_dict.keys() >= source_dict.keys()):
         return False
 
     for k, v in source_dict.items():
