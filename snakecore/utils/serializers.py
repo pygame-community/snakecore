@@ -17,6 +17,8 @@ from snakecore.utils import recursive_dict_compare
 
 _DISCORD_MODEL_SERIAL_MAP = {}
 
+NoneType = type(None)
+
 
 def get_serializer_class(discord_class: Type):
     class_name = discord_class.__name__
@@ -49,8 +51,7 @@ class BaseSerializer:
             return recursive_dict_compare(
                 data,
                 cls.DATA_FORMAT,
-                compare_func=lambda a, b: isinstance(a, b),
-                ignore_keys_missing_in_source=True,
+                compare_func=lambda src, target: isinstance(src, target),
                 ignore_keys_missing_in_target=True,
             )
 
@@ -78,7 +79,8 @@ class BaseSerializer:
 
         elif _verify_format and not cls.is_valid_data(data):
             raise ValueError(
-                f"The format of the given 'data' dictionary does not match the supported format of class {cls.__name__}"
+                f"The format of the given 'data' dictionary does not match the "
+                f"supported format of class {cls.__name__}"
             ) from None
 
         instance = cls.__new__(cls)
@@ -183,7 +185,9 @@ class MemberSerializer(DiscordObjectBaseSerializer):
                 guild = await client.fetch_guild(self._dict["member_id"])
             else:
                 raise DeserializationError(
-                    f'could not restore Guild object with ID {self._dict["guild_id"]} for Member object with ID {self._dict["member_id"]}'
+                    f"could not restore Guild object with ID "
+                    f'{self._dict["guild_id"]} for Member object with ID '
+                    f'{self._dict["member_id"]}'
                 ) from None
 
         member = guild.get_member(self._dict["member_id"])
@@ -192,7 +196,9 @@ class MemberSerializer(DiscordObjectBaseSerializer):
                 member = await guild.fetch_member(self._dict["member_id"])
             else:
                 raise DeserializationError(
-                    f'could not restore Member object with ID {self._dict["member_id"]} from Guild object with ID {self._dict["guild_id"]}'
+                    f"could not restore Member object with ID "
+                    f'{self._dict["member_id"]} from Guild object with ID '
+                    f'{self._dict["guild_id"]}'
                 ) from None
         return member
 
@@ -269,9 +275,9 @@ class PartialEmojiSerializer(DiscordObjectBaseSerializer):
 
 class FileSerializer(DiscordObjectBaseSerializer):
     DATA_FORMAT = {
-        "filename": (str, type(None)),
-        "fp": (str, io.IOBase, io.StringIO, io.BytesIO, type(None)),
-        "data": (str, bytes, type(None)),
+        "filename": (str, NoneType),
+        "fp": (str, io.IOBase, io.StringIO, io.BytesIO, NoneType),
+        "data": (str, bytes, NoneType),
         "spoiler": bool,
     }
 
@@ -307,7 +313,7 @@ class FileSerializer(DiscordObjectBaseSerializer):
                 fp = io.BytesIO(data)
             else:
                 raise DeserializationError(
-                    "Could not deserialize File object into pickleable dictionary"
+                    "Could not deserialize File object from serialized file data"
                 ) from None
 
             return discord.File(
@@ -348,7 +354,9 @@ class RoleSerializer(DiscordObjectBaseSerializer):
                 guild = await client.fetch_guild(self._dict["guild_id"])
         else:
             raise DeserializationError(
-                f'could not restore Guild object with ID {self._dict["guild_id"]} for Role object with ID {self._dict["role_id"]}'
+                f"could not restore Guild object with ID "
+                f'{self._dict["guild_id"]} for Role object with ID '
+                f'{self._dict["role_id"]}'
             ) from None
 
         role = guild.get_role(self._dict["role_id"])
@@ -559,12 +567,14 @@ class MessageSerializer(DiscordObjectBaseSerializer):
     IS_ASYNC = True
     ALWAYS_FETCH_ON_ASYNC_RECONSTRUCT = True
     DATA_FORMAT = {
-        "message_id": int,
+        "guild_id": (int, NoneType),
         "channel_id": int,
+        "message_id": int,
     }
 
     def __init__(self, message: discord.Message):
         self._dict = {
+            "guild_id": message.guild.id if message.guild is not None else None,
             "message_id": message.id,
             "channel_id": message.channel.id,
         }
@@ -578,15 +588,45 @@ class MessageSerializer(DiscordObjectBaseSerializer):
             always_fetch = self.ALWAYS_FETCH_ON_ASYNC_RECONSTRUCT
 
         client = config.conf.global_client if client is None else client
-        channel = client.get_channel(self._dict["channel_id"])
 
-        if channel is None:
-            if always_fetch:
-                channel = await client.fetch_channel(self._dict["channel_id"])
-            else:
-                raise DeserializationError(
-                    f'could not restore Messageable object (channel) with ID {self._dict["channel_id"]} for Message with ID {self._dict["message_id"]}'
-                ) from None
+        guild = None
+
+        if self._dict.get("guild_id", None) is not None:
+            guild = client.get_guild(self._dict["guild_id"])
+
+            if guild is None:
+                if always_fetch:
+                    guild = await client.fetch_guild(self._dict["guild_id"])
+                else:
+                    raise DeserializationError(
+                        f"could not restore Guild object with ID "
+                        f'{self._dict["guild_id"]}'
+                    ) from None
+
+        if guild is None:
+            channel = client.get_channel(self._dict["channel_id"])
+            if channel is None:
+                if always_fetch:
+                    channel = await client.fetch_channel(self._dict["channel_id"])
+                else:
+                    raise DeserializationError(
+                        f"could not restore Messageable object (channel) with ID "
+                        f'{self._dict["channel_id"]} for Message with ID '
+                        f'{self._dict["message_id"]}'
+                    ) from None
+        else:
+            channel = guild.get_channel(self._dict["channel_id"])
+
+            if channel is None:
+                if always_fetch:
+                    channel = await guild.fetch_channel(self._dict["channel_id"])
+                else:
+                    raise DeserializationError(
+                        f"could not restore Messageable object (channel) with ID "
+                        f'{self._dict["channel_id"]} from Guild object with ID '
+                        f'{self._dict["guild_id"]} for Message with ID '
+                        f'{self._dict["message_id"]}'
+                    ) from None
 
         message = await channel.fetch_message(self._dict["message_id"])
         return message
@@ -670,7 +710,9 @@ class GuildChannelSerializer(ChannelSerializer):
                 guild = await client.fetch_guild(self._dict["guild_id"])
             else:
                 raise DeserializationError(
-                    f'could not restore Guild object with ID {self._dict["guild_id"]} for GuildChannel object with ID {self._dict["channel_id"]}'
+                    f"could not restore Guild object with ID "
+                    f'{self._dict["guild_id"]} for GuildChannel object with ID '
+                    f'{self._dict["channel_id"]}'
                 ) from None
 
         channel = guild.get_channel(self._dict["channel_id"])
@@ -682,9 +724,82 @@ class GuildChannelSerializer(ChannelSerializer):
                         channel = ch
             else:
                 raise DeserializationError(
-                    f'could not restore GuildChannel object with ID {self._dict["channel_id"]}'
+                    f"could not restore GuildChannel object with ID "
+                    f'{self._dict["channel_id"]}'
                 ) from None
         return channel
+
+
+class ThreadSerializer(DiscordObjectBaseSerializer):
+    DATA_FORMAT = {"channel_id": (int, NoneType), "guild_id": int, "thread_id": int}
+
+    def __init__(self, thread: discord.Thread):
+        self._dict = {
+            "channel_id": thread.parent_id,
+            "guild_id": thread.guild.id,
+            "thread_id": thread.id,
+        }
+
+    async def deserialized_async(
+        self,
+        client: Optional[discord.Client] = None,
+        always_fetch: Optional[bool] = None,
+    ):
+        if always_fetch is None:
+            always_fetch = self.ALWAYS_FETCH_ON_ASYNC_RECONSTRUCT
+
+        client = config.conf.global_client if client is None else client
+
+        guild = client.get_guild(self._dict["guild_id"])
+
+        if guild is None:
+            if always_fetch:
+                guild = await client.fetch_guild(self._dict["guild_id"])
+            else:
+                raise DeserializationError(
+                    f"could not restore Guild object with ID "
+                    f'{self._dict["guild_id"]}'
+                ) from None
+
+        if self._dict.get("channel_id", None) is None:
+            thread = guild.get_thread(self._dict["thread_id"])
+
+            if thread is None:
+                if always_fetch:
+                    thread = await guild.fetch_channel(self._dict["thread_id"])
+                else:
+                    raise DeserializationError(
+                        f"could not restore Thread object with ID "
+                        f'{self._dict["thread_id"]} from Guild object with ID '
+                        f'{self._dict["guild_id"]}'
+                    ) from None
+
+        else:
+            channel = guild.get_channel(self._dict["channel_id"])
+
+            if channel is None:
+                if always_fetch:
+                    channel = await guild.fetch_channel(self._dict["thread_id"])
+                else:
+                    raise DeserializationError(
+                        f"could not restore Messageable object (channel) object with"
+                        f' ID {self._dict["thread_id"]} from Guild object with ID '
+                        f'{self._dict["guild_id"]}'
+                    ) from None
+
+            thread = channel.get_thread(self._dict["thread_id"])
+
+            if thread is None:
+                if always_fetch:
+                    thread = await guild.fetch_channel(self._dict["thread_id"])
+                else:
+                    raise DeserializationError(
+                        f"could not restore Thread object with ID "
+                        f'{self._dict["thread_id"]} from Guild object with ID '
+                        f'{self._dict["guild_id"]}'
+                    ) from None
+
+        return thread
 
 
 class TextChannelSerializer(GuildChannelSerializer):
@@ -699,11 +814,6 @@ class VoiceChannelSerializer(GuildChannelSerializer):
 
 class StageChannelSerializer(GuildChannelSerializer):
     def __init__(self, channel: discord.StageChannel):
-        super().__init__(channel=channel)
-
-
-class StoreChannelSerializer(GuildChannelSerializer):
-    def __init__(self, channel: discord.StoreChannel):
         super().__init__(channel=channel)
 
 
@@ -746,10 +856,10 @@ _DISCORD_MODEL_SERIAL_MAP.update(
         discord.Message.__name__: MessageSerializer,
         discord.MessageReference.__name__: MessageReferenceSerializer,
         discord.Embed.__name__: EmbedSerializer,
+        discord.Thread.__name__: ThreadSerializer,
         discord.TextChannel.__name__: TextChannelSerializer,
         discord.VoiceChannel.__name__: VoiceChannelSerializer,
         discord.StageChannel.__name__: StageChannelSerializer,
-        discord.StoreChannel.__name__: StoreChannelSerializer,
         discord.GroupChannel.__name__: GroupChannelSerializer,
         discord.DMChannel.__name__: DMChannelSerializer,
     }
