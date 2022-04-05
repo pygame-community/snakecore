@@ -440,12 +440,12 @@ def code_block(string: str, max_characters: int = 2048, code_type: str = "") -> 
         return f"```{code_type}\n{string}```"
 
 
-def have_permissions_on_channels(
-    member_or_role: Union[
+def have_permissions_in_channels(
+    members_or_roles: Union[
         discord.Member, discord.Role, Sequence[Union[discord.Member, discord.Role]]
     ],
+    channels: Union[discord.abc.GuildChannel, Sequence[discord.abc.GuildChannel]],
     *permissions: str,
-    channel: Union[discord.abc.GuildChannel, Sequence[discord.abc.GuildChannel]],
     member_role_bool_func: Callable[[Iterable[bool]], bool] = all,
     permission_bool_func: Callable[[Iterable[bool]], bool] = all,
     channel_bool_func: Callable[[Iterable[bool]], bool] = all,
@@ -456,13 +456,15 @@ def have_permissions_on_channels(
     of the given permissions in ... of the given channels?
 
     Args:
-        member_or_role (Union[discord.Member, discord.Role]):
-          The target Discord member or role.
+        members_or_roles (Union[
+            discord.Member, discord.Role, Sequence[Union[discord.Member, discord.Role]]
+        ]):
+          The target Discord member(s) or role(s).
+        channels (Union[discord.abc.GuildChannel, Sequence[discord.abc.GuildChannel]]):
+          The target guild channel(s) to check permissions on.
         *permissions (str): The lowercase attribute name(s) to check for
           the `discord.Permissions` data class, which represent the different available
           permissions.
-        channel (Union[discord.abc.GuildChannel, Sequence[discord.abc.GuildChannel]]):
-          The target guild channel(s) to check permissions on.
         member_role_bool_func (Callable[[Iterable[bool]], bool], optional): A function
           that takes in the result of `channel_bool_func()` for every of the given
           role(s) or member(s) as an iterable and returns a boolean value. Defaults to
@@ -479,18 +481,11 @@ def have_permissions_on_channels(
         bool: True/False
     """
 
-    channels = None
-    members_or_roles = None
+    if isinstance(channels, discord.abc.GuildChannel):
+        channels = (channels,)
 
-    if isinstance(channel, discord.abc.GuildChannel):
-        channels = (channel,)
-    else:
-        channels = channel
-
-    if isinstance(member_or_role, (discord.Member, discord.Role)):
-        members_or_roles = (member_or_role,)
-    else:
-        members_or_roles = member_or_role
+    if isinstance(members_or_roles, (discord.Member, discord.Role)):
+        members_or_roles = (members_or_roles,)
 
     return member_role_bool_func(
         channel_bool_func(
