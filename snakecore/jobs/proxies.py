@@ -814,6 +814,8 @@ class JobManagerProxy:
 
     unguard_job = manager.JobManager.unguard_job
 
+    guarding_job = manager.JobManager.guarding_job
+
     def has_job(self, job_proxy: JobProxy) -> bool:
         """Whether a specific job object is currently in this
         job manager.
@@ -993,6 +995,12 @@ class _JobManagerProxy:  # hidden implementation to trick type-checker engines
         job_proxy: JobProxy,
     ):
         return self.__mgr.unguard_job(job_proxy, _iv=self.__j)
+
+    def guarding_job(
+        self,
+        job_proxy: JobProxy,
+    ):
+        return self.__mgr.guarding_job(job_proxy, _iv=self.__j)
 
     def _eject(self):
         """

@@ -9,6 +9,7 @@ at runtime.
 
 import asyncio
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
+from contextlib import contextmanager
 import datetime
 import pickle
 import time
@@ -928,7 +929,7 @@ class JobManager:
         _iv: Optional[Union[EventJobBase, IntervalJobBase]] = None,
         **kwargs,
     ) -> "proxies.JobProxy":
-        """Create an instance of a job class, and return it.
+        """Create an instance of a job class and return it.
 
         Args:
             cls (Union[Type[EventJobBase], Type[IntervalJobBase]]):
@@ -2100,8 +2101,6 @@ class JobManager:
 
         Raises:
             JobStateError: The given target job object is not being guarded by a job.
-            JobStateError: The given target job object is already being guarded by
-              the invoker job object.
         """
 
         self._check_init_and_running()
@@ -2145,6 +2144,43 @@ class JobManager:
                 fut.set_result(True)
 
         job._unguard_futures.clear()
+
+    @contextmanager
+    def guarding_job(
+        self,
+        job_proxy: "proxies.JobProxy",
+        _iv: Optional[Union[EventJobBase, IntervalJobBase]] = None,
+    ):
+        """A context manager for automatically guarding and unguarding a job object.
+        If the given job object is already unguarded or guarded by another job when
+        this context manager is ending, it will not atttempt to unguard.
+
+        This method is meant to be used with the `with` statement:
+        ```py
+        with manager.guarding_job(job):
+            ... # interact with a job
+        ```
+
+        Args:
+            job_proxy (JobProxy): The proxy to the job object.
+
+        Yields:
+            The job proxy given as input.
+
+        Raises:
+            JobStateError: The given target job object already being guarded by a job.
+        """
+
+        if not isinstance(_iv, (EventJobBase, IntervalJobBase)):
+            _iv = self._manager_job
+
+        self.guard_job(job_proxy, _iv=_iv)
+        try:
+            yield job_proxy
+        finally:
+            job = self._get_job_from_proxy(job_proxy)
+            if job._is_being_guarded and job._guardian is _iv:
+                self.unguard_job(job_proxy, _iv=_iv)
 
     def __contains__(self, job_proxy: "proxies.JobProxy"):
         self._check_init_and_running()
