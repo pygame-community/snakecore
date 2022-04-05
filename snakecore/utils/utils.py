@@ -440,7 +440,7 @@ def code_block(string: str, max_characters: int = 2048, code_type: str = "") -> 
         return f"```{code_type}\n{string}```"
 
 
-def have_permissions_on_channels(
+def have_permissions_in_channels(
     members_or_roles: Union[
         discord.Member, discord.Role, Sequence[Union[discord.Member, discord.Role]]
     ],
