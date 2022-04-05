@@ -294,19 +294,20 @@ class _SystemLevelMixinJobBase(ABC):
     pass
 
 
-class _SingletonMixinJobBase(ABC):
-    """An abstract base class for marking job classes as singletons,
-    which can only be scheduled one at a time in a job manager.
-    """
-
-
-def singletonjob(cls: Type["JobBase"]) -> Type["JobBase"]:
-    """A class decorator for marking job classes as singletons,
+def singletonjob(cls: Optional[Type["JobBase"]] = None, disabled: bool = False):
+    """A class decorator for (un)marking job classes as singletons,
     meaning that their instances can only be scheduled one at a time in a job manager.
     """
-    if issubclass(cls, JobBase):
-        _SingletonMixinJobBase.register(cls)
-    return cls
+
+    def inner_deco(cls: Type["JobBase"]):
+        if issubclass(cls, JobBase):
+            cls._SNGTN = not disabled
+        return cls
+
+    if cls is not None:
+        return inner_deco(cls)
+
+    return inner_deco
 
 
 def _sysjob(cls: Type["JobBase"]) -> Type["JobBase"]:
@@ -456,13 +457,11 @@ class JobBase:
         "_stop_by_force",
         "_is_stopping",
         "_last_stopping_reason",
-        "_is_awaiting",
         "_told_to_restart",
         "_stopped",
         "_is_idling",
         "_initialized_since_ts",
         "_alive_since_ts",
-        "_awaiting_since_ts",
         "_idling_since_ts",
         "_running_since_ts",
         "_stopped_since_ts",
@@ -472,6 +471,7 @@ class JobBase:
     _RUNTIME_IDENTIFIER = f"JobBase-{int(_CREATED_AT.timestamp()*1_000_000_000)}"
     _SCHEDULING_IDENTIFIER: Optional[str] = None
     _PERMISSION_LEVEL: JobPermissionLevels = JobPermissionLevels.MEDIUM
+    _SNGTN: bool = False
 
     OutputFields: Optional[Union[Any, "groupings.OutputNameRecord"]] = None
     OutputQueues: Optional[Union[Any, "groupings.OutputNameRecord"]] = None
@@ -680,7 +680,6 @@ class JobBase:
         self._on_run_exception: Optional[BaseException] = None
         self._on_stop_exception: Optional[BaseException] = None
 
-        self._is_awaiting = False
         self._is_initializing = False
         self._initialized = False
         self._is_starting = False
@@ -714,7 +713,6 @@ class JobBase:
 
         self._initialized_since_ts: Optional[float] = None
         self._alive_since_ts: Optional[float] = None
-        self._awaiting_since_ts: Optional[float] = None
         self._idling_since_ts: Optional[float] = None
         self._running_since_ts: Optional[float] = None
         self._stopped_since_ts: Optional[float] = None
@@ -1498,59 +1496,9 @@ class JobBase:
 
         return success
 
-    async def wait_for(
-        self, awaitable: Awaitable, timeout: Optional[float] = None
-    ) -> Any:
-        """Wait for a given awaitable object to complete.
-        While awaiting the awaitable, this job object
-        will be marked as waiting.
-
-        Args:
-            awaitable: An awaitable object
-
-        Returns:
-            Any: The result of the given awaitable.
-
-        Raises:
-            TypeError: The given object was not awaitable.
-        """
-        if inspect.isawaitable(awaitable):
-            try:
-                self._is_awaiting = True
-                self._awaiting_since_ts = time.time()
-                result = await asyncio.wait_for(awaitable, timeout)
-                return result
-            finally:
-                self._is_awaiting = False
-                self._awaiting_since_ts = None
-
-        raise TypeError("argument 'awaitable' must be an awaitable object")
-
     def loop_count(self) -> int:
         """The current amount of `on_run()` calls completed by this job object."""
         return self._loop_count
-
-    def is_awaiting(self) -> bool:
-        """Whether this job is currently waiting
-        for a coroutine to complete, which was awaited
-        using `.wait_for(awaitable)`.
-
-        Returns:
-            bool: True/False
-        """
-        return self._is_awaiting
-
-    def awaiting_since(self) -> Optional[datetime.datetime]:
-        """The last time at which this job object began awaiting, if available.
-
-        Returns:
-            datetime.datetime: The time, if available.
-        """
-        if self._awaiting_since_ts:
-            return datetime.datetime.fromtimestamp(
-                self._awaiting_since_ts, tz=datetime.timezone.utc
-            )
-        return None
 
     def initialized(self) -> bool:
         """Whether this job has been initialized.
@@ -2488,8 +2436,6 @@ class JobBase:
                     output = JobStatus.STARTING
                 elif self.is_idling():
                     output = JobStatus.IDLING
-                elif self.is_awaiting():
-                    output = JobStatus.AWAITING
                 elif self.is_completing():
                     output = JobStatus.COMPLETING
                 elif self.is_being_killed():
@@ -2989,12 +2935,13 @@ class EventJobBase(JobBase):
                         try:
                             await self._empty_event_queue_future  # wait till an event is dispatched
                         except asyncio.CancelledError as exc:
+                            self._is_idling = False
+                            self._idling_since_ts = None
+
                             if exc.args[0] == "CANCEL_BY_TASK_LOOP":
                                 # stopping because of task loop cancellation
                                 raise
 
-                            self._is_idling = False
-                            self._idling_since_ts = None
                             self._STOP_EXTERNAL(force=True)
                             # unknown source of CancelledError, stop for good measure
                             return
@@ -3043,13 +2990,14 @@ class EventJobBase(JobBase):
                             handle.cancel()
 
                     except asyncio.CancelledError as exc:
+                        self._elapsed_event_queue_timeout_secs = 0
+                        self._is_idling = False
+                        self._idling_since_ts = None
+
                         if exc.args[0] == "CANCEL_BY_TASK_LOOP":
                             # stopping because of task loop cancellation
                             raise
 
-                        self._elapsed_event_queue_timeout_secs = 0
-                        self._is_idling = False
-                        self._idling_since_ts = None
                         self._STOP_EXTERNAL(force=True)
                         # unknown source of CancelledError, stop for good measure
                         return

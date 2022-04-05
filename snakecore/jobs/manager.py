@@ -32,7 +32,6 @@ from snakecore import events
 from .jobs import (
     EventJobBase,
     IntervalJobBase,
-    _SingletonMixinJobBase,
     JobManagerJob,
     get_job_class_from_scheduling_identifier,
     get_job_class_permission_level,
@@ -1065,7 +1064,7 @@ class JobManager:
             await self.initialize_job(job._proxy)
 
         if (
-            isinstance(job, _SingletonMixinJobBase)
+            job.__class__._SNGTN
             and job.__class__._RUNTIME_IDENTIFIER in self._job_type_count_dict
             and self._job_type_count_dict[job.__class__._RUNTIME_IDENTIFIER]
         ):
