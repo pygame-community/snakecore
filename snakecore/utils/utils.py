@@ -430,67 +430,6 @@ def is_markdown_timestamp(string: str) -> int:
     return bool(re.match(r"\<t\:-?[0-9]+(\:[tTdDfFR])?\>", string))
 
 
-def is_emoji_code(emoji_code: str) -> bool:
-    """Whether the given string matches the structure of an emoji code,
-    which is ':{unicode_characters}:'. No whitespace is allowed.
-    Does not validate for the existence of the emoji codes
-    of the input strings.
-
-    Args:
-        emoji_code (str): The emoji code string.
-
-    Returns:
-        bool: True/False
-    """
-    return bool(re.match(r"\:\S+\:", emoji_code))
-
-
-def extract_markdown_timestamp(markdown_timestamp: str) -> int:
-    """Extract the timestamp '123456789696969' from a Discord markdown
-    timestamp string with the structure '<t:{6969...}>' or
-    '<t:{6969...}[:t|T|d|D|f|F|R]>'.
-    Does not check the extracted timestamps for validity.
-
-    Args:
-        markdown_timestamp (str): The markdown timestamp string.
-
-    Returns:
-        int: The extracted integer id.
-
-    Raises:
-        ValueError: Invalid mention string.
-    """
-
-    ts_md_pattern = r"\<t\:-?[0-9]+(\:[tTdDfFR])?\>"
-    ts_pattern = r"[0-9]+"
-
-    match = re.match(ts_md_pattern, markdown_timestamp)
-    if match is None:
-        raise ValueError("invalid Discord markdown timestamp string")
-
-    return int(
-        markdown_timestamp[slice(*re.search(ts_pattern, markdown_timestamp).span())]
-    )
-
-
-def is_markdown_timestamp(markdown_timestamp: str) -> int:
-    """Whether the given string matches the structure of a Discord markdown timestamp
-    string with the structure '<t:{6969...}>' or '<t:{6969...}[:t|T|d|D|f|F|R]>'.
-    Does not check timestamps for validity.
-
-    Args:
-        markdown_timestamp (str): The markdown timestamp string.
-
-    Returns:
-        bool: True/False
-
-    Raises:
-        ValueError: Invalid mention string.
-    """
-
-    return bool(re.match(r"\<t\:-?[0-9]+(\:[tTdDfFR])?\>", markdown_timestamp))
-
-
 def code_block(string: str, max_characters: int = 2048, code_type: str = "") -> str:
     """
     Formats text into discord code blocks
@@ -716,14 +655,11 @@ def chainmap_getitem(map: ChainMap, key: Any):
     """A better approach to looking up from
     ChainMap objects, by treating inner
     defaultdict maps as a rare special case.
-
     Args:
         map (ChainMap): The ChainMap.
         key (Any): The key.
-
     Returns:
         object: The lookup result.
-
     Raises:
         KeyError: key not found.
     """
