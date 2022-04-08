@@ -95,10 +95,6 @@ class JobProxy:
 
     initialized_since = JobBase.initialized_since
 
-    is_awaiting = JobBase.is_awaiting
-
-    awaiting_since = JobBase.awaiting_since
-
     alive = JobBase.alive
 
     alive_since = JobBase.alive_since
