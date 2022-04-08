@@ -717,8 +717,12 @@ class JobBase:
         self._running_since_ts: Optional[float] = None
         self._stopped_since_ts: Optional[float] = None
 
+    @property
+    def permission_level(self):
+        return self.__class__._PERMISSION_LEVEL
+
     @classmethod
-    def get_class_permission_level(self) -> JobPermissionLevels:
+    def get_class_permission_level(cls) -> JobPermissionLevels:
         """Get the permission level of this job class.
         This permission level applies to all of its
         job instances.
@@ -726,7 +730,7 @@ class JobBase:
         Returns:
             JobPermissionLevels: The permission level.
         """
-        return self._PERMISSION_LEVEL
+        return cls._PERMISSION_LEVEL
 
     @classmethod
     def get_class_runtime_identifier(self) -> str:
@@ -1434,13 +1438,13 @@ class JobBase:
         """
 
         if not self._told_to_be_killed and not self._told_to_complete:
-            if self.__KILL():
+            if self._KILL_RAW():
                 self._told_to_be_killed = True
                 return True
 
         return False
 
-    def __KILL(self):
+    def _KILL_RAW(self):
         success = False
         if self._is_starting:
             # ensure that a job will always
@@ -1471,13 +1475,13 @@ class JobBase:
         """
 
         if not self._told_to_be_killed and not self._told_to_complete:
-            if self.__KILL_EXTERNAL(awaken=awaken):
+            if self._KILL_EXTERNAL_RAW(awaken=awaken):
                 self._told_to_be_killed = True
                 return True
 
         return False
 
-    def __KILL_EXTERNAL(self, awaken=True):
+    def _KILL_EXTERNAL_RAW(self, awaken=True):
         success = False
         if self.is_running():
             if not self._is_stopping:
@@ -1485,7 +1489,7 @@ class JobBase:
 
         elif awaken:
             self._external_startup_kill = True  # start and kill as fast as possible
-            successs = self._START_EXTERNAL()
+            success = self._START_EXTERNAL()
             # don't set `_told_to_be_killed` to True so that this method
             # can be called again to perform the actual kill
 
@@ -1770,7 +1774,9 @@ class JobBase:
         elif self.done():
             raise JobStateError("this job object is already done and not alive.")
 
-        fut = self._task_loop.loop.create_future()
+        loop = asyncio.get_running_loop()
+
+        fut = loop.create_future()
 
         self._done_futures.append(fut)
 
@@ -1801,7 +1807,8 @@ class JobBase:
         elif not self._is_being_guarded:
             raise JobStateError("this job object is not being guarded by a job")
 
-        fut = self._task_loop.loop.create_future()
+        loop = asyncio.get_running_loop()
+        fut = loop.create_future()
 
         if self._unguard_futures is None:
             self._unguard_futures = []
@@ -2254,7 +2261,9 @@ class JobBase:
         if self.done():
             raise JobStateError("this job object is already done and not alive.")
 
-        fut = self._task_loop.loop.create_future()
+        loop = asyncio.get_running_loop()
+
+        fut = loop.create_future()
 
         if field_name not in self._output_field_futures:
             self._output_field_futures[field_name] = []
@@ -2301,7 +2310,8 @@ class JobBase:
         if queue_name not in self._output_queue_futures:
             self._output_queue_futures[queue_name] = []
 
-        fut = self._task_loop.loop.create_future()
+        loop = asyncio.get_running_loop()
+        fut = loop.create_future()
         self._output_queue_futures[queue_name].append((fut, cancel_if_cleared))
 
         return asyncio.wait_for(fut, timeout=timeout)
@@ -2508,7 +2518,7 @@ class IntervalJobBase(JobBase):
         super().__init__()
         self._interval_secs = (
             self.DEFAULT_INTERVAL.total_seconds()
-            if interval is None
+            if interval is UNSET
             else interval.total_seconds()
         )
         self._count = self.DEFAULT_COUNT if count is UNSET else count
@@ -2588,11 +2598,11 @@ class IntervalJobBase(JobBase):
 
     async def _on_run(self):
         if self._external_startup_kill:
-            self.__KILL_EXTERNAL()
+            self._KILL_EXTERNAL_RAW()
             return
 
         elif self._internal_startup_kill:
-            self.__KILL()
+            self._KILL_RAW()
             return
 
         elif self._skip_on_run:
@@ -2731,7 +2741,7 @@ class EventJobBase(JobBase):
 
         self._interval_secs = (
             self.DEFAULT_INTERVAL.total_seconds()
-            if interval is None
+            if interval is UNSET
             else interval.total_seconds()
         )
         self._count = self.DEFAULT_COUNT if count is UNSET else count
@@ -2908,11 +2918,11 @@ class EventJobBase(JobBase):
         self._stopping_by_idling_timeout = False
 
         if self._external_startup_kill:
-            self.__KILL_EXTERNAL()
+            self._KILL_EXTERNAL_RAW()
             return
 
         elif self._internal_startup_kill:
-            self.__KILL()
+            self._KILL_RAW()
             return
 
         elif self._skip_on_run:
@@ -2922,6 +2932,8 @@ class EventJobBase(JobBase):
             self._validate_and_pump_events()
 
         if not self._event_queue:
+            loop = asyncio.get_running_loop()
+
             if not self._empty_event_queue_timeout_secs:
                 if (
                     self._empty_event_queue_timeout_secs is None
@@ -2930,9 +2942,7 @@ class EventJobBase(JobBase):
                     self._idling_since_ts = time.time()
 
                     while not self._event_queue:
-                        self._empty_event_queue_future = (
-                            self._task_loop.loop.create_future()
-                        )
+                        self._empty_event_queue_future = loop.create_future()
                         try:
                             await self._empty_event_queue_future  # wait till an event is dispatched
                         except asyncio.CancelledError as exc:
@@ -2964,9 +2974,7 @@ class EventJobBase(JobBase):
                     event_was_dispatched = False
 
                     try:
-                        self._empty_event_queue_future = (
-                            self._task_loop.loop.create_future()
-                        )
+                        self._empty_event_queue_future = loop.create_future()
 
                         handle = self._task_loop.loop.call_later(  # copied from asyncio.sleep
                             self._empty_event_queue_timeout_secs

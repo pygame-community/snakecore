@@ -51,9 +51,9 @@ class JobManager:
         """
         if loop is None:
             try:
-                self._loop = asyncio.get_running_loop()
+                loop = asyncio.get_running_loop()
             except RuntimeError:
-                self._loop = asyncio.get_event_loop()
+                loop = asyncio.get_event_loop()
 
         self._created_at = datetime.datetime.now(datetime.timezone.utc)
         self._runtime_identifier = (
@@ -1240,7 +1240,7 @@ class JobManager:
         )
 
         new_data = {
-            "invoker_identifier": _iv.identifier if _iv is not None else "",
+            "invoker_identifier": _iv._runtime_identifier if _iv is not None else "",
             "schedule_identifier": "",
             "schedule_timestamp_ns_str": schedule_timestamp_ns_str,
             "timestamp_ns_str": timestamp_ns_str,

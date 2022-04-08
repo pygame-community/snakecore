@@ -44,6 +44,10 @@ class JobProxy:
         return self.__job_class
 
     @property
+    def permission_level(self) -> JobPermissionLevels:
+        return self.__job_class._PERMISSION_LEVEL
+
+    @property
     def runtime_identifier(self) -> str:
         return self.__identifier
 
