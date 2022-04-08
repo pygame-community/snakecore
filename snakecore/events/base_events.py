@@ -62,7 +62,7 @@ def get_event_class_runtime_identifier(
 
     if not issubclass(cls, BaseEvent):
         if default is UNSET:
-            raise TypeError("argument 'cls' must be a subclass of a job base class")
+            raise TypeError("argument 'cls' must be a subclass of a event base class")
         return default
 
     try:
@@ -70,7 +70,7 @@ def get_event_class_runtime_identifier(
     except AttributeError:
         if default is UNSET:
             raise TypeError(
-                "argument 'cls' must be a subclass of a job base class"
+                "argument 'cls' must be a subclass of a event base class"
             ) from None
         return default
 
