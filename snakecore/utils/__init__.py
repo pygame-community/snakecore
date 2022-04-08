@@ -13,8 +13,8 @@ import discord
 
 from snakecore import config
 
-from . import embed_utils
 from .utils import *
+from . import embed_utils, pagination
 
 
 def init(global_client: Optional[discord.Client] = None):

@@ -17,7 +17,7 @@ from typing import Any, Callable, Iterable, Optional, Sequence, Union
 
 import discord
 
-from snakecore.constants import UNSET
+from snakecore.constants import UNSET, _UnsetType
 
 
 def join_readable(joins: list[str]):
@@ -571,7 +571,7 @@ def recursive_dict_update(
     old_dict: dict,
     update_dict: dict,
     add_new_keys: bool = True,
-    skip_value: str = "\0",
+    skip_value: Union[str, _UnsetType] = UNSET,
 ):
     """
     Update one dictionary with another, similar to dict.update(),
@@ -602,7 +602,7 @@ def recursive_dict_update(
 def recursive_dict_delete(
     old_dict: dict,
     update_dict: dict,
-    skip_value: str = "\0",
+    skip_value: Union[str, _UnsetType] = UNSET,
     inverse: bool = False,
 ):
     """

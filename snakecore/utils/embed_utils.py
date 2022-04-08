@@ -1743,7 +1743,7 @@ async def edit_embed_from_dict_at(
 
     if 0 < index < len(message.embeds):
         embeds[index] = discord.Embed.from_dict(
-            edit_dict_from_dict(
+            edit_embed_dict_from_dict(
                 embeds[index].to_dict(),
                 embed_dict,
                 in_place=False,
@@ -1965,7 +1965,7 @@ def edit_embed_from_dict(
         return
 
     return discord.Embed.from_dict(
-        edit_dict_from_dict(
+        edit_embed_dict_from_dict(
             embed.to_dict(),
             update_embed_dict,
             in_place=False,
@@ -1975,7 +1975,7 @@ def edit_embed_from_dict(
     )
 
 
-def edit_dict_from_dict(
+def edit_embed_dict_from_dict(
     old_embed_dict: EmbedDict,
     update_embed_dict: dict,
     in_place: bool = True,
@@ -2139,7 +2139,7 @@ def add_fields_from_dicts(
     return
 
 
-async def insert_fields_from_dicts(
+def insert_fields_from_dicts(
     embed: discord.Embed, index: int, *field_dicts: dict, in_place: bool = True
 ) -> Optional[discord.Embed]:
     """Insert embed fields to an embed at a specified index from the given
@@ -2177,9 +2177,9 @@ async def insert_fields_from_dicts(
     return
 
 
-async def edit_field_from_dict(
-    embed: discord.Embed, field_dict: dict, index: int, in_place: bool = True
-):
+def edit_field_from_dict(
+    embed: discord.Embed, index: int, field_dict: dict, in_place: bool = True
+) -> Optional[discord.Embed]:
     """Edits parts of an embed field of the embed of a message from a
     dictionary
     """
