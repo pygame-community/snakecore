@@ -12,8 +12,8 @@ from typing import Optional, Union
 import discord
 
 from snakecore.constants.enums import JobPermissionLevels
-from snakecore.jobs.jobs import IntervalJobBase
-from snakecore.jobs.groupings import OutputNameRecord
+import snakecore.jobs.jobs as jobs
+import snakecore.jobs.groupings as groupings
 from snakecore import config
 from snakecore.utils import embed_utils, serializers
 
@@ -21,7 +21,7 @@ NoneType = type(None)
 
 
 class MessageSend(
-    IntervalJobBase,
+    jobs.IntervalJobBase,
     scheduling_identifier="87b81031-d606-4a95-b86a-2eb72b7eb7b1",
     permission_level=JobPermissionLevels.LOWEST,
 ):
@@ -35,7 +35,7 @@ class MessageSend(
         message: The message that was sent.
     """
 
-    class OutputFields(OutputNameRecord):
+    class OutputFields(groupings.OutputNameRecord):
         message: str
         "The message that was sent."
 
@@ -188,7 +188,7 @@ class MessageSend(
             self.COMPLETE()
 
 
-class _MessageModify(IntervalJobBase, permission_level=JobPermissionLevels.LOWEST):
+class _MessageModify(jobs.IntervalJobBase, permission_level=JobPermissionLevels.LOWEST):
     """A intermediary job class for modifying a message in a
     Discord text channel. Does not do anything on its own.
 

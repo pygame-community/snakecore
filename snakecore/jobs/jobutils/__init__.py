@@ -14,15 +14,15 @@ import discord
 
 from snakecore.constants.enums import JobPermissionLevels
 from snakecore.exceptions import JobException
-from snakecore.jobs.jobs import IntervalJobBase, EventJobBase, publicjobmethod
-from snakecore.jobs.proxies import JobProxy
+import snakecore.jobs.jobs as jobs
+import snakecore.jobs.proxies as proxies
 from snakecore import events
 from snakecore.utils import serializers
-from snakecore.jobs.groupings import JobGroup, NameRecord, OutputNameRecord
+import snakecore.jobs.groupings as groupings
 from . import messaging
 
 
-class ClientEventJobBase(EventJobBase):
+class ClientEventJobBase(jobs.EventJobBase):
     """A subclass of `EventJobBase` for jobs that run in reaction to specific client events
     (Discord API events) passed to them by their `JobManager` object by default.
 
@@ -40,7 +40,7 @@ class ClientEventJobBase(EventJobBase):
     EVENT_TYPES: tuple = (events.ClientEvent,)
 
 
-class SingleRunJob(IntervalJobBase):
+class SingleRunJob(jobs.IntervalJobBase):
     """A subclass of `IntervalJobBase` whose subclasses's
     job objects will only run once and then complete themselves.
     If they fail
@@ -53,7 +53,7 @@ class SingleRunJob(IntervalJobBase):
         self.COMPLETE()
 
 
-class RegisterDelayedJobGroup(JobGroup):
+class RegisterDelayedJobGroup(groupings.JobGroup):
     """A group of jobs that add a given set of job proxies
     to their `JobManager` after a given period
     of time in seconds.
@@ -64,25 +64,25 @@ class RegisterDelayedJobGroup(JobGroup):
         first one and the failed proxies in the second.
     """
 
-    class _RegisterDelayedJob(IntervalJobBase):
-        class OutputFields(OutputNameRecord):
+    class _RegisterDelayedJob(jobs.IntervalJobBase):
+        class OutputFields(groupings.OutputNameRecord):
             success_failure_tuple: str
             """A tuple containing two tuples,
             with the successfully registered job proxies in the
             first one and the failed proxies in the second.
             """
 
-        class OutputQueues(OutputNameRecord):
+        class OutputQueues(groupings.OutputNameRecord):
             successes: str
             failures: str
 
-        class PublicMethods(NameRecord):
+        class PublicMethods(groupings.NameRecord):
             get_successes_async: Optional[Callable[[], Coroutine]]
             """get successfuly scheduled jobs"""
 
         DEFAULT_COUNT = 1
 
-        def __init__(self, delay: float, *job_proxies: JobProxy, **kwargs):
+        def __init__(self, delay: float, *job_proxies: proxies.JobProxy, **kwargs):
             """Create a new instance.
 
             Args:
@@ -127,7 +127,7 @@ class RegisterDelayedJobGroup(JobGroup):
                 if not fut.cancelled():
                     fut.set_result(success_jobs_tuple)
 
-        @publicjobmethod(is_async=True)
+        @jobs.publicjobmethod(is_async=True)
         def get_successes_async(self):
             loop = asyncio.get_event_loop()
             fut = loop.create_future()
@@ -160,7 +160,7 @@ class RegisterDelayedJobGroup(JobGroup):
 
 
 class MethodCallJob(
-    IntervalJobBase,
+    jobs.IntervalJobBase,
     scheduling_identifier="7d2fee26-d8b9-4e93-b761-4d152d355bae",
     permission_level=JobPermissionLevels.LOWEST,
 ):
@@ -174,7 +174,7 @@ class MethodCallJob(
         'output': The returned output of the method call.
     """
 
-    class OutputFields(OutputNameRecord):
+    class OutputFields(groupings.OutputNameRecord):
         output: str
         "The returned output of the method call."
 

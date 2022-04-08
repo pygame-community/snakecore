@@ -11,18 +11,13 @@ from collections import deque
 import datetime
 import itertools
 from types import FunctionType
-from typing import Any, Callable, Optional, Sequence, Type, Union
+from typing import Any, Callable, Optional, Type, Union
 
 from snakecore import events
 from snakecore.constants import UNSET, _UnsetType
-from .jobs import (
-    JobPermissionLevels,
-    EventJobBase,
-    IntervalJobBase,
-    JobBase,
-)
+from snakecore.constants.enums import JobPermissionLevels
 
-from . import manager
+from . import jobs, manager
 
 
 class JobProxy:
@@ -45,7 +40,7 @@ class JobProxy:
         self.__created_at = job.created_at
 
     @property
-    def job_class(self) -> JobBase:
+    def job_class(self) -> jobs.JobBase:
         return self.__job_class
 
     @property
@@ -53,12 +48,12 @@ class JobProxy:
         return self.__identifier
 
     @property
-    def creator(self) -> Optional[JobBase]:
+    def creator(self) -> Optional[jobs.JobBase]:
         """The `JobProxy` of the creator of this job."""
         return self.__j._creator
 
     @property
-    def guardian(self) -> Optional[JobBase]:
+    def guardian(self) -> Optional[jobs.JobBase]:
         """The `JobProxy` of the current guardian of this job."""
         return self.__j._guardian
 
@@ -86,103 +81,103 @@ class JobProxy:
         return self.__j._schedule_identifier
 
     loop_count = (
-        JobBase.loop_count
+        jobs.JobBase.loop_count
     )  # fool autocompetion tools by overriding at runtime to prevent duplicate docstrings
 
-    initialized = JobBase.initialized
+    initialized = jobs.JobBase.initialized
 
-    is_initializing = JobBase.is_initializing
+    is_initializing = jobs.JobBase.is_initializing
 
-    initialized_since = JobBase.initialized_since
+    initialized_since = jobs.JobBase.initialized_since
 
-    alive = JobBase.alive
+    alive = jobs.JobBase.alive
 
-    alive_since = JobBase.alive_since
+    alive_since = jobs.JobBase.alive_since
 
-    is_starting = JobBase.is_starting
+    is_starting = jobs.JobBase.is_starting
 
-    is_running = JobBase.is_running
+    is_running = jobs.JobBase.is_running
 
-    is_stopping = JobBase.is_stopping
+    is_stopping = jobs.JobBase.is_stopping
 
-    get_stopping_reason = JobBase.get_stopping_reason
+    get_stopping_reason = jobs.JobBase.get_stopping_reason
 
-    stopped = JobBase.stopped
+    stopped = jobs.JobBase.stopped
 
-    get_last_stopping_reason = JobBase.get_last_stopping_reason
+    get_last_stopping_reason = jobs.JobBase.get_last_stopping_reason
 
-    stopped_since = JobBase.stopped_since
+    stopped_since = jobs.JobBase.stopped_since
 
-    is_idling = JobBase.is_idling
+    is_idling = jobs.JobBase.is_idling
 
-    idling_since = JobBase.idling_since
+    idling_since = jobs.JobBase.idling_since
 
-    run_failed = JobBase.run_failed
+    run_failed = jobs.JobBase.run_failed
 
-    killed = JobBase.killed
+    killed = jobs.JobBase.killed
 
-    is_being_killed = JobBase.is_being_killed
+    is_being_killed = jobs.JobBase.is_being_killed
 
-    is_being_startup_killed = JobBase.is_being_startup_killed
+    is_being_startup_killed = jobs.JobBase.is_being_startup_killed
 
-    completed = JobBase.completed
+    completed = jobs.JobBase.completed
 
-    is_completing = JobBase.is_completing
+    is_completing = jobs.JobBase.is_completing
 
-    done = JobBase.done
+    done = jobs.JobBase.done
 
-    done_since = JobBase.done_since
+    done_since = jobs.JobBase.done_since
 
-    is_restarting = JobBase.is_restarting
+    is_restarting = jobs.JobBase.is_restarting
 
-    was_restarted = JobBase.was_restarted
+    was_restarted = jobs.JobBase.was_restarted
 
-    is_being_guarded = JobBase.is_being_guarded
+    is_being_guarded = jobs.JobBase.is_being_guarded
 
-    await_done = JobBase.await_done
+    await_done = jobs.JobBase.await_done
 
-    await_unguard = JobBase.await_unguard
+    await_unguard = jobs.JobBase.await_unguard
 
-    get_output_queue_proxy = JobBase.get_output_queue_proxy
+    get_output_queue_proxy = jobs.JobBase.get_output_queue_proxy
 
-    verify_output_field_support = JobBase.verify_output_field_support
+    verify_output_field_support = jobs.JobBase.verify_output_field_support
 
-    verify_output_queue_support = JobBase.verify_output_queue_support
+    verify_output_queue_support = jobs.JobBase.verify_output_queue_support
 
-    get_output_field = JobBase.get_output_field
+    get_output_field = jobs.JobBase.get_output_field
 
-    get_output_queue_contents = JobBase.get_output_queue_contents
+    get_output_queue_contents = jobs.JobBase.get_output_queue_contents
 
-    get_output_field_names = JobBase.get_output_field_names
+    get_output_field_names = jobs.JobBase.get_output_field_names
 
-    get_output_queue_names = JobBase.get_output_queue_names
+    get_output_queue_names = jobs.JobBase.get_output_queue_names
 
-    has_output_field_name = JobBase.has_output_field_name
+    has_output_field_name = jobs.JobBase.has_output_field_name
 
-    has_output_field_name = JobBase.has_output_field_name
+    has_output_field_name = jobs.JobBase.has_output_field_name
 
-    output_field_is_set = JobBase.output_field_is_set
+    output_field_is_set = jobs.JobBase.output_field_is_set
 
-    output_queue_is_empty = JobBase.output_queue_is_empty
+    output_queue_is_empty = jobs.JobBase.output_queue_is_empty
 
-    await_output_field = JobBase.await_output_field
+    await_output_field = jobs.JobBase.await_output_field
 
-    await_output_queue_add = JobBase.await_output_queue_add
+    await_output_queue_add = jobs.JobBase.await_output_queue_add
 
-    verify_public_method_suppport = JobBase.verify_public_method_suppport
+    verify_public_method_suppport = jobs.JobBase.verify_public_method_suppport
 
-    get_public_method_names = JobBase.get_public_method_names
+    get_public_method_names = jobs.JobBase.get_public_method_names
 
-    has_public_method_name = JobBase.has_public_method_name
+    has_public_method_name = jobs.JobBase.has_public_method_name
 
-    public_method_is_async = JobBase.public_method_is_async
+    public_method_is_async = jobs.JobBase.public_method_is_async
 
-    run_public_method = JobBase.run_public_method
+    run_public_method = jobs.JobBase.run_public_method
 
     def interval_job_next_iteration(self) -> Optional[datetime.datetime]:
         """
         THIS METHOD WILL ONLY WORK ON PROXIES TO JOB OBJECTS
-        THAT ARE INSTANCES OF `IntervalJobBase`.
+        THAT ARE INSTANCES OF `jobs.IntervalJobBase`.
 
         When the next iteration of `.on_run()` will occur.
         If not known, this method will return `None`.
@@ -192,20 +187,20 @@ class JobProxy:
             if available.
 
         Raises:
-            TypeError: The class of this job proxy's job is not an 'IntervalJobBase' subclass.
+            TypeError: The class of this job proxy's job is not an 'jobs.IntervalJobBase' subclass.
         """
         try:
             return self.__j.next_iteration()
         except AttributeError:
             raise TypeError(
                 f"The '{self.__job_class.__name__}' job class of this job object's"
-                " proxy is not an 'IntervalJobBase' subclass"
+                " proxy is not an 'jobs.IntervalJobBase' subclass"
             ) from None
 
     def interval_job_get_interval(self) -> tuple[int, int, int]:
         """
         THIS METHOD WILL ONLY WORK ON PROXIES TO JOB OBJECTS
-        THAT ARE `IntervalJobBase` SUBCLASSES.
+        THAT ARE `jobs.IntervalJobBase` SUBCLASSES.
 
         Returns a tuple of the seconds, minutes and hours at which this job
         object is executing its `.on_run()` method.
@@ -214,14 +209,14 @@ class JobProxy:
             tuple: `(seconds, minutes, hours)`
 
         Raises:
-            TypeError: The class of this job proxy's job is not an 'IntervalJobBase' subclass.
+            TypeError: The class of this job proxy's job is not an 'jobs.IntervalJobBase' subclass.
         """
         try:
             return self.__j.get_interval()
         except AttributeError:
             raise TypeError(
                 f"The '{self.__job_class.__name__}' job class of this job object's"
-                " proxy is not an 'IntervalJobBase' subclass"
+                " proxy is not an 'jobs.IntervalJobBase' subclass"
             ) from None
 
     def __str__(self):
@@ -431,7 +426,7 @@ class JobOutputQueueProxy:
         "_output_queue_proxy_dict",
     )
 
-    def __init__(self, job: JobBase):
+    def __init__(self, job: jobs.JobBase):
         self.__j = job
         self.__job_proxy = job._proxy
         self.__output_queue_names = job.OutputQueues
@@ -708,7 +703,7 @@ class JobManagerProxy:
 
     __slots__ = ("__mgr", "__j", "_job_stop_timeout")
 
-    def __init__(self, mgr, job: Union[EventJobBase, IntervalJobBase]):
+    def __init__(self, mgr, job: Union[jobs.EventJobBase, jobs.IntervalJobBase]):
         self.__mgr = mgr
         self.__j = job
         self._job_stop_timeout = None
@@ -734,7 +729,9 @@ class JobManagerProxy:
         self,
         op: JobPermissionLevels,
         target: Optional[JobProxy] = None,
-        target_cls: Optional[Union[Type[EventJobBase], Type[IntervalJobBase]]] = None,
+        target_cls: Optional[
+            Union[Type[jobs.EventJobBase], Type[jobs.IntervalJobBase]]
+        ] = None,
         schedule_identifier: Optional[str] = None,
         invoker_identifier: Optional[str] = None,
     ):
@@ -747,7 +744,7 @@ class JobManagerProxy:
             target (Optional[JobProxy], optional): The target job's proxy for an
               operation.
               Defaults to None.
-            target_cls (Optional[Union[Type[EventJobBase], Type[IntervalJobBase]]],
+            target_cls (Optional[Union[Type[jobs.EventJobBase], Type[jobs.IntervalJobBase]]],
               optional):
               The target job class for an operation. Defaults to None.
             schedule_identifier (Optional[str], optional):
@@ -851,7 +848,9 @@ class _JobManagerProxy:  # hidden implementation to trick type-checker engines
         self,
         op: JobPermissionLevels,
         target: Optional[JobProxy] = None,
-        target_cls: Optional[Union[Type[EventJobBase], Type[IntervalJobBase]]] = None,
+        target_cls: Optional[
+            Union[Type[jobs.EventJobBase], Type[jobs.IntervalJobBase]]
+        ] = None,
         schedule_identifier: Optional[str] = None,
         invoker_identifier: Optional[str] = None,
     ) -> bool:
@@ -866,7 +865,10 @@ class _JobManagerProxy:  # hidden implementation to trick type-checker engines
         )
 
     def create_job(
-        self, cls: Union[Type[EventJobBase], Type[IntervalJobBase]], *args, **kwargs
+        self,
+        cls: Union[Type[jobs.EventJobBase], Type[jobs.IntervalJobBase]],
+        *args,
+        **kwargs,
     ):
         return self.__mgr.create_job(
             cls, *args, _return_proxy=True, _iv=self.__j, **kwargs
@@ -881,7 +883,10 @@ class _JobManagerProxy:  # hidden implementation to trick type-checker engines
         return await self.__mgr.register_job(job_proxy, _iv=self.__j)
 
     async def create_and_register_job(
-        self, cls: Union[Type[EventJobBase], Type[IntervalJobBase]], *args, **kwargs
+        self,
+        cls: Union[Type[jobs.EventJobBase], Type[jobs.IntervalJobBase]],
+        *args,
+        **kwargs,
     ) -> JobProxy:
         return await self.__mgr.create_and_register_job(
             cls,
@@ -902,7 +907,7 @@ class _JobManagerProxy:  # hidden implementation to trick type-checker engines
 
     async def create_job_schedule(
         self,
-        cls: Union[Type[EventJobBase], Type[IntervalJobBase]],
+        cls: Union[Type[jobs.EventJobBase], Type[jobs.IntervalJobBase]],
         timestamp: Union[datetime.datetime, datetime.timedelta],
         recur_interval: Union[int, datetime.timedelta] = 0,
         max_recurrences: int = 1,
@@ -1033,8 +1038,8 @@ class _JobManagerProxy:  # hidden implementation to trick type-checker engines
         *,
         classes: tuple[
             Union[
-                Type[EventJobBase],
-                Type[IntervalJobBase],
+                Type[jobs.EventJobBase],
+                Type[jobs.IntervalJobBase],
             ]
         ] = tuple(),
         exact_class_match: bool = False,

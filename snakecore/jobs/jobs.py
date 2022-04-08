@@ -30,7 +30,7 @@ from snakecore.constants import (
     JobStopReasons,
 )
 from snakecore.exceptions import JobStateError
-from snakecore.utils import utils
+from snakecore import utils
 from snakecore import events
 from snakecore.constants import _SYSTEM_JOB_RUNTIME_IDENTIFIERS, UNSET, _UnsetType
 
@@ -3165,4 +3165,4 @@ class JobManagerJob(IntervalJobBase):
         await self.await_done()
 
 
-from . import proxies, groupings  # allow this module to finish initialization
+from . import proxies, groupings  # allow these modules to finish initialization

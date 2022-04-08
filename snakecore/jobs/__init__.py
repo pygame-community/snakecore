@@ -14,7 +14,6 @@ from snakecore import config, events
 from .jobs import (
     get_job_class_from_runtime_identifier,
     get_job_class_permission_level,
-    DEFAULT_JOB_EXCEPTION_WHITELIST,
     JobNamespace,
     singletonjob,
     publicjobmethod,
