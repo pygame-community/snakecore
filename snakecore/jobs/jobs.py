@@ -2499,7 +2499,7 @@ class IntervalJobBase(JobBase):
     def __init__(
         self,
         interval: Union[datetime.timedelta, _UnsetType] = UNSET,
-        time: Optional[Union[datetime.time, Sequence[datetime.time]]] = None,
+        time: Union[datetime.time, Sequence[datetime.time], _UnsetType] = UNSET,
         count: Union[int, NoneType, _UnsetType] = UNSET,
         reconnect: Union[bool, _UnsetType] = UNSET,
     ):
@@ -2517,11 +2517,7 @@ class IntervalJobBase(JobBase):
             self.DEFAULT_RECONNECT if reconnect is UNSET else reconnect
         )
 
-        self._reconnect = not not (
-            self.DEFAULT_RECONNECT if reconnect is None else reconnect
-        )
-
-        self._time = self.DEFAULT_TIME if time is None else time
+        self._time = self.DEFAULT_TIME if time is UNSET else time
 
         self._loop_count = 0
         self._task_loop = CustomLoop(
@@ -2565,8 +2561,8 @@ class IntervalJobBase(JobBase):
         hours: float = 0,
         time: Union[datetime.time, Sequence[datetime.time], _UnsetType] = UNSET,
     ):
-        """Change the interval at which this job will run its `on_run()` method.
-        This will only be applied on the next iteration of `on_run()`.
+        """Change the interval at which this job will run its `on_run()` method,
+        as soon as possible.
 
         Args:
             seconds (float, optional): Defaults to 0.
@@ -2651,6 +2647,8 @@ class EventJobBase(JobBase):
     EVENT_TYPES: tuple[events.BaseEvent] = (events.BaseEvent,)
 
     DEFAULT_INTERVAL: datetime.timedelta = datetime.timedelta()
+    DEFAULT_TIME: Optional[Union[datetime.time, Sequence[datetime.time]]] = None
+
     DEFAULT_COUNT: Optional[int] = None
     DEFAULT_RECONNECT: bool = True
 
@@ -2713,6 +2711,7 @@ class EventJobBase(JobBase):
     def __init__(
         self,
         interval: Union[datetime.timedelta, _UnsetType] = UNSET,
+        time: Union[datetime.time, Sequence[datetime.time], _UnsetType] = UNSET,
         count: Union[int, NoneType, _UnsetType] = UNSET,
         reconnect: Union[bool, _UnsetType] = UNSET,
         max_event_checks_per_iteration: Optional[
@@ -2740,6 +2739,8 @@ class EventJobBase(JobBase):
         self._reconnect = not not (
             self.DEFAULT_RECONNECT if reconnect is UNSET else reconnect
         )
+
+        self._time = self.DEFAULT_TIME if time is UNSET else time
 
         max_event_checks_per_iteration = (
             self.DEFAULT_MAX_EVENT_CHECKS_PER_ITERATION
@@ -2825,7 +2826,7 @@ class EventJobBase(JobBase):
             seconds=self._interval_secs,
             hours=0,
             minutes=0,
-            time=discord.utils.MISSING,
+            time=self._time or discord.utils.MISSING,
             count=None,
             reconnect=self._reconnect,
         )
@@ -3033,7 +3034,7 @@ class EventJobBase(JobBase):
 
         self._loop_count += 1
 
-        if self._interval_secs:  # an execution interval was set
+        if self._interval_secs or self._time:  # an execution interval was set
             self._is_idling = True
             self._idling_since_ts = time.time()
 
