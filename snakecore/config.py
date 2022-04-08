@@ -322,7 +322,6 @@ class ModuleName(Enum):
     SNAKECORE_ASYNC = auto()  # fake module for asynchronously initialized modules
     UTILS = auto()
     EVENTS = auto()
-    JOBS = auto()
     DB = auto()
 
 
