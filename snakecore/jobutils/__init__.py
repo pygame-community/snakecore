@@ -5,20 +5,18 @@ Copyright (c) 2022-present PygameCommunityDiscord
 
 This module implements utility job classes. 
 """
-
 import asyncio
 from collections import deque
 from typing import Any, Callable, Coroutine, Optional
 
 import discord
 
-from snakecore.constants.enums import JobPermissionLevels
-from snakecore.exceptions import JobException
-import snakecore.jobs.jobs as jobs
-import snakecore.jobs.proxies as proxies
-from snakecore import events
-from snakecore.utils import serializers
-import snakecore.jobs.groupings as groupings
+from .. import jobs
+from ..constants.enums import JobPermissionLevels
+from ..exceptions import JobException
+from ..jobs import groupings, proxies
+from ..utils import serializers
+
 from . import messaging
 
 
@@ -37,7 +35,7 @@ class ClientEventJobBase(jobs.EventJobBase):
             all instances of `ClientEvent` will be propagated.
     """
 
-    EVENT_TYPES: tuple = (events.ClientEvent,)
+    EVENT_TYPES: tuple = (snakecore.events.ClientEvent,)
 
 
 class SingleRunJob(jobs.IntervalJobBase):

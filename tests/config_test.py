@@ -3,7 +3,7 @@ from typing import Optional
 import pytest
 
 # import public API, all should be defined
-from snakecore.config import ConfigurationBase, ConstantField, Field
+from ..snakecore.config import ConfigurationBase, ConstantField, Field
 
 
 def test_fail_config():

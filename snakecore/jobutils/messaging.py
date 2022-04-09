@@ -11,11 +11,11 @@ from typing import Optional, Union
 
 import discord
 
-from snakecore.constants.enums import JobPermissionLevels
-import snakecore.jobs.jobs as jobs
-import snakecore.jobs.groupings as groupings
-from snakecore import config
-from snakecore.utils import embed_utils, serializers
+from ..constants.enums import JobPermissionLevels
+from .. import jobs
+from ..jobs import groupings
+from .. import config
+from ..utils import embed_utils, serializers
 
 NoneType = type(None)
 

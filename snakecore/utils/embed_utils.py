@@ -771,7 +771,7 @@ def copy_embed_dict(embed_dict: EmbedDict) -> EmbedDict:
 
 def parse_embed_field_strings(
     *strings: str,
-) -> Union[list[Union[str, bool]], dict[str, Union[str, bool]]]:
+) -> list[dict[str, Union[str, bool]]]:
     """Extract embed field string syntax from the given string(s).
     Syntax of an embed field string: `<name|value[|inline]>`.
 
@@ -780,7 +780,7 @@ def parse_embed_field_strings(
         return_field_lists (bool, optional): _description_. Defaults to True.
 
     Returns:
-        dict[str, Union[str, bool]]: A list of embed
+        list[dict[str, Union[str, bool]]]: A list of embed
           field dictionaries with keys `"name"`, `"value"` and `"inline"`.
     """
     # syntax: <name|value[|inline=False]>
@@ -1118,8 +1118,8 @@ def create_embed(
         for i, field in enumerate(fields):
             name, value, inline = _read_embed_field_dict(field_dict=field, index=i)
             embed.add_field(
-                name,
-                value,
+                name=name,
+                value=value,
                 inline=inline,
             )
 
@@ -1264,8 +1264,8 @@ def edit_embed(
                     )
                     embed.set_field_at(
                         i,
-                        name,
-                        value,
+                        name=name,
+                        value=value,
                         inline=inline,
                     )
 
@@ -1305,8 +1305,8 @@ def edit_embed(
                         )
 
                     embed.add_field(
-                        name,
-                        value,
+                        name=name,
+                        value=value,
                         inline=inline,
                     )
 
@@ -1526,6 +1526,8 @@ async def replace_embed_at(
 
     if index is None:
         return await message.edit(embed=embed)
+
+    embeds = message.embeds.copy()
 
     embed_count = len(embeds)
 
@@ -1914,8 +1916,8 @@ def edit_embed_from_dict(
 
                     embed.set_field_at(
                         i,
-                        name,
-                        value,
+                        name=name,
+                        value=value,
                         inline=inline,
                     )
 
@@ -1957,8 +1959,8 @@ def edit_embed_from_dict(
                         )
 
                     embed.add_field(
-                        name,
-                        value,
+                        name=name,
+                        value=value,
                         inline=inline,
                     )
 
@@ -2043,7 +2045,7 @@ def edit_embed_dict_from_dict(
 def _read_embed_field_dict(
     field_dict: dict, allow_incomplete: bool = False, index: Optional[int] = None
 ) -> tuple[Optional[str], Optional[str], Optional[bool]]:
-    err_str = f"at `fields[{index}]`" if index is not None else ""
+    err_str = f" at `fields[{index}]`" if index is not None else ""
     name = value = inline = None
 
     if isinstance(field_dict, dict):
@@ -2077,7 +2079,7 @@ def _read_embed_field_dict(
     return name, value, inline
 
 
-def add_fields_from_dicts(
+def add_embed_fields_from_dicts(
     embed: discord.Embed,
     *field_dicts: dict,
     in_place=True,
@@ -2128,8 +2130,8 @@ def add_fields_from_dicts(
             )
 
         embed.add_field(
-            name,
-            value,
+            name=name,
+            value=value,
             inline=inline,
         )
 
@@ -2139,7 +2141,7 @@ def add_fields_from_dicts(
     return
 
 
-def insert_fields_from_dicts(
+def insert_embed_fields_from_dicts(
     embed: discord.Embed, index: int, *field_dicts: dict, in_place: bool = True
 ) -> Optional[discord.Embed]:
     """Insert embed fields to an embed at a specified index from the given
@@ -2163,11 +2165,12 @@ def insert_fields_from_dicts(
         embed = embed.copy()
 
     for i, field in enumerate(field_dicts):
+        print(field)
         name, value, inline = _read_embed_field_dict(field_dict=field, index=i)
         embed.insert_field_at(
             index,
-            name,
-            value,
+            name=name,
+            value=value,
             inline=inline,
         )
 
@@ -2177,7 +2180,7 @@ def insert_fields_from_dicts(
     return
 
 
-def edit_field_from_dict(
+def edit_embed_field_from_dict(
     embed: discord.Embed, index: int, field_dict: dict, in_place: bool = True
 ) -> Optional[discord.Embed]:
     """Edits parts of an embed field of the embed of a message from a
@@ -2212,7 +2215,7 @@ def edit_field_from_dict(
     return
 
 
-def edit_fields_from_dicts(
+def edit_embed_fields_from_dicts(
     embed: discord.Embed, *field_dicts: dict, in_place: bool = True
 ) -> Optional[discord.Embed]:
     """
@@ -2252,7 +2255,7 @@ def edit_fields_from_dicts(
     return
 
 
-async def remove_fields(
+async def remove_embed_fields(
     embed: discord.Embed, *field_indices: int, in_place: bool = True
 ) -> Optional[discord.Embed]:
     """
@@ -2280,7 +2283,7 @@ async def remove_fields(
     return
 
 
-def swap_fields(
+def swap_embed_fields(
     embed: discord.Embed, index_a: int, index_b: int, in_place: bool = True
 ) -> Optional[discord.Embed]:
     """
@@ -2308,7 +2311,7 @@ def swap_fields(
     return
 
 
-async def clone_field(embed: discord.Embed, index: int, in_place: bool = True):
+async def clone_embed_field(embed: discord.Embed, index: int, in_place: bool = True):
     """
     Duplicates an embed field
     """
@@ -2322,7 +2325,10 @@ async def clone_field(embed: discord.Embed, index: int, in_place: bool = True):
     if 0 <= index < fields_count:
         cloned_field = embed.fields[index]
         embed.insert_field_at(
-            index, cloned_field.name, cloned_field.value, cloned_field.inline
+            index,
+            name=cloned_field.name,
+            value=cloned_field.value,
+            inline=cloned_field.inline,
         )
 
     if not in_place:
@@ -2331,7 +2337,7 @@ async def clone_field(embed: discord.Embed, index: int, in_place: bool = True):
     return
 
 
-async def clone_fields(
+async def clone_embed_fields(
     embed: discord.Embed,
     *field_indices: int,
     insertion_index: Optional[Union[int, Sequence[int]]] = None,
@@ -2379,8 +2385,8 @@ async def clone_fields(
             for insertion_index in insertion_indices:
                 embed.insert_field_at(
                     insertion_index,
-                    cloned_field.name,
-                    cloned_field.value,
+                    name=cloned_field.name,
+                    value=cloned_field.value,
                     inline=cloned_field.inline,
                 )
     else:
@@ -2389,7 +2395,9 @@ async def clone_fields(
         )
         for cloned_field in cloned_fields:
             embed.add_field(
-                cloned_field.name, cloned_field.value, inline=cloned_field.inline
+                name=cloned_field.name,
+                value=cloned_field.value,
+                inline=cloned_field.inline,
             )
 
     if not in_place:

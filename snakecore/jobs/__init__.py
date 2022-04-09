@@ -10,7 +10,7 @@ from typing import Optional
 
 import discord
 
-from snakecore import config, events
+from .. import config, events
 from .jobs import (
     get_job_class_from_runtime_identifier,
     get_job_class_permission_level,
@@ -25,7 +25,6 @@ from .jobs import (
 from .manager import JobManager
 from .proxies import JobProxy, JobOutputQueueProxy, JobManagerProxy
 from .groupings import JobGroup
-from . import jobutils
 
 
 def init(global_client: Optional[discord.Client] = None):

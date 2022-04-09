@@ -10,7 +10,7 @@ from typing import Optional
 
 import discord
 
-from snakecore import config
+from .. import config
 
 # API to be exported is imported like 'import ... as ...'
 from .discorddb import DiscordDB as DiscordDB, init_discord_db, quit_discord_db
