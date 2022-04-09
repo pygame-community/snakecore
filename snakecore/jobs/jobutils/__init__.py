@@ -11,11 +11,12 @@ from typing import Any, Callable, Coroutine, Optional
 
 import discord
 
-from .. import jobs
-from ..constants.enums import JobPermissionLevels
-from ..exceptions import JobException
-from ..jobs import groupings, proxies
-from ..utils import serializers
+from snakecore import events
+from snakecore.jobs import jobs
+from snakecore.constants.enums import JobPermissionLevels
+from snakecore.exceptions import JobException
+from snakecore.jobs.jobs import groupings, proxies
+from snakecore.utils import serializers
 
 from . import messaging
 
@@ -35,7 +36,7 @@ class ClientEventJobBase(jobs.EventJobBase):
             all instances of `ClientEvent` will be propagated.
     """
 
-    EVENT_TYPES: tuple = (snakecore.events.ClientEvent,)
+    EVENT_TYPES: tuple = (events.ClientEvent,)
 
 
 class SingleRunJob(jobs.IntervalJobBase):

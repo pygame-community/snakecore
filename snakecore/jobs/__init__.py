@@ -10,7 +10,7 @@ from typing import Optional
 
 import discord
 
-from .. import config, events
+from snakecore import config, events
 from .jobs import (
     get_job_class_from_runtime_identifier,
     get_job_class_permission_level,
