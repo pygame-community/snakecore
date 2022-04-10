@@ -6,6 +6,8 @@ Copyright (c) 2022-present PygameCommunityDiscord
 This file implements wrapper classes used to pickle Discord models and dataclasses. 
 """
 
+from __future__ import annotations
+
 import io
 from typing import Optional, Type, Union
 
