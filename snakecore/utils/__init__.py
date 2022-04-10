@@ -14,7 +14,7 @@ import discord
 from .. import config
 
 from .utils import *
-from . import embed_utils, pagination
+from . import embed_utils, pagination, serializers
 
 
 def init(global_client: Optional[discord.Client] = None):
