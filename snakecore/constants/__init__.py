@@ -12,6 +12,7 @@ from aiohttp import ClientError
 
 import discord
 
+from . import enums
 from .enums import *
 
 import sys

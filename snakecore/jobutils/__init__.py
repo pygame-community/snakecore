@@ -5,20 +5,18 @@ Copyright (c) 2022-present PygameCommunityDiscord
 
 This module implements utility job classes. 
 """
-
 import asyncio
 from collections import deque
 from typing import Any, Callable, Coroutine, Optional
 
 import discord
 
+from snakecore import events, jobs
 from snakecore.constants.enums import JobPermissionLevels
 from snakecore.exceptions import JobException
-import snakecore.jobs.jobs as jobs
-import snakecore.jobs.proxies as proxies
-from snakecore import events
+from snakecore.jobs import groupings, proxies
 from snakecore.utils import serializers
-import snakecore.jobs.groupings as groupings
+
 from . import messaging
 
 

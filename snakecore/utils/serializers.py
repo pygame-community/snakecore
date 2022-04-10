@@ -453,7 +453,7 @@ class AllowedMentionsSerializer(DiscordObjectBaseSerializer):
         )
 
 
-class ColorSerializer(DiscordObjectBaseSerializer):
+class ColourSerializer(DiscordObjectBaseSerializer):
     DATA_FORMAT = {"color": int}
 
     def __init__(self, color: discord.Color):
@@ -461,6 +461,9 @@ class ColorSerializer(DiscordObjectBaseSerializer):
 
     def deserialized(self):
         return discord.Color(self._dict["color"])
+
+
+ColorSerializer = ColourSerializer
 
 
 class ActivitySerializer(DiscordObjectBaseSerializer):
@@ -733,7 +736,7 @@ class GuildChannelSerializer(ChannelSerializer):
 class ThreadSerializer(DiscordObjectBaseSerializer):
     DATA_FORMAT = {"channel_id": (int, NoneType), "guild_id": int, "thread_id": int}
 
-    def __init__(self, thread: discord.Thread):
+    def __init__(self, thread: "discord.Thread"):
         self._dict = {
             "channel_id": thread.parent_id,
             "guild_id": thread.guild.id,
@@ -834,33 +837,33 @@ class DMChannelSerializer(_PrivateChannelSerializer):
 
 _DISCORD_MODEL_SERIAL_MAP.update(
     {
-        discord.User.__name__: UserSerializer,
-        discord.Member.__name__: MemberSerializer,
-        discord.Guild.__name__: GuildSerializer,
-        discord.Emoji.__name__: EmojiSerializer,
-        discord.PartialEmoji.__name__: PartialEmojiSerializer,
-        discord.File.__name__: FileSerializer,
-        discord.Role.__name__: RoleSerializer,
-        discord.Permissions.__name__: PermissionsSerializer,
-        discord.PermissionOverwrite.__name__: PermissionOverwriteSerializer,
-        discord.AllowedMentions.__name__: AllowedMentionsSerializer,
-        discord.Color.__name__: ColorSerializer,
-        discord.Activity.__name__: ActivitySerializer,
-        discord.Game.__name__: GameSerializer,
-        discord.Streaming.__name__: StreamingSerializer,
-        discord.Intents.__name__: IntentsSerializer,
-        discord.MemberCacheFlags.__name__: MemberCacheFlagsSerializer,
-        discord.SystemChannelFlags.__name__: SystemChannelFlagsSerializer,
-        discord.MessageFlags.__name__: MessageFlagsSerializer,
-        discord.PublicUserFlags.__name__: PublicUserFlagsSerializer,
-        discord.Message.__name__: MessageSerializer,
-        discord.MessageReference.__name__: MessageReferenceSerializer,
-        discord.Embed.__name__: EmbedSerializer,
-        discord.Thread.__name__: ThreadSerializer,
-        discord.TextChannel.__name__: TextChannelSerializer,
-        discord.VoiceChannel.__name__: VoiceChannelSerializer,
-        discord.StageChannel.__name__: StageChannelSerializer,
-        discord.GroupChannel.__name__: GroupChannelSerializer,
-        discord.DMChannel.__name__: DMChannelSerializer,
+        "User": UserSerializer,
+        "Member": MemberSerializer,
+        "Guild": GuildSerializer,
+        "Emoji": EmojiSerializer,
+        "PartialEmoji": PartialEmojiSerializer,
+        "File": FileSerializer,
+        "Role": RoleSerializer,
+        "Permissions": PermissionsSerializer,
+        "PermissionOverwrite": PermissionOverwriteSerializer,
+        "AllowedMentions": AllowedMentionsSerializer,
+        "Colour": ColourSerializer,
+        "Activity": ActivitySerializer,
+        "Game": GameSerializer,
+        "Streaming": StreamingSerializer,
+        "Intents": IntentsSerializer,
+        "MemberCacheFlags": MemberCacheFlagsSerializer,
+        "SystemChannelFlags": SystemChannelFlagsSerializer,
+        "MessageFlags": MessageFlagsSerializer,
+        "PublicUserFlags": PublicUserFlagsSerializer,
+        "Message": MessageSerializer,
+        "MessageReference": MessageReferenceSerializer,
+        "Embed": EmbedSerializer,
+        "Thread": ThreadSerializer,
+        "TextChannel": TextChannelSerializer,
+        "VoiceChannel": VoiceChannelSerializer,
+        "StageChannel": StageChannelSerializer,
+        "GroupChannel": GroupChannelSerializer,
+        "DMChannel": DMChannelSerializer,
     }
 )

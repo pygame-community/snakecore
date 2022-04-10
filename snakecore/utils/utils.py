@@ -484,7 +484,7 @@ def have_permissions_in_channels(
         bool: True/False
     """
 
-    if isinstance(channels, discord.abc.GuildChannel):
+    if isinstance(channels, discord.abc.Messageable):
         channels = (channels,)
 
     if isinstance(members_or_roles, (discord.Member, discord.Role)):

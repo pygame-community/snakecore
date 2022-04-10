@@ -25,7 +25,6 @@ from .jobs import (
 from .manager import JobManager
 from .proxies import JobProxy, JobOutputQueueProxy, JobManagerProxy
 from .groupings import JobGroup
-from . import jobutils
 
 
 def init(global_client: Optional[discord.Client] = None):

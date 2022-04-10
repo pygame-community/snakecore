@@ -14,7 +14,7 @@ from typing import Any, Callable, Generic, Optional, Protocol, TypeVar, overload
 
 import discord
 
-from snakecore.constants import UNSET, _UnsetType, UnionType
+from .constants import UNSET, _UnsetType, UnionType
 
 _T = TypeVar("_T", bound=object)
 
