@@ -53,7 +53,7 @@ class EmbedPaginator:
         self.message = message
         self.pages = list(pages)
         self.theme_color = min(max(0, int(theme_color)), 0xFFFFFF)
-        self.current_page_index = max(start_page_number - 1, 1)
+        self.current_page_index = max(start_page_number - 1, 0)
         self.paginator_info_embed = embed_utils.create_embed(
             color=self.theme_color,
             footer_text=f"Page {self.current_page_index+1} of {len(self.pages)}.",

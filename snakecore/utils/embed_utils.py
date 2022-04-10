@@ -562,42 +562,48 @@ def validate_embed_dict(embed_dict: EmbedDict) -> bool:
         if (
             not isinstance(k, str)
             or k in ("title", "description")
-            and not isinstance(v, str)
+            and (not isinstance(v, str))
             or k in ("author", "thumbnail", "image", "footer")
-            and not isinstance(v, dict)
+            and (not isinstance(v, dict))
             or k in ("thumbnail", "image")
             and ("url" not in v or not isinstance(v["url"], str) or not v["url"])
             or k == "author"
-            and "name" not in v
-            or any(
-                ak in v and (not isinstance(v[ak], str) or not v[ak])
-                for ak in ("name", "url", "icon_url")
+            and (
+                "name" not in v
+                or any(
+                    ak in v and (not isinstance(v[ak], str) or not v[ak])
+                    for ak in ("name", "url", "icon_url")
+                )
             )
             or k == "footer"
-            and "text" not in v
-            or any(
-                ak in v and (not isinstance(v[ak], str) or not v[ak])
-                for ak in ("text", "icon_url")
+            and (
+                "text" not in v
+                or any(
+                    ak in v and (not isinstance(v[ak], str) or not v[ak])
+                    for ak in ("text", "icon_url")
+                )
             )
             or k == "color"
             and (not isinstance(v, int) or not 0 <= embed_dict["color"] <= 0xFFFFFF)
             or k == "fields"
-            and not isinstance(v, list)
-            or isinstance(v, list)
-            and any(
-                (
-                    not isinstance(d, dict)
-                    or ("name" not in d or "value" not in d)
-                    or (
-                        not isinstance(d["name"], str)
-                        or not d["name"]
-                        or not isinstance(d["value"], str)
-                        or not d["value"]
+            and (
+                not isinstance(v, list)
+                or isinstance(v, list)
+                and any(
+                    (
+                        not isinstance(d, dict)
+                        or ("name" not in d or "value" not in d)
+                        or (
+                            not isinstance(d["name"], str)
+                            or not d["name"]
+                            or not isinstance(d["value"], str)
+                            or not d["value"]
+                        )
+                        or "inline" in d
+                        and not isinstance(d["inline"], bool)
                     )
-                    or "inline" in d
-                    and not isinstance(d["inline"], bool)
+                    for d in v
                 )
-                for d in v
             )
         ):
             return False
@@ -646,28 +652,34 @@ def filter_embed_dict(
         or embed_dict_len == 2
         and ("color" in embed_dict and "timestamp" in embed_dict)
     ):
-        raise ValueError("could not produce ")
+        return {}
 
-    for k, v in embed_dict.items():
+    for k, v in tuple(embed_dict.items()):
         if (
             not isinstance(k, str)
             or k in ("title", "description")
-            and not isinstance(v, str)
+            and (not isinstance(v, str))
             or k in ("author", "thumbnail", "image", "footer")
-            and not isinstance(v, dict)
-            or k in ("thumbnail", "image")
-            and ("url" not in v or not isinstance(v["url"], str) or not v["url"])
+            and (
+                not isinstance(v, dict)
+                or k in ("thumbnail", "image")
+                and ("url" not in v or not isinstance(v["url"], str) or not v["url"])
+            )
             or k == "author"
-            and "name" not in v
-            or any(
-                ak in v and (not isinstance(v[ak], str) or not v[ak])
-                for ak in ("name", "url", "icon_url")
+            and (
+                "name" not in v
+                or any(
+                    ak in v and (not isinstance(v[ak], str) or not v[ak])
+                    for ak in ("name", "url", "icon_url")
+                )
             )
             or k == "footer"
-            and "text" not in v
-            or any(
-                ak in v and (not isinstance(v[ak], str) or not v[ak])
-                for ak in ("text", "icon_url")
+            and (
+                "text" not in v
+                or any(
+                    ak in v and (not isinstance(v[ak], str) or not v[ak])
+                    for ak in ("text", "icon_url")
+                )
             )
             or k == "color"
             and (not isinstance(v, int) or not 0 <= embed_dict["color"] <= 0xFFFFFF)
@@ -678,7 +690,7 @@ def filter_embed_dict(
             if not isinstance(v, list):
                 del embed_dict[k]
 
-            for i, f in reversed(enumerate(v)):
+            for i, f in reversed(tuple(enumerate(v))):
                 if (
                     not isinstance(f, dict)
                     or ("name" not in f or "value" not in f)

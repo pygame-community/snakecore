@@ -23,7 +23,7 @@ packages = [
     "snakecore.db",
     "snakecore.events",
     "snakecore.jobs",
-    "snakecore.jobutils",
+    "snakecore.jobs.jobutils",
     "snakecore.utils",
 ]
 

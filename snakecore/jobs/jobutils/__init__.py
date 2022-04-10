@@ -12,10 +12,10 @@ from typing import Any, Callable, Coroutine, Optional
 import discord
 
 from snakecore import events
-from snakecore.jobs import jobs
+from .. import jobs
+from ..jobs import groupings, proxies
 from snakecore.constants.enums import JobPermissionLevels
 from snakecore.exceptions import JobException
-from snakecore.jobs.jobs import groupings, proxies
 from snakecore.utils import serializers
 
 from . import messaging
