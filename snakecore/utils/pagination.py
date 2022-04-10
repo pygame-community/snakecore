@@ -28,6 +28,7 @@ class EmbedPaginator:
         caller: Optional[Union[discord.Member, Sequence[discord.Member]]] = None,
         whitelisted_role_ids: Optional[Sequence[discord.Role]] = None,
         start_page_number: int = 1,
+        inactivity_timeout: Optional[int] = None,
         theme_color: int = 0,
     ):
         """
@@ -46,6 +47,9 @@ class EmbedPaginator:
               paginator.
             start_page_number (int): The number of the page to start from (1-based).
               Defaults to 1.
+            inactivity_timeout (Optional[int], optional): The maximum time period
+              for this paginator to wait for a reaction to occur, before aborting.
+              Defaults to None.
             theme_color (int): The theme color integer to use for all extra embeds
               used by the paginator. Defaults to 0.
         """
@@ -53,7 +57,12 @@ class EmbedPaginator:
         self.message = message
         self.pages = list(pages)
         self.theme_color = min(max(0, int(theme_color)), 0xFFFFFF)
-        self.current_page_index = max(start_page_number - 1, 0)
+        self.current_page_index = max(int(start_page_number) - 1, 0)
+        self.inactivity_timeout = None
+
+        if inactivity_timeout:
+            self.inactivity_timeout = int(inactivity_timeout)
+
         self.paginator_info_embed = embed_utils.create_embed(
             color=self.theme_color,
             footer_text=f"Page {self.current_page_index+1} of {len(self.pages)}.",
@@ -207,7 +216,7 @@ class EmbedPaginator:
             try:
                 event = await config.conf.global_client.wait_for(
                     "raw_reaction_add",
-                    timeout=60,
+                    timeout=self.inactivity_timeout,
                     check=(
                         lambda event: event.message_id == self.message.id
                         and isinstance(event.member, discord.Member)
