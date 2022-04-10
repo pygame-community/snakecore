@@ -11,7 +11,7 @@ from collections import deque
 import datetime
 import itertools
 from types import FunctionType
-from typing import Any, Callable, Optional, Type, Union
+from typing import Any, Callable, Literal, Optional, Type, Union
 
 from snakecore import events
 from snakecore.constants import UNSET, _UnsetType
@@ -257,12 +257,6 @@ class _JobProxy:
 
     def initialized_since(self):
         return self.__j.initialized_since()
-
-    def is_awaiting(self):
-        return self.__j.is_awaiting()
-
-    def awaiting_since(self):
-        return self.__j.awaiting_since()
 
     def alive(self):
         return self.__j.alive()
@@ -837,6 +831,12 @@ class JobManagerProxy:
 
     has_job_identifier = manager.JobManager.has_job_identifier
 
+    def __str__(self):
+        return f"<{self.__class__.__name__} (\n{self.__mgr!s})>"
+
+    def __repr__(self):
+        return f"<{self.__class__.__name__} ({self.__mgr!r})>"
+
 
 class _JobManagerProxy:  # hidden implementation to trick type-checker engines
     __slots__ = ("__mgr", "__j", "_job_stop_timeout")
@@ -1064,12 +1064,12 @@ class _JobManagerProxy:  # hidden implementation to trick type-checker engines
         is_starting: Union[bool, _UnsetType] = UNSET,
         is_running: Union[bool, _UnsetType] = UNSET,
         is_idling: Union[bool, _UnsetType] = UNSET,
-        is_awaiting: Union[bool, _UnsetType] = UNSET,
         is_stopping: Union[bool, _UnsetType] = UNSET,
         is_restarting: Union[bool, _UnsetType] = UNSET,
         is_being_killed: Union[bool, _UnsetType] = UNSET,
-        is_being_completed: Union[bool, _UnsetType] = UNSET,
+        is_completing: Union[bool, _UnsetType] = UNSET,
         stopped: Union[bool, _UnsetType] = UNSET,
+        match_mode: Literal["ANY", "ALL"] = "ALL",
     ) -> tuple[JobProxy]:
 
         return self.__mgr.find_jobs(
@@ -1084,12 +1084,12 @@ class _JobManagerProxy:  # hidden implementation to trick type-checker engines
             is_starting=is_starting,
             is_running=is_running,
             is_idling=is_idling,
-            is_awaiting=is_awaiting,
             is_stopping=is_stopping,
             is_restarting=is_restarting,
             is_being_killed=is_being_killed,
-            is_being_completed=is_being_completed,
+            is_completing=is_completing,
             stopped=stopped,
+            match_mode=match_mode,
             _return_proxy=True,
             _iv=self.__j,
         )

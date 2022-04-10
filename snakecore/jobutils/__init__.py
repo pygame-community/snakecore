@@ -30,7 +30,7 @@ class ClientEventJobBase(jobs.EventJobBase):
     Attributes:
         EVENT_TYPES:
             A tuple denoting the set of `ClientEvent` classes whose instances
-            should be recieved after their corresponding event is registered
+            should be received after their corresponding event is registered
             by the `JobManager` of an instance of this class. By default,
             all instances of `ClientEvent` will be propagated.
     """

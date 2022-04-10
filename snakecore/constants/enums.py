@@ -22,7 +22,6 @@ class JobStatus(Enum):
 
     STARTING = auto()
     RUNNING = auto()
-    AWAITING = auto()
     IDLING = auto()
     COMPLETING = auto()
     BEING_KILLED = auto()
@@ -162,7 +161,7 @@ class JobStopReasons:
         """
 
         EMPTY_QUEUE = auto()
-        """Job is stopping due to an empty internal queue of recieved events.
+        """Job is stopping due to an empty internal queue of received events.
         """
 
     class External(Enum):

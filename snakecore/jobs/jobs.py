@@ -2446,14 +2446,15 @@ class JobBase:
                     output = JobStatus.STARTING
                 elif self.is_idling():
                     output = JobStatus.IDLING
-                elif self.is_completing():
-                    output = JobStatus.COMPLETING
-                elif self.is_being_killed():
-                    output = JobStatus.BEING_KILLED
-                elif self.is_restarting():
-                    output = JobStatus.RESTARTING
                 elif self.is_stopping():
-                    output = JobStatus.STOPPING
+                    if self.is_completing():
+                        output = JobStatus.COMPLETING
+                    elif self.is_being_killed():
+                        output = JobStatus.BEING_KILLED
+                    elif self.is_restarting():
+                        output = JobStatus.RESTARTING
+                    else:
+                        output = JobStatus.STOPPING
                 else:
                     output = JobStatus.RUNNING
             elif self.stopped():
@@ -2473,16 +2474,16 @@ class JobBase:
     def __str__(self):
         output_str = (
             f"<{self.__class__.__qualname__} "
-            f"(ID={self._runtime_identifier} CREATED_AT={self.created_at} "
-            f"PERM_LVL={self._PERMISSION_LEVEL.name} "
-            f"STATUS={self.status().name})>"
+            f"(id={self._runtime_identifier} created_at={self.created_at} "
+            f"perm_level={self._PERMISSION_LEVEL.name} "
+            f"status={self.status().name})>"
         )
 
         return output_str
 
     def __repr__(self):
         output_str = (
-            f"<{self.__class__.__qualname__} " f"(ID={self._runtime_identifier})>"
+            f"<{self.__class__.__qualname__} " f"(id={self._runtime_identifier})>"
         )
 
         return output_str
@@ -2649,7 +2650,7 @@ class EventJobBase(JobBase):
 
     Attributes:
         EVENT_TYPES: A tuple denoting the set of `BaseEvent` classes whose
-          instances should be recieved after their corresponding event is
+          instances should be received after their corresponding event is
           registered by the job manager of an instance of this class. By
           default, all instances of `BaseEvent` will be propagated.
     """
@@ -2937,7 +2938,7 @@ class EventJobBase(JobBase):
             if not self._empty_event_queue_timeout_secs:
                 if (
                     self._empty_event_queue_timeout_secs is None
-                ):  # idle indefinitely until an event is recieved.
+                ):  # idle indefinitely until an event is received.
                     self._is_idling = True
                     self._idling_since_ts = time.time()
 
@@ -3047,7 +3048,7 @@ class EventJobBase(JobBase):
             self._idling_since_ts = time.time()
 
     async def on_run(self, event: events.BaseEvent):
-        """The code to run whenever an event is recieved.
+        """The code to run whenever an event is received.
         This method must be overloaded in subclasses.
 
         Raises:

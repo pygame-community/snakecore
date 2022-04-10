@@ -8,12 +8,22 @@ at runtime.
 """
 
 import asyncio
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
-from contextlib import contextmanager
+from concurrent.futures import Executor, ProcessPoolExecutor
+from contextlib import asynccontextmanager, contextmanager
 import datetime
 import pickle
 import time
-from typing import Any, Callable, Coroutine, Literal, Optional, Sequence, Type, Union
+from typing import (
+    Any,
+    Callable,
+    Coroutine,
+    Iterable,
+    Literal,
+    Optional,
+    Sequence,
+    Type,
+    Union,
+)
 
 import discord
 from snakecore.constants import UNSET, _UnsetType
@@ -31,6 +41,67 @@ from snakecore.exceptions import (
 from snakecore.utils import utils
 from snakecore import events
 from . import jobs
+
+__all__ = (
+    "create_scheduling_executor",
+    "shutdown_scheduling_executor",
+    "scheduling_executor_exists",
+)
+
+GLOBAL_MANAGER_DATA = {
+    "scheduling_executor": {
+        "executor": None,
+        "semaphore": None,
+        "acquire_count": 0,
+    },
+}
+
+
+def create_scheduling_executor(max_workers: int = 4):
+    if not GLOBAL_MANAGER_DATA["scheduling_executor"]["executor"]:
+        GLOBAL_MANAGER_DATA["scheduling_executor"]["executor"] = ProcessPoolExecutor(
+            max_workers=max_workers
+        )
+        GLOBAL_MANAGER_DATA["scheduling_executor"]["semaphore"] = asyncio.Semaphore(
+            max_workers
+        )
+        return
+
+    raise RuntimeError(
+        "a scheduling executor has already been created for job scheduling"
+    )
+
+
+def shutdown_scheduling_executor():
+    if GLOBAL_MANAGER_DATA["scheduling_executor"]["acquire_count"]:
+        raise RuntimeError(
+            "cannot shutdown executor while it is acquired by a job manager"
+        )
+
+    if GLOBAL_MANAGER_DATA["scheduling_executor"]["executor"] is not None:
+        GLOBAL_MANAGER_DATA["scheduling_executor"]["executor"].shutdown()
+        GLOBAL_MANAGER_DATA["scheduling_executor"]["executor"] = None
+        GLOBAL_MANAGER_DATA["scheduling_executor"]["semaphore"] = None
+
+
+def scheduling_executor_exists():
+    return GLOBAL_MANAGER_DATA["scheduling_executor"]["executor"] is not None
+
+
+@asynccontextmanager
+async def acquired_scheduling_executor() -> ProcessPoolExecutor:
+
+    if not scheduling_executor_exists():
+        create_scheduling_executor()
+
+    await GLOBAL_MANAGER_DATA["scheduling_executor"]["semaphore"].acquire()
+    GLOBAL_MANAGER_DATA["scheduling_executor"]["acquire_count"] += 1
+
+    try:
+        yield GLOBAL_MANAGER_DATA["scheduling_executor"]["executor"]
+    finally:
+        GLOBAL_MANAGER_DATA["scheduling_executor"]["semaphore"].release()
+        GLOBAL_MANAGER_DATA["scheduling_executor"]["acquire_count"] -= 1
 
 
 class JobManager:
@@ -71,10 +142,6 @@ class JobManager:
         self._job_type_count_dict = {}
         self._job_id_map = {}
         self._manager_job = None
-        self._thread_pool_executor: Optional[ThreadPoolExecutor] = None
-        self._thread_pool_executor_lock = asyncio.Lock()
-        self._process_pool_executor: Optional[ProcessPoolExecutor] = None
-        self._process_pool_executor_lock = asyncio.Lock()
         self._event_waiting_queues = {}
         self._schedule_dict: dict[str, dict[str, Any]] = {"0": {}}
         # zero timestamp for failed scheduling attempts
@@ -112,10 +179,6 @@ class JobManager:
             raise RuntimeError(
                 "job scheduling was not initialized for this job manager"
             )
-
-    def _check_has_executors(self):
-        if self._thread_pool_executor is None or self._process_pool_executor is None:
-            raise RuntimeError("this job manager does not have any executors")
 
     @property
     def identifier(self) -> str:
@@ -215,8 +278,6 @@ class JobManager:
         if not self._initialized:
             self._initialized = True
             self._is_running = True
-            self._thread_pool_executor = ThreadPoolExecutor(max_workers=4)
-            self._process_pool_executor = ProcessPoolExecutor(max_workers=4)
             self._manager_job = self._get_job_from_proxy(
                 await self.create_and_register_job(jobs.JobManagerJob)
             )
@@ -240,11 +301,11 @@ class JobManager:
                     continue
                 if isinstance(self._schedule_dict[timestamp_ns_str], bytes):
                     timestamp_num_pickle_data = self._schedule_dict[timestamp_ns_str]
-                    async with self._process_pool_executor_lock:
+                    async with acquired_scheduling_executor() as executor:
                         self._schedule_dict[
                             timestamp_ns
                         ] = await self._loop.run_in_executor(
-                            self._process_pool_executor,
+                            executor,
                             self._unpickle_dict,
                             timestamp_num_pickle_data,
                         )
@@ -259,11 +320,11 @@ class JobManager:
 
                         if isinstance(schedule_data, bytes):
                             schedule_pickle_data = schedule_data
-                            async with self._process_pool_executor_lock:
+                            async with acquired_scheduling_executor() as executor:
                                 self._schedule_dict[timestamp_ns_str][
                                     schedule_identifier
                                 ] = schedule_data = await self._loop.run_in_executor(
-                                    self._process_pool_executor,
+                                    executor,
                                     self._unpickle_dict,
                                     schedule_pickle_data,
                                 )
@@ -375,12 +436,7 @@ class JobManager:
         """
 
         self._check_init()
-        self._check_has_executors()
-
         dump_dict = {}
-
-        if self._process_pool_executor is None:
-            pass
 
         async with self._schedule_dict_lock:
             for timestamp_ns_str, schedules_dict in self._schedule_dict.items():
@@ -390,11 +446,11 @@ class JobManager:
                 if isinstance(schedules_dict, dict):
                     for scheduling_id, schedule_dict in schedules_dict.items():
                         if isinstance(schedule_dict, dict):
-                            async with self._process_pool_executor_lock:
+                            async with acquired_scheduling_executor() as executor:
                                 dump_dict[timestamp_ns_str][
                                     scheduling_id
                                 ] = await self._loop.run_in_executor(
-                                    self._process_pool_executor,
+                                    executor,
                                     self._pickle_dict,
                                     schedule_dict,
                                 )
@@ -402,9 +458,9 @@ class JobManager:
                         elif isinstance(schedule_dict, bytes):
                             dump_dict[timestamp_ns_str][scheduling_id] = schedule_dict
 
-                    async with self._process_pool_executor_lock:
+                    async with acquired_scheduling_executor() as executor:
                         dump_dict[timestamp_ns_str] = await self._loop.run_in_executor(
-                            self._process_pool_executor,
+                            executor,
                             self._pickle_dict,
                             dump_dict[timestamp_ns_str],
                         )
@@ -416,9 +472,9 @@ class JobManager:
 
         del dump_dict["0"]  # don't export error schedulings
 
-        async with self._process_pool_executor_lock:
+        async with acquired_scheduling_executor() as executor:
             result = await self._loop.run_in_executor(
-                self._process_pool_executor,
+                executor,
                 self._dump_job_scheduling_data_helper,
                 self._schedule_ids.copy(),
                 dump_dict,
@@ -499,10 +555,8 @@ class JobManager:
         data_set = None
 
         if isinstance(data, bytes):
-            async with self._process_pool_executor_lock:
-                data = await self._loop.run_in_executor(
-                    self._process_pool_executor, pickle.loads, data
-                )
+            async with acquired_scheduling_executor() as executor:
+                data = await self._loop.run_in_executor(executor, pickle.loads, data)
 
         if isinstance(data, dict):
             data_set, data_dict = data["identifiers"].copy(), data["data"].copy()
@@ -518,11 +572,11 @@ class JobManager:
             if isinstance(schedules_dict, bytes) and dezerialize_mode.startswith(
                 ("PARTIAL", "FULL")
             ):
-                async with self._process_pool_executor_lock:
+                async with acquired_scheduling_executor() as executor:
                     data_dict[
                         timestamp_ns_str
                     ] = schedules_dict = await self._loop.run_in_executor(
-                        self._process_pool_executor,
+                        executor,
                         self._unpickle_dict,
                         schedules_dict,
                     )
@@ -530,11 +584,11 @@ class JobManager:
             if isinstance(schedules_dict, dict):
                 for scheduling_id, schedule_dict in schedules_dict.items():
                     if isinstance(schedule_dict, bytes) and dezerialize_mode == "FULL":
-                        async with self._process_pool_executor_lock:
+                        async with acquired_scheduling_executor() as executor:
                             data_dict[timestamp_ns_str][
                                 scheduling_id
                             ] = await self._loop.run_in_executor(
-                                self._process_pool_executor,
+                                executor,
                                 self._unpickle_dict,
                                 schedule_dict,
                             )
@@ -1372,11 +1426,11 @@ class JobManager:
             if target_timestamp_num_str in self._schedule_dict:
                 schedules_data = self._schedule_dict[target_timestamp_num_str]
                 if isinstance(schedules_data, bytes):
-                    async with self._process_pool_executor_lock:
+                    async with acquired_scheduling_executor() as executor:
                         self._schedule_dict[
                             target_timestamp_num_str
                         ] = await self._loop.run_in_executor(
-                            self._process_pool_executor,
+                            executor,
                             self._unpickle_dict,
                             schedules_data,
                         )
@@ -1671,12 +1725,12 @@ class JobManager:
         is_starting: Union[bool, _UnsetType] = UNSET,
         is_running: Union[bool, _UnsetType] = UNSET,
         is_idling: Union[bool, _UnsetType] = UNSET,
-        is_awaiting: Union[bool, _UnsetType] = UNSET,
         is_stopping: Union[bool, _UnsetType] = UNSET,
         is_restarting: Union[bool, _UnsetType] = UNSET,
         is_being_killed: Union[bool, _UnsetType] = UNSET,
-        is_being_completed: Union[bool, _UnsetType] = UNSET,
+        is_completing: Union[bool, _UnsetType] = UNSET,
         stopped: Union[bool, _UnsetType] = UNSET,
+        match_mode: Literal["ANY", "ALL"] = "ALL",
         _return_proxy: bool = True,
         _iv: Optional[Union[jobs.EventJobBase, jobs.IntervalJobBase]] = None,
     ) -> tuple["proxies.JobProxy"]:
@@ -1723,18 +1777,19 @@ class JobManager:
               should match. Defaults to None.
             is_idling (bool, optional): A boolean that a job's state
               should match. Defaults to None.
-            is_awaiting (bool, optional): A boolean that a job's state
-              should match. Defaults to None.
             is_stopping (bool, optional): A boolean that a job's state
               should match. Defaults to None.
-            stopped (bool, optional): A boolean that a job's state should
-              match. Defaults to None.
             is_restarting (bool, optional): A boolean that a job's
               state should match. Defaults to None.
             is_being_killed (bool, optional): A boolean that a job's
               state should match. Defaults to None.
-            is_being_completed (bool, optional): A boolean that a job's state
+            is_completing (bool, optional): A boolean that a job's state
               should match. Defaults to None.
+            stopped (bool, optional): A boolean that a job's state should
+              match. Defaults to None.
+            match_mode (Literal["any", "all"], optional): A string to control
+              if the query keyword arguments of this method must match all at
+              once or only need one match. Defaults to "all".
 
         Returns:
             tuple: A tuple of the job object proxies that were found.
@@ -1787,9 +1842,7 @@ class JobManager:
 
         if created_after is not UNSET:
             if isinstance(created_after, datetime.datetime):
-                filter_functions.append(
-                    lambda job, created_after=None: job.created_at > created_after
-                )
+                filter_functions.append(lambda job: job.created_at > created_after)
             else:
                 raise TypeError(
                     "'created_after' must be of type 'datetime.datetime', not "
@@ -1842,21 +1895,11 @@ class JobManager:
             filter_functions.append(lambda job: job.is_running() is is_running)
 
         if is_idling is not UNSET:
-            is_running = bool(is_idling)
-            filter_functions.append(
-                lambda job, is_idling=None: job.is_idling() is is_idling
-            )
-
-        if stopped is not UNSET:
-            stopped = bool(stopped)
-            filter_functions.append(lambda job: job.stopped() is stopped)
-
-        if is_awaiting is not UNSET:
-            is_running = bool(is_awaiting)
-            filter_functions.append(lambda job: job.is_awaiting() is is_awaiting)
+            is_idling = bool(is_idling)
+            filter_functions.append(lambda job: job.is_idling() is is_idling)
 
         if is_stopping is not UNSET:
-            is_running = bool(is_stopping)
+            is_stopping = bool(is_stopping)
             filter_functions.append(lambda job: job.is_stopping() is is_stopping)
 
         if is_restarting is not UNSET:
@@ -1869,10 +1912,27 @@ class JobManager:
                 lambda job: job.is_being_killed() is is_being_killed
             )
 
-        if is_being_completed is not UNSET:
-            is_being_completed = bool(is_being_completed)
-            filter_functions.append(
-                lambda job: job.is_being_completed() is is_being_completed
+        if is_completing is not UNSET:
+            is_completing = bool(is_completing)
+            filter_functions.append(lambda job: job.is_completing() is is_completing)
+
+        if stopped is not UNSET:
+            stopped = bool(stopped)
+            filter_functions.append(lambda job: job.stopped() is stopped)
+
+        bool_func = None
+
+        if isinstance(match_mode, str):
+            if match_mode.lower() == "all":
+                bool_func = all
+            elif match_mode.lower() == "any":
+                bool_func = any
+            else:
+                raise ValueError("argument 'match_mode' must be either 'all' or 'any'")
+        else:
+            raise TypeError(
+                "argument 'match_mode' must be a string matching either "
+                "'all' or 'any'"
             )
 
         if filter_functions:
@@ -1880,12 +1940,12 @@ class JobManager:
                 return tuple(
                     job._proxy
                     for job in self._job_id_map.values()
-                    if all(filter_func(job) for filter_func in filter_functions)
+                    if bool_func(filter_func(job) for filter_func in filter_functions)
                 )
             return tuple(
                 job
                 for job in self._job_id_map.values()
-                if all(filter_func(job) for filter_func in filter_functions)
+                if bool_func(filter_func(job) for filter_func in filter_functions)
             )
 
         if _return_proxy:
@@ -2274,7 +2334,7 @@ class JobManager:
             *event_types (Type[events.BaseEvent]): The event type/types to wait for. If
               any of its/their instances is dispatched, that instance will be returned.
             check (Optional[Callable[[events.BaseEvent], bool]], optional): A callable
-              obejct used to validate if a valid event that was recieved meets specific
+              obejct used to validate if a valid event that was received meets specific
               conditions. Defaults to None.
             timeout: (Optional[float], optional): An optional timeout value in seconds
               for the maximum waiting period.
@@ -2383,12 +2443,6 @@ class JobManager:
                     if not job.is_being_killed():
                         job._KILL_EXTERNAL(awaken=awaken)
 
-    def has_executors(self):
-        return (
-            self._thread_pool_executor is not None
-            and self._process_pool_executor is not None
-        )
-
     def resume(self):
         """Resume the execution of this job manager.
 
@@ -2400,12 +2454,6 @@ class JobManager:
         if self._is_running:
             raise RuntimeError("this job manager is still running")
 
-        if self._process_pool_executor is None:
-            self._process_pool_executor = ProcessPoolExecutor(max_workers=4)
-
-        if self._thread_pool_executor is None:
-            self._thread_pool_executor = ThreadPoolExecutor(max_workers=4)
-
         self._is_running = True
 
     def stop(
@@ -2413,7 +2461,6 @@ class JobManager:
         job_operation: Union[
             Literal[JobVerbs.KILL], Literal[JobVerbs.STOP]
         ] = JobVerbs.KILL,
-        shutdown_executors: bool = True,
     ):
         """Stop this job manager from running, while optionally killing/stopping the jobs in it
         and shutting down its executors.
@@ -2424,21 +2471,12 @@ class JobManager:
               Killing will always be done by starting up jobs and killing them immediately.
               Stopping will always be done by force. For more control, use the standalone
               functions for modifiying jobs.
-            shutdown_executors (bool, optional): Whether to shut down executors used by this
-              job manager, if they aren't required for any future operations like exporting job
-              scheduling data. Defaults to True.
 
         Raises:
             TypeError: Invalid job operation argument.
         """
         if self._scheduling_is_initialized:
             self.uninitialize_job_scheduling()
-
-        if shutdown_executors:
-            self._thread_pool_executor.shutdown()
-            self._process_pool_executor.shutdown()
-            self._thread_pool_executor = None
-            self._process_pool_executor = None
 
         if not isinstance(job_operation, JobVerbs):
             raise TypeError(
@@ -2451,6 +2489,69 @@ class JobManager:
             self.kill_all_jobs(awaken=True)
 
         self._is_running = False
+
+    def __repr__(self):
+        return f"<{self.__class__.__name__} ({len(self._job_id_map)} jobs registered)>"
+
+    def __str__(self):
+        categorized_jobs = dict(
+            initialized=self.find_jobs(
+                alive=True, is_running=False, stopped=False, _return_proxy=False
+            ),
+            starting=self.find_jobs(is_starting=True, _return_proxy=False),
+            running=self.find_jobs(
+                is_running=True,
+                is_idling=False,
+                is_starting=False,
+                is_restarting=False,
+                _return_proxy=False,
+            ),
+            idling=self.find_jobs(is_idling=True, _return_proxy=False),
+            stopping=self.find_jobs(
+                is_stopping=True,
+                is_restarting=False,
+                is_completing=False,
+                is_being_killed=False,
+                _return_proxy=False,
+            ),
+            completing=self.find_jobs(is_completing=True, _return_proxy=False),
+            being_killed=self.find_jobs(is_being_killed=True, _return_proxy=False),
+            stopped=self.find_jobs(stopped=True, _return_proxy=False),
+        )
+
+        categorized_jobs_str = "\n\n".join(
+            f"[{k.upper()}]\n" + "\n".join(str(job) for job in v)
+            for k, v in categorized_jobs.items()
+            if v
+        )
+
+        header_str = (
+            f"/{self.__class__.__name__} ({len(self._job_id_map)} jobs registered)\\"
+        )
+
+        border_str = "_" * len(header_str)
+        return "\n".join(
+            (
+                f"  {border_str[2:]}",
+                f" {header_str}",
+                f"|{border_str}|",
+                categorized_jobs_str,
+                f" {border_str}",
+                f"|{border_str}|",
+            )
+        )
+
+
+MANAGER_STR = """
+ {0}
+/{1} {2} ({3} jobs registered) {4}\\
+|{0}|
+
+{5}
+
+ {0}
+|{0}|
+"""
 
 
 from . import proxies
