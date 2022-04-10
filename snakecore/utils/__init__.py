@@ -11,7 +11,7 @@ from typing import Optional
 
 import discord
 
-from .. import config
+from snakecore import config
 
 from .utils import *
 from . import embed_utils, pagination, serializers

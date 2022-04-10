@@ -1,5 +1,4 @@
 import re
-
 from setuptools import setup
 
 with open("requirements.txt") as f:
@@ -23,7 +22,6 @@ packages = [
     "snakecore.db",
     "snakecore.events",
     "snakecore.jobs",
-    "snakecore.jobs.jobutils",
     "snakecore.utils",
 ]
 
