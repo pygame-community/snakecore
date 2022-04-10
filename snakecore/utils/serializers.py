@@ -462,7 +462,9 @@ class ColourSerializer(DiscordObjectBaseSerializer):
     def deserialized(self):
         return discord.Color(self._dict["color"])
 
+
 ColorSerializer = ColourSerializer
+
 
 class ActivitySerializer(DiscordObjectBaseSerializer):
     DATA_FORMAT = {"dict": dict}
