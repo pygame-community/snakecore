@@ -10,8 +10,7 @@ from typing import Optional, Union
 
 import discord
 
-from . import command_handler, config, constants, db, events, exceptions, jobs, utils
-from .jobs import jobutils
+from . import command_handler, config, constants, db, events, exceptions, jobs, jobutils, utils
 
 __title__ = "snakecore"
 __author__ = "PygameCommunityDiscord"
