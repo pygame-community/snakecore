@@ -453,7 +453,7 @@ class AllowedMentionsSerializer(DiscordObjectBaseSerializer):
         )
 
 
-class ColorSerializer(DiscordObjectBaseSerializer):
+class ColourSerializer(DiscordObjectBaseSerializer):
     DATA_FORMAT = {"color": int}
 
     def __init__(self, color: discord.Color):
@@ -462,6 +462,7 @@ class ColorSerializer(DiscordObjectBaseSerializer):
     def deserialized(self):
         return discord.Color(self._dict["color"])
 
+ColorSerializer = ColourSerializer
 
 class ActivitySerializer(DiscordObjectBaseSerializer):
     DATA_FORMAT = {"dict": dict}
@@ -844,7 +845,7 @@ _DISCORD_MODEL_SERIAL_MAP.update(
         "Permissions": PermissionsSerializer,
         "PermissionOverwrite": PermissionOverwriteSerializer,
         "AllowedMentions": AllowedMentionsSerializer,
-        "Color": ColorSerializer,
+        "Colour": ColourSerializer,
         "Activity": ActivitySerializer,
         "Game": GameSerializer,
         "Streaming": StreamingSerializer,
