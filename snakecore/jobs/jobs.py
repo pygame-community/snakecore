@@ -1774,7 +1774,7 @@ class JobBase:
         elif self.done():
             raise JobStateError("this job object is already done and not alive.")
 
-        loop = asyncio.get_running_loop()
+        loop = self._manager._loop
 
         fut = loop.create_future()
 
@@ -1807,7 +1807,7 @@ class JobBase:
         elif not self._is_being_guarded:
             raise JobStateError("this job object is not being guarded by a job")
 
-        loop = asyncio.get_running_loop()
+        loop = self._manager._loop
         fut = loop.create_future()
 
         if self._unguard_futures is None:
@@ -2261,7 +2261,7 @@ class JobBase:
         if self.done():
             raise JobStateError("this job object is already done and not alive.")
 
-        loop = asyncio.get_running_loop()
+        loop = self._manager._loop
 
         fut = loop.create_future()
 
@@ -2310,7 +2310,7 @@ class JobBase:
         if queue_name not in self._output_queue_futures:
             self._output_queue_futures[queue_name] = []
 
-        loop = asyncio.get_running_loop()
+        loop = self._manager._loop
         fut = loop.create_future()
         self._output_queue_futures[queue_name].append((fut, cancel_if_cleared))
 
@@ -2932,7 +2932,7 @@ class EventJobBase(JobBase):
             self._validate_and_pump_events()
 
         if not self._event_queue:
-            loop = asyncio.get_running_loop()
+            loop = self._manager._loop
 
             if not self._empty_event_queue_timeout_secs:
                 if (

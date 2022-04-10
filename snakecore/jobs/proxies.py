@@ -707,12 +707,20 @@ class JobManagerProxy:
 
     __slots__ = ("__mgr", "__j", "_job_stop_timeout")
 
-    def __init__(self, mgr, job: Union[jobs.EventJobBase, jobs.IntervalJobBase]):
+    def __init__(
+        self,
+        mgr: manager.JobManager,
+        job: Union[jobs.EventJobBase, jobs.IntervalJobBase],
+    ):
         self.__mgr = mgr
         self.__j = job
         self._job_stop_timeout = None
 
     is_running = manager.JobManager.is_running
+
+    @property
+    def _loop(self):
+        return self.__mgr._loop
 
     def get_job_stop_timeout(self):  # placeholder method with docstring
         """Get the maximum time period in seconds for the job object managed
@@ -1028,7 +1036,7 @@ class _JobManagerProxy:  # hidden implementation to trick type-checker engines
         *,
         identifier: Union[str, _UnsetType] = None,
         created_at: Union[datetime.datetime, _UnsetType] = None,
-    ) -> Optional["JobProxy"]:
+    ) -> Optional[JobProxy]:
 
         return self.__mgr.find_job(
             identifier=identifier,
@@ -1062,7 +1070,7 @@ class _JobManagerProxy:  # hidden implementation to trick type-checker engines
         is_being_killed: Union[bool, _UnsetType] = UNSET,
         is_being_completed: Union[bool, _UnsetType] = UNSET,
         stopped: Union[bool, _UnsetType] = UNSET,
-    ) -> tuple["JobProxy"]:
+    ) -> tuple[JobProxy]:
 
         return self.__mgr.find_jobs(
             classes=classes,

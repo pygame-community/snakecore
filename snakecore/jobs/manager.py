@@ -41,12 +41,17 @@ class JobManager:
     register new job objects that they instantiate at runtime.
     """
 
-    def __init__(self, loop=None, global_job_timeout: Optional[float] = None):
+    def __init__(
+        self,
+        loop: Optional[asyncio.AbstractEventLoop] = None,
+        global_job_timeout: Optional[float] = None,
+    ):
         """Create a new job manager instance.
 
         Args:
-            loop: The event loop to use. Defaults to None.
-            global_job_timeout (Optional[float]): The default global job timeout
+            loop (Optional[asyncio.AbstractEventLoop], optional): The event loop to use for this job
+              manager and all of its jobs. Defaults to None.
+            global_job_timeout (Optional[float], optional): The default global job timeout
               in seconds. Defaults to None.
         """
         if loop is None:
@@ -116,10 +121,13 @@ class JobManager:
     def identifier(self) -> str:
         return self._identifer
 
-    def set_event_loop(self, loop):
-        """
+    def set_event_loop(self, loop: asyncio.AbstractEventLoop):
+        """Set the event loop of this job manager. This is useful
+        in situations where a former event loop was closed.
+
         Args:
-            loop (AbstractEventLoop): The loop this job is meant to use.
+            loop (asyncio.AbstractEventLoop): A new event loop this
+              job manager is meant to use.
 
         Raises:
             TypeError: Invalid object given as input
@@ -1867,21 +1875,23 @@ class JobManager:
                 lambda job: job.is_being_completed() is is_being_completed
             )
 
-        if not filter_functions:
-            filter_functions.append(lambda job: True)
-
-        if _return_proxy:
-            return tuple(
-                job._proxy
-                for job in self._job_id_map.values()
-                if all(filter_func(job) for filter_func in filter_functions)
-            )
-        else:
+        if filter_functions:
+            if _return_proxy:
+                return tuple(
+                    job._proxy
+                    for job in self._job_id_map.values()
+                    if all(filter_func(job) for filter_func in filter_functions)
+                )
             return tuple(
                 job
                 for job in self._job_id_map.values()
                 if all(filter_func(job) for filter_func in filter_functions)
             )
+
+        if _return_proxy:
+            return tuple(job._proxy for job in self._job_id_map.values())
+
+        return tuple(self._job_id_map.values())
 
     def start_job(
         self,
@@ -2232,7 +2242,11 @@ class JobManager:
             deletion_queue_indices = []
 
             for i, waiting_list in enumerate(target_event_waiting_queue):
-                if isinstance(event, waiting_list[0]) and waiting_list[1](event):
+                if (
+                    isinstance(event, waiting_list[0])
+                    and waiting_list[1] is not None
+                    and waiting_list[1](event)
+                ):
                     if not waiting_list[2].cancelled():
                         waiting_list[2].set_result(event.copy())
                     deletion_queue_indices.append(i)
@@ -2274,8 +2288,6 @@ class JobManager:
         """
 
         self._check_init_and_running()
-
-        check = (lambda _: True) if check is None else check
         future = self._loop.create_future()
 
         if not all(
