@@ -640,7 +640,7 @@ class JobManager:
         if not self._scheduling_is_initialized:
             self._scheduling_is_initialized = True
             for fut in self._scheduling_initialized_futures:
-                if not fut.cancelled():
+                if not fut.done():
                     fut.set_result(True)
 
             return True
@@ -707,14 +707,14 @@ class JobManager:
             output = True
 
             for fut in self._scheduling_initialized_futures:
-                if not fut.cancelled():
+                if not fut.done():
                     fut.cancel(
                         f"initialization of {self.__class__.__name__}"
                         f"(ID={self._runtime_identifier}) was aborted"
                     )
 
             for fut in self._scheduling_uninitialized_futures:
-                if not fut.cancelled():
+                if not fut.done():
                     fut.set_result(True)
 
         return output
@@ -2281,7 +2281,7 @@ class JobManager:
             )
 
         for fut in job._unguard_futures:
-            if not fut.cancelled():
+            if not fut.done():
                 fut.set_result(True)
 
         job._unguard_futures.clear()
