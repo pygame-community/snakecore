@@ -1,5 +1,4 @@
-"""
-This file is a part of the source code for snakecore.
+"""This file is a part of the source code for snakecore.
 This project has been licensed under the MIT license.
 Copyright (c) 2022-present PygameCommunityDiscord
 
@@ -410,7 +409,7 @@ class _JobProxy:
 
 
 class JobOutputQueueProxy:
-    """A helper class for job objects to share
+    """A helper class for managed job objects to share
     data with other jobs in a continuous manner.
     This class should not be instantiated directly,
     but instances can be requested from job obects that support it.
@@ -739,7 +738,7 @@ class JobManagerProxy:
             Union[Type[jobs.EventJobBase], Type[jobs.IntervalJobBase]]
         ] = None,
         schedule_identifier: Optional[str] = None,
-        invoker_identifier: Optional[str] = None,
+        schedule_creator_identifier: Optional[str] = None,
     ):
         """Check if the permissions of the job of this `JobManagerProxy` object
         are sufficient for carrying out the specified operation on the given input.
@@ -755,7 +754,7 @@ class JobManagerProxy:
               The target job class for an operation. Defaults to None.
             schedule_identifier (Optional[str], optional):
               A target schedule identifier. Defaults to None.
-            invoker_identifier (Optional[str], optional):
+            schedule_creator_identifier (Optional[str], optional):
               A target job with this specific identifier if existent, but can also be
               an enpty string. Defaults to None.
 
@@ -832,7 +831,10 @@ class JobManagerProxy:
     has_job_identifier = manager.JobManager.has_job_identifier
 
     def __str__(self):
-        return f"<{self.__class__.__name__} (\n{self.__mgr!s})>"
+        return (
+            f"<{self.__class__.__name__}>\n{self.__mgr!s}\n"
+            f"<{self.__class__.__name__}>"
+        )
 
     def __repr__(self):
         return f"<{self.__class__.__name__} ({self.__mgr!r})>"
@@ -864,7 +866,7 @@ class _JobManagerProxy:  # hidden implementation to trick type-checker engines
             Union[Type[jobs.EventJobBase], Type[jobs.IntervalJobBase]]
         ] = None,
         schedule_identifier: Optional[str] = None,
-        invoker_identifier: Optional[str] = None,
+        schedule_creator_identifier: Optional[str] = None,
     ) -> bool:
         return self.__mgr._verify_permissions(
             self.__j,
@@ -872,7 +874,7 @@ class _JobManagerProxy:  # hidden implementation to trick type-checker engines
             target=target if target is not None else target,
             target_cls=target_cls,
             schedule_identifier=schedule_identifier,
-            invoker_identifier=invoker_identifier,
+            schedule_creator_identifier=schedule_creator_identifier,
             raise_exceptions=False,
         )
 
@@ -1069,7 +1071,7 @@ class _JobManagerProxy:  # hidden implementation to trick type-checker engines
         is_being_killed: Union[bool, _UnsetType] = UNSET,
         is_completing: Union[bool, _UnsetType] = UNSET,
         stopped: Union[bool, _UnsetType] = UNSET,
-        match_mode: Literal["ANY", "ALL"] = "ALL",
+        query_match_mode: Literal["ANY", "ALL"] = "ALL",
     ) -> tuple[JobProxy]:
 
         return self.__mgr.find_jobs(
@@ -1089,7 +1091,7 @@ class _JobManagerProxy:  # hidden implementation to trick type-checker engines
             is_being_killed=is_being_killed,
             is_completing=is_completing,
             stopped=stopped,
-            match_mode=match_mode,
+            query_match_mode=query_match_mode,
             _return_proxy=True,
             _iv=self.__j,
         )
