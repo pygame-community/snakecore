@@ -13,7 +13,6 @@ from typing import Any
 import discord
 from discord.ext import tasks
 from discord.backoff import ExponentialBackoff
-from discord.utils import MISSING
 
 from snakecore.constants import DEFAULT_JOB_EXCEPTION_WHITELIST
 
@@ -62,7 +61,7 @@ class CustomLoop(tasks.Loop):
         backoff = None
         await self._call_loop_function("before_loop")
         self._last_iteration_failed = False
-        if self._time is not MISSING:
+        if self._time is not discord.utils.MISSING:
             self._next_iteration = self._get_next_sleep_time()
         else:
             self._next_iteration = datetime.datetime.now(datetime.timezone.utc)
@@ -72,7 +71,7 @@ class CustomLoop(tasks.Loop):
                 return
             while True:
                 # sleep before the body of the task for explicit time intervals
-                if self._time is not MISSING:
+                if self._time is not discord.utils.MISSING:
                     await self._try_sleep_until(self._next_iteration)
                 if not self._last_iteration_failed:
                     self._last_iteration = self._next_iteration
@@ -83,7 +82,7 @@ class CustomLoop(tasks.Loop):
                     # Sometimes asyncio is cheeky and wakes up a few microseconds before our target
                     # time, causing it to repeat a run.
                     while (
-                        self._time is not MISSING
+                        self._time is not discord.utils.MISSING
                         and self._next_iteration <= self._last_iteration
                     ):
                         tasks._log.warn(
@@ -114,7 +113,7 @@ class CustomLoop(tasks.Loop):
                         return
 
                     # sleep after the body of the task for relative time intervals
-                    if self._time is MISSING:
+                    if self._time is discord.utils.MISSING:
                         await self._try_sleep_until(self._next_iteration)
 
                     self._current_loop += 1
