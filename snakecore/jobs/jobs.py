@@ -18,7 +18,6 @@ import time
 from types import FunctionType, SimpleNamespace
 from typing import (
     Any,
-    Awaitable,
     Callable,
     Coroutine,
     Literal,
@@ -26,12 +25,9 @@ from typing import (
     Sequence,
     Type,
     Union,
-    final,
 )
 
 import discord.utils
-from discord.ext import tasks
-
 from snakecore.constants import (
     DEFAULT_JOB_EXCEPTION_WHITELIST,
     JobPermissionLevels,

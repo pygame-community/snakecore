@@ -16,10 +16,8 @@ from typing import (
     Any,
     Callable,
     Coroutine,
-    Iterable,
     Literal,
     Optional,
-    Sequence,
     Type,
     Union,
 )
