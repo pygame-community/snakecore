@@ -1050,22 +1050,33 @@ class _JobManagerProxy:  # hidden implementation to trick type-checker engines
     def find_jobs(
         self,
         *,
-        classes: tuple[
+        classes: Optional[
             Union[
                 Type[jobs.EventJobBase],
                 Type[jobs.IntervalJobBase],
+                tuple[
+                    Union[Type[jobs.EventJobBase], Type[jobs.IntervalJobBase]],
+                    ...,
+                ],
             ]
         ] = tuple(),
         exact_class_match: bool = False,
+        creator: Union[JobProxy, _UnsetType] = UNSET,
         created_before: Union[datetime.datetime, _UnsetType] = UNSET,
         created_after: Union[datetime.datetime, _UnsetType] = UNSET,
         permission_level: Union[JobPermissionLevels, _UnsetType] = UNSET,
         above_permission_level: Union[JobPermissionLevels, _UnsetType] = UNSET,
-        below_permission_level: JobPermissionLevels = JobPermissionLevels.SYSTEM,
+        below_permission_level: Union[
+            JobPermissionLevels, _UnsetType
+        ] = JobPermissionLevels.SYSTEM,
         alive: Union[bool, _UnsetType] = UNSET,
+        was_scheduled: Union[bool, _UnsetType] = UNSET,
+        schedule_identifier: Union[str, _UnsetType] = UNSET,
         is_starting: Union[bool, _UnsetType] = UNSET,
         is_running: Union[bool, _UnsetType] = UNSET,
         is_idling: Union[bool, _UnsetType] = UNSET,
+        is_being_guarded: Union[bool, _UnsetType] = UNSET,
+        guardian: Union[JobProxy, _UnsetType] = UNSET,
         is_stopping: Union[bool, _UnsetType] = UNSET,
         is_restarting: Union[bool, _UnsetType] = UNSET,
         is_being_killed: Union[bool, _UnsetType] = UNSET,
@@ -1077,15 +1088,20 @@ class _JobManagerProxy:  # hidden implementation to trick type-checker engines
         return self.__mgr.find_jobs(
             classes=classes,
             exact_class_match=exact_class_match,
+            creator=creator,
             created_before=created_before,
             created_after=created_after,
             permission_level=permission_level,
             above_permission_level=above_permission_level,
             below_permission_level=below_permission_level,
             alive=alive,
+            was_scheduled=was_scheduled,
+            schedule_identifier=schedule_identifier,
             is_starting=is_starting,
             is_running=is_running,
             is_idling=is_idling,
+            is_being_guarded=is_being_guarded,
+            guardian=guardian,
             is_stopping=is_stopping,
             is_restarting=is_restarting,
             is_being_killed=is_being_killed,

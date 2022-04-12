@@ -1725,10 +1725,14 @@ class JobManager:
     def find_jobs(
         self,
         *,
-        classes: tuple[
+        classes: Optional[
             Union[
                 Type[jobs.EventJobBase],
                 Type[jobs.IntervalJobBase],
+                tuple[
+                    Union[Type[jobs.EventJobBase], Type[jobs.IntervalJobBase]],
+                    ...,
+                ],
             ]
         ] = tuple(),
         exact_class_match: bool = False,
@@ -1737,7 +1741,7 @@ class JobManager:
         created_after: Union[datetime.datetime, _UnsetType] = UNSET,
         permission_level: Union[JobPermissionLevels, _UnsetType] = UNSET,
         above_permission_level: Union[JobPermissionLevels, _UnsetType] = UNSET,
-        below_permission_level: JobPermissionLevels = JobPermissionLevels.SYSTEM,
+        below_permission_level: Union[JobPermissionLevels, _UnsetType] = UNSET,
         alive: Union[bool, _UnsetType] = UNSET,
         was_scheduled: Union[bool, _UnsetType] = UNSET,
         schedule_identifier: Union[str, _UnsetType] = UNSET,
@@ -1768,12 +1772,13 @@ class JobManager:
                             Union[
                                 Type[jobs.EventJobBase],
                                 Type[jobs.IntervalJobBase]
-                            ]
+                            ],
+                            ...,
                         ]
                     ]
                 ]
             , optional): The class(es) of the job objects to limit the job search to,
-              excluding subclasses. Defaults to None.
+              excluding subclasses. Defaults to `()`.
             exact_class_match (bool, optional): Whether an exact match is required for
               the classes in the previous parameter, or subclasses are allowed too.
               Defaults to False.
@@ -1788,8 +1793,7 @@ class JobManager:
             above_permission_level (JobPermissionLevels, optional): The lower
               permission level value of the jobs to find.
             below_permission_level (JobPermissionLevels, optional): The upper
-              permission level value of the jobs to find. Defaults to
-              `JobPermissionLevels.SYSTEM`.
+              permission level value of the jobs to find.
             was_scheduled (bool, optional): A boolean that a job's state should
               match.
             schedule_identifier (Optional[str], optional): A value that the value of
