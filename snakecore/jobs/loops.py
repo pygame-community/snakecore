@@ -9,14 +9,16 @@ which are used by job objects.
 import asyncio
 import datetime
 from typing import Any
-import discord
 
-from discord.ext.tasks import _log, ExponentialBackoff, Loop, MISSING
+import discord
+from discord.ext import tasks
+from discord.backoff import ExponentialBackoff
+from discord.utils import MISSING
 
 from snakecore.constants import DEFAULT_JOB_EXCEPTION_WHITELIST
 
 
-class CustomLoop(Loop):
+class CustomLoop(tasks.Loop):
     """A small subclass of `discord.ext.tasks.LoTaop`
     for getting more control over the Task cancelling process among other
     things.
@@ -84,7 +86,7 @@ class CustomLoop(Loop):
                         self._time is not MISSING
                         and self._next_iteration <= self._last_iteration
                     ):
-                        _log.warn(
+                        tasks._log.warn(
                             (
                                 "Clock drift detected for task %s. Woke up at %s but needed to sleep until %s. "
                                 "Sleeping until %s again to correct clock"
