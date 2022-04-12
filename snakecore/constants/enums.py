@@ -1,5 +1,4 @@
-"""
-This file is a part of the source code for snakecore.
+"""This file is a part of the source code for snakecore.
 This project has been licensed under the MIT license.
 Copyright (c) 2022-present PygameCommunityDiscord
 
@@ -27,6 +26,7 @@ class JobStatus(Enum):
     BEING_KILLED = auto()
     RESTARTING = auto()
     STOPPING = auto()
+    OUTPUT_QUEUE_CLEARED = auto()
 
     STOPPED = auto()
     KILLED = auto()
@@ -160,7 +160,7 @@ class JobStopReasons:
         """Job is stopping after staying idle beyond a specified timeout.
         """
 
-        EMPTY_QUEUE = auto()
+        EMPTY_EVENT_QUEUE = auto()
         """Job is stopping due to an empty internal queue of received events.
         """
 

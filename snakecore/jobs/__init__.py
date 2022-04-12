@@ -1,5 +1,4 @@
-"""
-This file is a part of the source code for snakecore.
+"""This file is a part of the source code for snakecore.
 This project has been licensed under the MIT license.
 Copyright (c) 2022-present PygameCommunityDiscord
 
@@ -22,6 +21,16 @@ from .jobs import (
     EventJobBase,
     JobManagerJob,
 )
+
+from .minijobs import (
+    MiniJobBase,
+    initialize_minijob,
+    start_minijob,
+    stop_minijob,
+    restart_minijob,
+)
+
+from . import manager, minijobs
 from .manager import JobManager
 from .proxies import JobProxy, JobOutputQueueProxy, JobManagerProxy
 from .groupings import JobGroup

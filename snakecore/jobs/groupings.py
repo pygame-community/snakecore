@@ -1,5 +1,4 @@
-"""
-This file is a part of the source code for snakecore.
+"""This file is a part of the source code for snakecore.
 This project has been licensed under the MIT license.
 Copyright (c) 2022-present PygameCommunityDiscord
 
@@ -8,6 +7,8 @@ into class namespaces.
 """
 
 from typing import Literal, Type, Union
+
+from snakecore.jobs.minijobs import MiniJobBase
 
 from . import proxies
 from .jobs import JobBase
@@ -31,7 +32,7 @@ class JobGroup:
             raise ValueError("subclassing subclasses of JobGroup is not supported")
 
         for obj in cls.__dict__.values():
-            if isinstance(obj, type) and issubclass(obj, JobBase):
+            if isinstance(obj, type) and issubclass(obj, (JobBase, MiniJobBase)):
                 if not obj.__qualname__.endswith(f"{cls.__name__}.{obj.__name__}"):
                     raise ValueError(
                         "all job classes in a job group namespace must be defined within it"
@@ -42,7 +43,7 @@ class JobGroup:
         cls.__job_class_members__ = tuple(members)
 
     @classmethod
-    def members(cls) -> tuple[Type[JobBase]]:
+    def members(cls) -> tuple[Type[Union[JobBase, MiniJobBase]]]:
         """Get the job classes that are members of this job group.
 
         Returns:
@@ -51,17 +52,19 @@ class JobGroup:
         return cls.__job_class_members__
 
     @classmethod
-    def has_class(cls, job_cls: JobBase) -> bool:
+    def has_class(cls, job_cls: Union[JobBase, MiniJobBase]) -> bool:
         """Whether a specified job class is contained in this job group.
 
         Args:
-            job_cls (JobBase): The target job class.
+            job_cls (Union[JobBase, MiniJobBase]): The target job class.
         """
 
         return job_cls in cls.__frozen_job_class_members__
 
     @classmethod
-    def is_group_member_instance(cls, obj: Union[JobBase, proxies.JobProxy]) -> bool:
+    def is_group_member_instance(
+        cls, obj: Union[JobBase, MiniJobBase, proxies.JobProxy]
+    ) -> bool:
         """Whether the specified job is an instance of one of the jobs
         within this job group.
 
