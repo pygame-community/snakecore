@@ -267,8 +267,10 @@ def format_code_exception(exc, pops: int = 1):
     tbs = traceback.format_exception(type(exc), exc, exc.__traceback__)
     # Pop out the first entry in the traceback, because that's
     # this function call itself
-    for _ in range(pops):
-        tbs.pop(1)
+
+    if len(tbs) >= pops + 1:
+        for _ in range(pops):
+            tbs.pop(1)
 
     ret = "".join(tbs).replace(os.getcwd(), "Bot")
     if platform.system() == "Windows":

@@ -18,6 +18,7 @@ with open("README.md") as f:
 packages = [
     "snakecore",
     "snakecore.command_handler",
+    "snakecore.command_handler.parsing",
     "snakecore.constants",
     "snakecore.db",
     "snakecore.events",
