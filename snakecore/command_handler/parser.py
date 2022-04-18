@@ -19,10 +19,6 @@ from typing import Any, Optional, Union
 
 import snakecore
 
-
-CONVERTER_MAPPING = converter.CONVERTER_MAPPING
-
-
 # mapping of all escape characters to their escaped values
 ESCAPES = {
     "0": "\0",

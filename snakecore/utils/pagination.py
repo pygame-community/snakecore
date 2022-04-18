@@ -208,8 +208,7 @@ class EmbedPaginator:
         return False
 
     def prepare_resume(self):
-        """Prepare the paginator to resume where it left off.
-        """
+        """Prepare the paginator to resume where it left off."""
         self.stopped = False
 
     async def mainloop(self):
