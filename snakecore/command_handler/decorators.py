@@ -12,9 +12,10 @@ from typing import Any, Callable, Coroutine, Optional, Union
 
 import discord
 from discord.ext import commands
-import discord.ext.commands.flags as flags
 
 from snakecore.command_handler.parser import parse_command_str
+
+FlagsMeta = type(commands.FlagConverter)
 
 
 def kwarg_command(
@@ -97,8 +98,8 @@ def kwarg_command(
                     else param.annotation
                 )
 
-    flags_cls = flags.FlagsMeta.__new__(
-        flags.FlagsMeta,
+    flags_cls = FlagsMeta.__new__(
+        FlagsMeta,
         func.__name__ + "_KwargOnlyFlags",
         (commands.FlagConverter,),
         attrs=flag_dict | dict(__qualname__=func.__qualname__ + "_KwargOnlyFlags"),
