@@ -100,7 +100,12 @@ def init_sync(
 
     success_failure_list = [0, 0]
 
-    for module in (events, jobs, utils):  # might be extended in the future
+    for module in (
+        command_handler,
+        events,
+        jobs,
+        utils,
+    ):  # might be extended in the future
         if not module.is_init():  # prevent multiple init calls, which can be allowed by
             # modules on an individual level
 
@@ -190,7 +195,12 @@ def quit_sync():
     modules that are still initialized and can be called multiple times.
     """
 
-    for module in (events, utils):  # might be extended in the future
+    for module in (
+        command_handler,
+        events,
+        jobs,
+        utils,
+    ):  # might be extended in the future
         if module.is_init():
             module.quit()
 

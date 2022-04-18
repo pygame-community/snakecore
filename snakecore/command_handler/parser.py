@@ -1,9 +1,8 @@
-"""
-This file is a part of the source code for the PygameCommunityBot.
+"""This file is a part of the source code for snakecore.
 This project has been licensed under the MIT license.
-Copyright (c) 2020-present PygameCommunityDiscord
+Copyright (c) 2022-present PygameCommunityDiscord
 
-This file defines the main utility functions for the argument parser
+This file implements snakecore's custom command parser.
 """
 
 from __future__ import annotations
@@ -13,7 +12,6 @@ import re
 
 import discord
 from discord.ext import commands
-from discord.ext.commands import converter
 
 from typing import Any, Optional, Union
 

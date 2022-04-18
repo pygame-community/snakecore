@@ -1,15 +1,18 @@
-from __future__ import annotations
-from ast import Call
+"""This file is a part of the source code for snakecore.
+This project has been licensed under the MIT license.
+Copyright (c) 2022-present PygameCommunityDiscord
+
+This file defines command function decorators to enhance
+their behavior.
+"""
 
 import functools
 import inspect
-from re import T
-import types
 from typing import Any, Callable, Coroutine, Optional, Union
 
 import discord
 from discord.ext import commands
-from discord.ext.commands import flags
+import discord.ext.commands.flags as flags
 
 from snakecore.command_handler.parser import parse_command_str
 
@@ -41,7 +44,6 @@ def kwarg_command(
     flag_dict = {"__annotations__": {}}
 
     new_param_list = []
-    # var_kwargs = {"name": None, "parameter": None}
 
     for k, param in sig.parameters.items():
         if param.kind in (param.POSITIONAL_ONLY, param.POSITIONAL_OR_KEYWORD):
@@ -95,15 +97,6 @@ def kwarg_command(
                     else param.annotation
                 )
 
-        # elif param.kind == param.VAR_KEYWORD:
-        #     var_kwargs["name"] = k
-        #     var_kwargs["parameter"] = param
-
-        #     flag_dict[k] = commands.flag(name=k, default=lambda ctx: {})
-
-        #     if param.annotation != param.empty:
-        #         flag_dict["__annotations__"][k] = eval(param.annotation, func.__globals__) if isinstance(param.annotation, str) else param.annotation
-
     flags_cls = flags.FlagsMeta.__new__(
         flags.FlagsMeta,
         func.__name__ + "_KwargOnlyFlags",
@@ -125,17 +118,7 @@ def kwarg_command(
     )
 
     async def kwarg_command_wrapper(*args, __keyword_only_flag__: flags_cls, **kwargs):
-        # print("inside wrapper. args:", args, "flag:", __keyword_only_flag__)
-        # last_pair_tuple = next(reversed(__keyword_only_flag__.__dict__.items()))
-        last_pair_dict = {}
-
-        # if last_pair_tuple[0] == var_kwargs["name"]:
-        #    last_pair_dict = last_pair_tuple[1]
-        #    del __keyword_only_flag__.__dict__[var_kwargs["name"]]
-        #
-        return await func(
-            *args, **(__keyword_only_flag__.__dict__ | last_pair_dict | kwargs)
-        )
+        return await func(*args, **(__keyword_only_flag__.__dict__ | kwargs))
 
     functools.update_wrapper(kwarg_command_wrapper, func)
 
