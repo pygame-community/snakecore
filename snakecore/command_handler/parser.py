@@ -62,7 +62,9 @@ ANNO_AND_ERROR = {
         "a message ID, or a 'channel_id/message_id' combo, or a [link](#) to a message"
     ),
 }
-ANNO_AND_ERROR["discord.colour.Color"] = ANNO_AND_ERROR["discord.colour.Colour"] = ANNO_AND_ERROR["discord.Color"]
+ANNO_AND_ERROR["discord.colour.Color"] = ANNO_AND_ERROR[
+    "discord.colour.Colour"
+] = ANNO_AND_ERROR["discord.Color"]
 ANNO_AND_ERROR["discord.object.Object"] = ANNO_AND_ERROR["discord.Object"]
 ANNO_AND_ERROR["discord.member.Member"] = ANNO_AND_ERROR["discord.Member"]
 ANNO_AND_ERROR["discord.user.User"] = ANNO_AND_ERROR["discord.User"]
@@ -70,12 +72,14 @@ ANNO_AND_ERROR["discord.channel.TextChannel"] = ANNO_AND_ERROR["discord.TextChan
 ANNO_AND_ERROR["discord.threads.Thread"] = ANNO_AND_ERROR["discord.Thread"]
 ANNO_AND_ERROR["discord.guild.Guild"] = ANNO_AND_ERROR["discord.Guild"]
 ANNO_AND_ERROR["discord.message.Message"] = ANNO_AND_ERROR["discord.Message"]
-ANNO_AND_ERROR["discord.message.PartialMessage"] = ANNO_AND_ERROR["discord.PartialMessage"]
+ANNO_AND_ERROR["discord.message.PartialMessage"] = ANNO_AND_ERROR[
+    "discord.PartialMessage"
+]
 
 
 class ParsingError(commands.BadArgument):
-    """Base class for all parsing-related exceptions
-    """
+    """Base class for all parsing-related exceptions"""
+
     pass
 
 
@@ -89,6 +93,7 @@ class KwargError(ParsingError):
     """
     Base class for keyword arguments related exceptions
     """
+
 
 class CodeBlock:
     """
@@ -116,7 +121,7 @@ class CodeBlock:
 
         # because \\ causes problems
         self.code = text.strip().replace("\\`", "`").strip("\\")
-    
+
     @classmethod
     async def convert(cls, ctx: commands.Context, argument: str):
         return cls(argument)
@@ -136,6 +141,7 @@ ESCAPES = {
     "`": "`",
 }
 
+
 class String:
     """
     Base class to represent strings in the argument parser. On the discord end
@@ -146,11 +152,16 @@ class String:
     def __init__(self, string: str):
         self.string = self.escape(string)
 
+    def __bool__(self):
+        return bool(self.string)
+
     @classmethod
     async def convert(cls, ctx: commands.Context, argument: str):
         s = cls(argument).string
 
-        if (s.startswith("\"") and s.endswith("\"")) or (s.startswith("\'") and s.endswith("\'")):
+        if (s.startswith('"') and s.endswith('"')) or (
+            s.startswith("'") and s.endswith("'")
+        ):
             s = s[1:-1]
         return s
 
@@ -395,7 +406,7 @@ def parse_args(cmd_str: str):
 
     def append_arg(arg: Any):
         """
-        Internal helper funtion to append a parsed argument into arg/kwarg/tuple
+        Internal helper function to append a parsed argument into arg/kwarg/tuple
         """
         nonlocal prevkey
         if temp_list is not None:
@@ -549,10 +560,10 @@ async def cast_basic_arg(ctx: commands.Context, anno: str, arg: Any) -> Any:
         raise ValueError()
 
     elif isinstance(arg, str):
-        if anno in ["CodeBlock", "String"]:
+        if anno in ("CodeBlock", "String"):
             raise ValueError()
 
-        elif anno in ["datetime.datetime", "datetime"]:
+        elif anno in ("datetime.datetime", "datetime"):
             if not arg.startswith("<t:") or not arg.endswith(">"):
                 raise ValueError()
 
@@ -597,7 +608,12 @@ async def cast_basic_arg(ctx: commands.Context, anno: str, arg: Any) -> Any:
 
             return discord.Object(obj_id)
 
-        elif anno in ("discord.Colour", "discord.Color", "discord.colour.Colour", "discord.colour.Color"):            
+        elif anno in (
+            "discord.Colour",
+            "discord.Color",
+            "discord.colour.Colour",
+            "discord.colour.Color",
+        ):
             try:
                 return await commands.converter.ColourConverter().convert(ctx, arg)
             except commands.BadArgument as c:
@@ -638,7 +654,13 @@ async def cast_basic_arg(ctx: commands.Context, anno: str, arg: Any) -> Any:
             except discord.errors.NotFound:
                 raise ValueError()
 
-        elif anno in ("discord.abc.GuildChannel", "discord.TextChannel", "discord.channel.TextChannel", "discord.Thread", "discord.threads.Thread"):
+        elif anno in (
+            "discord.abc.GuildChannel",
+            "discord.TextChannel",
+            "discord.channel.TextChannel",
+            "discord.Thread",
+            "discord.threads.Thread",
+        ):
             guild = ctx.guild
 
             ch_id = None
@@ -662,12 +684,14 @@ async def cast_basic_arg(ctx: commands.Context, anno: str, arg: Any) -> Any:
             guild = snakecore.config.conf.global_client.get_guild(guild_id)
             if guild is None:
                 try:
-                    guild = await snakecore.config.conf.global_client.fetch_guild(guild_id)
+                    guild = await snakecore.config.conf.global_client.fetch_guild(
+                        guild_id
+                    )
                 except discord.HTTPException:
                     raise ValueError()
             return guild
 
-        elif anno == ("discord.Message", "discord.message.Message"):
+        elif anno in ("discord.Message", "discord.message.Message"):
             guild = ctx.guild
             formatted = snakecore.utils.format_discord_link(arg, guild.id)
 
@@ -693,7 +717,7 @@ async def cast_basic_arg(ctx: commands.Context, anno: str, arg: Any) -> Any:
             except discord.NotFound:
                 raise ValueError()
 
-        elif anno == ("discord.PartialMessage", "discord.message.PartialMessage"):
+        elif anno in ("discord.PartialMessage", "discord.message.PartialMessage"):
             guild = ctx.guild
             formatted = snakecore.utils.format_discord_link(arg, guild.id)
 
@@ -719,13 +743,12 @@ async def cast_basic_arg(ctx: commands.Context, anno: str, arg: Any) -> Any:
 
             return chan.get_partial_message(msg)
 
-        raise ParsingError(
-            f"Internal parsing error: Invalid type annotation `{anno}`"
-        )
+        raise ParsingError(f"Internal parsing error: Invalid type annotation `{anno}`")
 
     raise ParsingError(
         f"Internal parsing error: Invalid argument of type `{type(arg)}`"
     )
+
 
 async def cast_arg(
     ctx: commands.Context,
@@ -778,19 +801,14 @@ async def cast_arg(
 
         if len(tupled) == 2 and tupled[1] == "...":
             # variable length tuple
-            ret = [
-                await cast_arg(ctx, tupled[0], elem, key, False)
-                for elem in arg
-            ]
+            ret = [await cast_arg(ctx, tupled[0], elem, key, False) for elem in arg]
             return tuple(ret)
 
         # fixed length tuple
         if len(tupled) != len(arg):
             raise ValueError()
 
-        ret = [
-            await cast_arg(ctx, i, j, key, False) for i, j in zip(tupled, arg)
-        ]
+        ret = [await cast_arg(ctx, i, j, key, False) for i, j in zip(tupled, arg)]
         return tuple(ret)
 
     except ValueError:
@@ -809,9 +827,15 @@ async def cast_arg(
         raise ArgError(f"{key} must be {get_anno_error(anno)}.")
 
 
-async def parse_command_str(ctx: commands.Context, cmd_str: str, signature: inspect.Signature):
-    """Parse a command invocation string to matched the types in the specified signature.
-    Relies on argument annotations to cast args/kwargs to the types required.
+async def parse_command_str(
+    ctx: commands.Context,
+    cmd_str: str,
+    signature: inspect.Signature,
+    inject_message_reference: bool = False,
+) -> tuple[tuple, dict[str, Any]]:
+    """Parse a command invocation string to matched the types in the specified
+    signature object.
+    Relies on string argument annotations to cast args/kwargs to the types required.
     """
     args, kwargs = parse_args(cmd_str)
 
@@ -839,12 +863,18 @@ async def parse_command_str(ctx: commands.Context, cmd_str: str, signature: insp
             all_keywords.append(key)
 
         if (
-            i == 0
+            inject_message_reference
+            and i == 0
             and isinstance(param.annotation, str)
             and ctx.message.reference is not None
-            and (
-                "discord.Message" in param.annotation
-                or "discord.PartialMessage" in param.annotation
+            and any(
+                s in param.annotation
+                for s in (
+                    "discord.Message",
+                    "discord.message.Message",
+                    "discord.PartialMessage",
+                    "discord.message.PartialMessage",
+                )
             )
         ):
             # first arg is expected to be a Message object, handle reply into
@@ -874,9 +904,7 @@ async def parse_command_str(ctx: commands.Context, cmd_str: str, signature: insp
             keyword_only_args.append(key)
             if key not in kwargs:
                 if param.default == param.empty:
-                    raise KwargError(
-                        f"Missed required keyword argument `{key}`"
-                    )
+                    raise KwargError(f"Missed required keyword argument `{key}`")
                 kwargs[key] = param.default
                 continue
 
@@ -884,9 +912,7 @@ async def parse_command_str(ctx: commands.Context, cmd_str: str, signature: insp
             # ran out of args, try to fill it with something
             if key in kwargs:
                 if param.kind == param.POSITIONAL_ONLY:
-                    raise ArgError(
-                        f"`{key}` cannot be passed as a keyword argument"
-                    )
+                    raise ArgError(f"`{key}` cannot be passed as a keyword argument")
                 args.append(kwargs.pop(key))
 
             elif param.default == param.empty:
@@ -896,9 +922,7 @@ async def parse_command_str(ctx: commands.Context, cmd_str: str, signature: insp
                 continue
 
         elif key in kwargs:
-            raise ArgError(
-                "Positional cannot be passed again as a keyword argument"
-            )
+            raise ArgError("Positional cannot be passed again as a keyword argument")
 
         # cast the argument into the required type
         if iskw:
@@ -920,5 +944,4 @@ async def parse_command_str(ctx: commands.Context, cmd_str: str, signature: insp
             if key not in all_keywords:
                 raise KwargError(f"Received invalid keyword argument `{key}`")
 
-    
     return args, kwargs

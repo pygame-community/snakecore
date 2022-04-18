@@ -1,4 +1,3 @@
-
 import datetime
 from functools import partial
 import functools
@@ -12,6 +11,7 @@ from discord.ext import commands
 import snakecore
 from .parser import CodeBlock, String
 
+
 class DateTime(commands.Converter):
     async def convert(self, ctx: commands.Context, argument: str) -> datetime.datetime:
         arg = argument.strip()
@@ -24,7 +24,9 @@ class DateTime(commands.Converter):
         try:
             return datetime.datetime.fromisoformat(arg)
         except ValueError as v:
-            raise commands.BadArgument(f"failed to construct datetime: {v.__class__.__name__}:{v!s}") from v
+            raise commands.BadArgument(
+                f"failed to construct datetime: {v.__class__.__name__}:{v!s}"
+            ) from v
 
 
 class Range(commands.Converter):
@@ -38,33 +40,42 @@ class Range(commands.Converter):
             if splits and len(splits) <= 3:
                 return range(*splits)
         except (ValueError, TypeError) as v:
-            raise commands.BadArgument(f"failed to construct range: {argument!r}") from v
-        
+            raise commands.BadArgument(
+                f"failed to construct range: {argument!r}"
+            ) from v
+
         raise commands.BadArgument(f"invalid range string: {argument!r}")
 
 
 class QuotedString(commands.Converter):
     """A simple converter that enforces a quoted string as an argument.
     It removes leading and ending single or doble quotes. If those quotes
-    are not found, quoting exceptions are raised.
+    are not found, exceptions are raised.
     """
+
     async def convert(self, ctx: commands.Context, argument: str) -> range:
         passed = False
-        if argument.startswith("\""):
-            if argument.endswith("\""):
+        if argument.startswith('"'):
+            if argument.endswith('"'):
                 passed = True
             else:
-                raise commands.ExpectedClosingQuoteError("argument string is not properly quoted with \'\' or \"\"")
+                raise commands.BadArgument(
+                    "argument string quote '\"' was not closed with \""
+                )
 
-        elif argument.startswith("\'"):
-            if argument.endswith("\'"):
+        elif argument.startswith("'"):
+            if argument.endswith("'"):
                 passed = True
             else:
-                raise commands.ExpectedClosingQuoteError("argument string is not properly quoted with \'\' or \"\"")
-            
+                raise commands.BadArgument(
+                    "argument string quote \"'\" was not closed with '"
+                )
+
         if not passed:
-            raise commands.BadArgument("argument string is not properly quoted with \'\' or \"\"")
-            
+            raise commands.BadArgument(
+                "argument string is not properly quoted with '' or \"\""
+            )
+
         return argument[1:-1]
 
 

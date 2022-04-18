@@ -3,7 +3,7 @@ from typing import Optional
 import discord
 
 from snakecore import config
-from . import decorators, parsing
+from . import converters, decorators, parser
 
 
 def init(global_client: Optional[discord.Client] = None):
