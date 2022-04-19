@@ -8,11 +8,11 @@ their behavior.
 
 import functools
 import inspect
-from typing import Any, Callable, Coroutine, Optional, Union
+from typing import Any, Callable, Coroutine
 
 import discord
 from discord.ext import commands
-
+import discord.ext.commands.parameters as parameters
 from snakecore.command_handler.parser import parse_command_str
 
 FlagsMeta = type(commands.FlagConverter)
@@ -49,7 +49,7 @@ def kwarg_command(
     for k, param in sig.parameters.items():
         if param.kind in (param.POSITIONAL_ONLY, param.POSITIONAL_OR_KEYWORD):
             new_param_list.append(
-                commands.parameters.Parameter(
+                commands.Parameter(
                     param.name,
                     param.kind,
                     default=param.default,
@@ -73,7 +73,7 @@ def kwarg_command(
                 new_annotation = commands.Greedy(converter=param.annotation)
 
             new_param_list.append(
-                commands.parameters.Parameter(
+                commands.Parameter(
                     param.name,
                     param.kind,
                     default=param.default,
@@ -107,14 +107,14 @@ def kwarg_command(
     )
 
     new_param_list.append(
-        commands.parameters.Parameter(
+        commands.Parameter(
             "__keyword_only_flag__",
             inspect.Parameter.KEYWORD_ONLY,
             annotation=flags_cls,
         )
     )
 
-    new_sig = commands.parameters.Signature(
+    new_sig = parameters.Signature(
         parameters=new_param_list, return_annotation=sig.return_annotation
     )
 
