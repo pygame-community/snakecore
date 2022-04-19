@@ -6,13 +6,8 @@ This file defines some converters for command argument parsing.
 """
 
 import datetime
-from functools import partial
-import functools
-import inspect
-import types
 from typing import TYPE_CHECKING
 
-import discord
 from discord.ext import commands
 
 import snakecore

@@ -7,7 +7,6 @@ Discord.
 """
 
 import asyncio
-from tkinter import N
 from typing import Optional, Sequence, Union
 
 import discord
