@@ -12,7 +12,6 @@ from typing import Any, Callable, Coroutine
 
 import discord
 from discord.ext import commands
-import discord.ext.commands.parameters as parameters
 from snakecore.command_handler.parser import parse_command_str
 
 FlagsMeta = type(commands.FlagConverter)
@@ -114,7 +113,7 @@ def kwarg_command(
         )
     )
 
-    new_sig = parameters.Signature(
+    new_sig = inspect.Signature(
         parameters=new_param_list, return_annotation=sig.return_annotation
     )
 
