@@ -14,8 +14,6 @@ import discord
 from discord.ext import commands
 from snakecore.command_handler.parser import parse_command_str
 
-FlagsMeta = type(commands.FlagConverter)
-
 
 def kwarg_command(
     func: Callable[..., Coroutine[Any, Any, Any]]
@@ -96,6 +94,8 @@ def kwarg_command(
                     if isinstance(param.annotation, str)
                     else param.annotation
                 )
+
+    FlagsMeta = type(commands.FlagConverter)
 
     flags_cls = FlagsMeta.__new__(
         FlagsMeta,
