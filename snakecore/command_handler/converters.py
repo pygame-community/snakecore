@@ -49,7 +49,7 @@ class DateTime(commands.Converter):
             ) from v
 
 
-class Range(commands.Converter):
+class RangeObject(commands.Converter):
     """A converter that parses integer range values to `range` objects.
 
     Syntax:
@@ -112,5 +112,5 @@ class QuotedString(commands.Converter):
 
 if TYPE_CHECKING:
     DateTime = datetime.datetime
-    Range = range
+    RangeObject = range
     QuotedString = str
