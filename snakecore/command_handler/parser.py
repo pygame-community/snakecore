@@ -35,20 +35,30 @@ ESCAPES = {
 
 # declare a dict of anno names, and the respective messages to give on error
 ANNO_AND_ERROR = {
-    "str": "a normal argument",
-    "CodeBlock": "a codeblock, code surrounded in code ticks",
-    "String": 'a string, surrounded in quotes (`""`)',
-    "datetime.datetime": "a string, that denotes datetime in iso format",
-    "datetime": "a string, that denotes datetime in iso format",
-    "range": "a range specifier",
-    "discord.Color": "a color, represented by the color name or the hex RGB value",
+    "str": "a bare, unquoted character string",
+    "CodeBlock": "a codeblock, code surrounded in 1 or 3 backticks",
+    "String": 'a string, surrounded in double quotes (`""`)',
+    "datetime.datetime": (
+        "a string, that denotes a UNIX timestamp in the format "
+        "`YYYY-MM-DD[*HH[:MM[:SS[.fff[fff]]]][+HH:MM[:SS[.ffffff]]]]`, or as a formatted "
+        "Discord timestamp `<t:{6969...}[:t|T|d|D|f|F|R]>`"
+    ),
+    "bool": (
+        "any of these bare character strings to represent a boolean value:"
+        " `1, y, yes, t, true, 0, n, no, f, false`"
+    ),
+    "range": (
+        "a range specifier with syntax `[start:stop[:step]]` (`step` is optional). "
+        "See Python's `range` object for more details."
+    ),
+    "discord.Color": "a color, represented by a hex RGB value or a CSS color representation",
     "discord.Object": "a generic Discord Object with an ID",
-    "discord.Role": "an ID or mention of a Discord server Role",
+    "discord.Role": "an ID or mention of a Discord server role",
     "discord.Member": "an ID or mention of a Discord server member",
     "discord.User": "an ID or mention of a Discord user",
     "discord.TextChannel": "an ID or mention of a Discord server text channel",
     "discord.Thread": "an ID or mention of a Discord server thread",
-    "discord.Guild": "an ID of a discord guild (server)",
+    "discord.Guild": "an ID of a discord server (A.K.A. 'guild')",
     "discord.Message": (
         "a message ID, or a 'channel_id/message_id' combo, or a [link](#) to a message"
     ),
@@ -56,6 +66,8 @@ ANNO_AND_ERROR = {
         "a message ID, or a 'channel_id/message_id' combo, or a [link](#) to a message"
     ),
 }
+
+ANNO_AND_ERROR["datetime"] = ANNO_AND_ERROR["datetime.datetime"]
 ANNO_AND_ERROR["discord.colour.Color"] = ANNO_AND_ERROR[
     "discord.colour.Colour"
 ] = ANNO_AND_ERROR["discord.Color"]
@@ -558,7 +570,7 @@ async def cast_basic_arg(ctx: commands.Context, anno: str, arg: Any) -> Any:
             raise ValueError()
 
         elif anno in ("datetime.datetime", "datetime"):
-            if not arg.startswith("<t:") or not arg.endswith(">"):
+            if not (arg.startswith("<t:") and arg.endswith(">")):
                 raise ValueError()
 
             timestamp = re.search(r"\d+", arg)
@@ -574,7 +586,21 @@ async def cast_basic_arg(ctx: commands.Context, anno: str, arg: Any) -> Any:
             return arg
 
         elif anno == "bool":
-            return arg == "1" or arg.lower() == "true"
+            if arg.lower() not in (
+                "1",
+                "y",
+                "yes",
+                "0",
+                "n",
+                "no",
+                "t",
+                "true",
+                "f",
+                "false",
+            ):
+                raise ValueError()
+
+            return arg in ("1", "y", "yes", "t", "true")
 
         elif anno == "int":
             return int(arg)
