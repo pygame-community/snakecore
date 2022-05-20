@@ -7,7 +7,6 @@ Discord.
 """
 
 import asyncio
-from tkinter import N
 from typing import Optional, Sequence, Union
 
 import discord
@@ -101,7 +100,7 @@ class EmbedPaginator:
             color=self.theme_color,
         )
 
-        self.killed = False
+        self.stopped = False
         self.callers = None
 
         if isinstance(caller, discord.Member):
@@ -139,7 +138,7 @@ class EmbedPaginator:
             self.set_page_number(len(self.pages))
 
         elif reaction == self.control_emojis.get("stop", ("",))[0]:
-            self.killed = True
+            self.stopped = True
             return
 
         elif reaction == self.control_emojis.get("info", ("",))[0]:
@@ -207,12 +206,18 @@ class EmbedPaginator:
 
         return False
 
+    def prepare_resume(self):
+        """Prepare the paginator to resume where it left off."""
+        self.stopped = False
+
     async def mainloop(self):
-        """Start the mainloop. This checks for reactions and handles them."""
+        """Start the mainloop. This checks for reactions and handles them. HTTP-related
+        exceptions from `discord.py` are propagated from this function.
+        """
         if not await self._setup():
             return
 
-        while not self.killed:
+        while not self.stopped:
             try:
                 event = await config.conf.global_client.wait_for(
                     "raw_reaction_add",
@@ -230,6 +235,6 @@ class EmbedPaginator:
                     await self.handle_reaction(str(event.emoji))
 
             except asyncio.TimeoutError:
-                self.killed = True
+                self.stopped = True
 
         await self.message.clear_reactions()

@@ -7,7 +7,7 @@ This file implements wrapper classes used to pickle Discord models and dataclass
 """
 
 import io
-from typing import Optional, Type, Union
+from typing import Optional, Type
 
 import discord
 

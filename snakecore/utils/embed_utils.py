@@ -10,7 +10,7 @@ import io
 import json
 import re
 from ast import literal_eval
-from typing import Any, Literal, Optional, Sequence, TypeVar, TypedDict, Union
+from typing import Literal, Optional, Sequence, TypedDict, Union
 
 import black
 import discord
