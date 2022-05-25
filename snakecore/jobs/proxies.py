@@ -8,8 +8,10 @@ for extra features and encapsulation.
 
 from collections import deque
 import datetime
+import functools
 import itertools
 from types import FunctionType
+import types
 from typing import Any, Callable, Literal, Optional, Type, Union
 
 from snakecore import events
@@ -1139,9 +1141,35 @@ class _JobManagerProxy:  # hidden implementation to trick type-checker engines
 
 for key, obj in _JobProxy.__dict__.items():
     if isinstance(obj, FunctionType):
-        setattr(JobProxy, key, obj)
+        new_func = types.FunctionType(
+            obj.__code__,
+            obj.__globals__,
+            obj.__name__,  # deepcopy functions
+            obj.__defaults__,
+            obj.__closure__,
+        )
+
+        functools.update_wrapper(
+            new_func, obj, assigned=(*functools.WRAPPER_ASSIGNMENTS, "__kwdefaults__")
+        )
+        new_func.__qualname__ = f"JobProxy.{new_func.__name__}"
+        del new_func.__wrapped__
+        setattr(JobProxy, key, new_func)
 
 
 for key, obj in _JobManagerProxy.__dict__.items():
     if isinstance(obj, FunctionType):
-        setattr(JobManagerProxy, key, obj)
+        new_func = types.FunctionType(
+            obj.__code__,
+            obj.__globals__,
+            obj.__name__,  # deepcopy functions
+            obj.__defaults__,
+            obj.__closure__,
+        )
+
+        functools.update_wrapper(
+            new_func, obj, assigned=(*functools.WRAPPER_ASSIGNMENTS, "__kwdefaults__")
+        )
+        new_func.__qualname__ = f"JobManagerProxy.{new_func.__name__}"
+        del new_func.__wrapped__
+        setattr(JobManagerProxy, key, new_func)
