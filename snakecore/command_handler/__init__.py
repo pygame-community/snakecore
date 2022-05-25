@@ -11,6 +11,7 @@ import discord
 
 from snakecore import config
 from . import converters, decorators, parser
+from .bot import AutoShardedBot, Bot
 
 
 def init(global_client: Optional[discord.Client] = None):
