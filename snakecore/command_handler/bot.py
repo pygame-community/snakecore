@@ -21,7 +21,7 @@ def _is_submodule(parent: str, child: str) -> bool:
     return parent == child or child.startswith(parent + ".")
 
 
-class SnakeCoreBotBase(commands.bot.BotBase):
+class ExtendedBotBase(commands.bot.BotBase):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.__extensions: Dict[
@@ -213,17 +213,17 @@ class SnakeCoreBotBase(commands.bot.BotBase):
             raise
 
 
-class SnakeCoreBot(commands.Bot, SnakeCoreBotBase):
+class ExtendedBot(commands.Bot, ExtendedBotBase):
     """A drop-in replacement for `discord.ext.commands.Bot` with more features."""
 
     pass
 
 
-class SnakeCoreAutoShardedBot(commands.AutoShardedBot, SnakeCoreBotBase):
+class ExtendedAutoShardedBot(commands.AutoShardedBot, ExtendedBotBase):
     """A drop-in replacement for `discord.ext.commands.AutoShardedBot` with more features."""
 
     pass
 
 
-Bot = SnakeCoreBot
-AutoShardedBot = SnakeCoreAutoShardedBot
+Bot = ExtendedBot
+AutoShardedBot = ExtendedAutoShardedBot
