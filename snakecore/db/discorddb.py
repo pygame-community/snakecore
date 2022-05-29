@@ -53,7 +53,7 @@ async def init_discord_db():
     async for msg in config.conf.db_channel.history():
         if msg.attachments:
             DiscordDB._db_records[msg.content] = _DBLockedRecord(
-                msg.attachments[0].read()
+                await msg.attachments[0].read()
             )
 
 
