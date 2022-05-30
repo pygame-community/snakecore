@@ -28,10 +28,10 @@ packages = [
 
 setup(
     name="snakecore",
-    author="PygameCommunityDiscord",
-    url="https://github.com/PygameCommunityDiscord/snakecore",
+    author="pygame-community",
+    url="https://github.com/pygame-community/snakecore",
     project_urls={
-        "Issue tracker": "https://github.com/PygameCommunityDiscord/snakecore/issues",
+        "Issue tracker": "https://github.com/pygame-community/snakecore/issues",
     },
     version=version,
     packages=packages,

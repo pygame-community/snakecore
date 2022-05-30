@@ -1,6 +1,6 @@
 """This file is a part of the source code for snakecore.
 This project has been licensed under the MIT license.
-Copyright (c) 2022-present PygameCommunityDiscord
+Copyright (c) 2022-present pygame-community
 
 This file implements the base classes for mini job objects,
 which are stripped-down versions of the regular types of job objects.

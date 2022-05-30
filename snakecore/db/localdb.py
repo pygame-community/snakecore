@@ -1,7 +1,7 @@
 """
 This file is a part of the source code for snakecore.
 This project has been licensed under the MIT license.
-Copyright (c) 2022-present PygameCommunityDiscord
+Copyright (c) 2022-present pygame-community
 
 This file implements a 'LocalDB' which implements a safe API for storing
 global data with asyncio locking.

@@ -1,7 +1,7 @@
 """
 This file is a part of the source code for snakecore.
 This project has been licensed under the MIT license.
-Copyright (c) 2022-present PygameCommunityDiscord
+Copyright (c) 2022-present pygame-community
 
 This file defines some constants used across the library.
 """
@@ -68,9 +68,7 @@ class _UnsetType(metaclass=_SingletonMeta):
 UNSET: Any = _UnsetType()
 
 # helpful constants
-BASIC_MAX_FILE_SIZE = 8_000_000  # bytes
-ZERO_SPACE = "\u200b"  # U+200B
-
+DEFAULT_FILESIZE_LIMIT = 8_000_000  # bytes
 
 # jobs
 _SYSTEM_JOB_RUNTIME_IDENTIFIERS = {"JobManagerJob": "0-0"}

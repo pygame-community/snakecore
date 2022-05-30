@@ -1,7 +1,7 @@
 """
 This file is a part of the source code for snakecore.
 This project has been licensed under the MIT license.
-Copyright (c) 2022-present PygameCommunityDiscord
+Copyright (c) 2022-present pygame-community
 
 A set of core APIs to facilitate the creation of feature-rich Discord bots.
 """
@@ -23,9 +23,9 @@ from . import (
 )
 
 __title__ = "snakecore"
-__author__ = "PygameCommunityDiscord"
+__author__ = "pygame-community"
 __license__ = "MIT"
-__copyright__ = "Copyright 2022-present PygameCommunityDiscord"
+__copyright__ = "Copyright 2022-present pygame-community"
 __version__ = "0.1.0"
 
 

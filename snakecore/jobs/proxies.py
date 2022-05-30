@@ -1,6 +1,6 @@
 """This file is a part of the source code for snakecore.
 This project has been licensed under the MIT license.
-Copyright (c) 2022-present PygameCommunityDiscord
+Copyright (c) 2022-present pygame-community
 
 This file implements proxy objects used by job and job managers
 for extra features and encapsulation. 
