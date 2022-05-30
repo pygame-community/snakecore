@@ -226,4 +226,8 @@ class ExtendedAutoShardedBot(commands.AutoShardedBot, ExtendedBotBase):
 
 
 Bot = ExtendedBot
+"""A drop-in replacement for `discord.ext.commands.Bot` with more features.
+It is recommended this constant over the actual class."""
 AutoShardedBot = ExtendedAutoShardedBot
+"""A drop-in replacement for `discord.ext.commands.AutoShardedBot` with more features.
+It is recommended this constant over the actual class."""
