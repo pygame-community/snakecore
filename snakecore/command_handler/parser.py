@@ -600,7 +600,7 @@ async def cast_basic_arg(ctx: commands.Context, anno: str, arg: Any) -> Any:
             ):
                 raise ValueError()
 
-            return arg in ("1", "y", "yes", "t", "true")
+            return arg.lower() in ("1", "y", "yes", "t", "true")
 
         elif anno == "int":
             return int(arg)
