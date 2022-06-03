@@ -179,7 +179,7 @@ class JobManager:
 
     @property
     def identifier(self) -> str:
-        return self._identifer
+        return self._runtime_identifier
 
     def set_event_loop(self, loop: asyncio.AbstractEventLoop):
         """Set the event loop of this job manager. This is useful
