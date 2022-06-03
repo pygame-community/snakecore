@@ -48,6 +48,8 @@ class MiniJobBase(_JobBase):
     DEFAULT_COUNT: Optional[int] = None
     DEFAULT_RECONNECT = True
 
+    __slots__ = ("_external_data",)
+
     def __init__(
         self,
         interval: Union[datetime.timedelta, _UnsetType] = UNSET,
@@ -82,6 +84,8 @@ class MiniJobBase(_JobBase):
             reconnect=self._reconnect,
         )
 
+        self._external_data = self.DATA_NAMESPACE_CLASS()
+
         self._task_loop.before_loop(self._on_start)
         self._task_loop.after_loop(self._on_stop)
         self._task_loop.error(self._on_run_error)
@@ -89,7 +93,7 @@ class MiniJobBase(_JobBase):
     @property
     def external_data(self):
         """The `JobNamespace` instance bound to this job
-        object for storing data to be accessed internally.
+        object for storing data to be read externally.
         """
         return self._external_data
 

@@ -3292,7 +3292,7 @@ class EventJobBase(JobBase):
                     try:
                         self._empty_event_queue_future = loop.create_future()
 
-                        handle = self._task_loop.loop.call_later(  # copied from asyncio.sleep
+                        handle = loop.call_later(  # copied from asyncio.sleep
                             self._empty_event_queue_timeout_secs
                             - self._elapsed_event_queue_timeout_secs,
                             lambda fut: None
