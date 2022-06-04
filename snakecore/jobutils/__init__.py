@@ -94,6 +94,30 @@ class EventJobBase(jobs.ManagedJobBase, jobs.EventJobMixin):
         "_stopping_by_empty_queue",
     )
 
+    def __init_subclass__(
+        cls,
+        scheduling_identifier: Optional[str] = None,
+        permission_level: Optional[JobPermissionLevels] = None,
+    ):
+        if not cls.EVENTS:
+            raise TypeError("the 'EVENTS' class attribute must not be empty")
+
+        elif not isinstance(cls.EVENTS, (list, tuple)):
+            raise TypeError(
+                "the 'EVENTS' class attribute must be of type 'tuple' and "
+                "must contain one or more subclasses of `BaseEvent`"
+            )
+        elif not all(issubclass(et, events.BaseEvent) for et in cls.EVENTS):
+            raise ValueError(
+                "the 'EVENTS' class attribute "
+                "must contain one or more subclasses of `BaseEvent`"
+            )
+
+        super().__init_subclass__(
+            scheduling_identifier=scheduling_identifier,
+            permission_level=permission_level,
+        )
+
     def __init__(
         self,
         interval: Union[datetime.timedelta, _UnsetType] = UNSET,
