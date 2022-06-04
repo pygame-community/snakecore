@@ -11,13 +11,11 @@ import time
 from typing import Optional, Sequence, Union
 
 import discord
-from snakecore.constants import UNSET, _UnsetType
+from snakecore.constants import UNSET, _UnsetType, NoneType
 from snakecore.exceptions import JobStateError
 
 from snakecore.jobs.jobs import _JobBase
 from snakecore.jobs.loops import CustomLoop
-
-NoneType = type(None)
 
 
 class MiniJobBase(_JobBase):

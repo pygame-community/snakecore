@@ -18,8 +18,9 @@ from .enums import *
 import sys
 
 if sys.version_info >= (3, 10):
-    from types import UnionType
+    from types import NoneType, UnionType
 else:
+    NoneType = type(None)
     UnionType = type(Optional[int])
 
 

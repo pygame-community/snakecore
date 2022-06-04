@@ -12,12 +12,11 @@ from typing import Optional, Type
 import discord
 
 from snakecore import config
+from snakecore.constants import NoneType
 from snakecore.exceptions import DeserializationError
 from snakecore.utils import recursive_dict_compare
 
 _DISCORD_MODEL_SERIAL_MAP = {}
-
-NoneType = type(None)
 
 
 def get_serializer_class(discord_class: Type):

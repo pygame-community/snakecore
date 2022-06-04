@@ -95,8 +95,8 @@ _JOB_VERBS_SIMP_PAST = dict(
     SCHEDULE="SCHEDULED",
     GUARD="GUARDED",
     FIND="FOUND",
-    CUSTOM_EVENT_DISPATCH="CUSTOM-EVENT-DISPATCHED",
-    EVENT_DISPATCH="EVENT-DISPATCHED",
+    CUSTOM_EVENT_DISPATCH="CUSTOM_EVENT_DISPATCHED",
+    EVENT_DISPATCH="EVENT_DISPATCHED",
     START="STARTED",
     STOP="STOPPED",
     RESTART="RESTARTED",
@@ -112,8 +112,8 @@ _JOB_VERBS_PRES_CONT = dict(
     SCHEDULE="SCHEDULING",
     GUARD="GUARDING",
     FIND="FINDING",
-    CUSTOM_EVENT_DISPATCH="CUSTOM-EVENT-DISPATCHING",
-    EVENT_DISPATCH="EVENT-DISPATCHING",
+    CUSTOM_EVENT_DISPATCH="CUSTOM_EVENT_DISPATCHING",
+    EVENT_DISPATCH="EVENT_DISPATCHING",
     START="STARTING",
     STOP="STOPPING",
     RESTART="RESTARTING",
@@ -156,8 +156,8 @@ class JobStopReasons:
         """Job is stopping due to killing itself internally.
         """
 
-        IDLING_TIMEOUT = auto()
-        """Job is stopping after staying idle beyond a specified timeout.
+        EVENT_TIMEOUT = auto()
+        """Job is stopping after reaching a timeout for receiving an event.
         """
 
         EMPTY_EVENT_QUEUE = auto()

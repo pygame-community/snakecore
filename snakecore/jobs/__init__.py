@@ -17,8 +17,8 @@ from .jobs import (
     singletonjob,
     publicjobmethod,
     JobBase,
-    IntervalJobBase,
-    EventJobBase,
+    ManagedJobBase,
+    EventJobMixin,
     JobManagerJob,
 )
 
