@@ -248,6 +248,9 @@ class EventJobBase(jobs.ManagedJobBase, jobs.EventJobMixin):
 
         self._event_queue = deque(maxlen=self._max_event_queue_size)
 
+        self._stopping_by_empty_queue = False
+        self._stopping_by_event_timeout = False
+
     async def _on_start(self):
         if self._clear_events_at_startup:
             self._event_queue.clear()
