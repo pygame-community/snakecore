@@ -434,12 +434,12 @@ class _JobBase:
         cls._RUNTIME_IDENTIFIER = f"{name}-{created_timestamp_ns_str}"
 
         if name not in _JOB_CLASS_MAP:
-            _JOB_CLASS_MAP[name] = {
-                created_timestamp_ns_str: {
-                    "class": cls,
-                    "permission_level": JobPermissionLevels.MEDIUM,
-                }
-            }
+            _JOB_CLASS_MAP[name] = {}
+
+        _JOB_CLASS_MAP[name][created_timestamp_ns_str] = {
+            "class": cls,
+            "permission_level": JobPermissionLevels.MEDIUM,
+        }
 
         if class_uuid is not None:
             if not isinstance(class_uuid, str):
@@ -1262,7 +1262,7 @@ class JobBase(_JobBase):
             permission_level = JobPermissionLevels.SYSTEM
 
         name = cls.__qualname__
-        created_timestamp_ns_str = cls._CREATED_AT
+        created_timestamp_ns_str = f"{int(cls._CREATED_AT.timestamp()*1_000_000_000)}"
 
         if permission_level is not None:
             if isinstance(permission_level, JobPermissionLevels):
