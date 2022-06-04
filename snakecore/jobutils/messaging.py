@@ -12,16 +12,15 @@ from typing import Optional, Union
 import discord
 
 from snakecore import config, jobs
+from snakecore.constants import NoneType
 from snakecore.constants.enums import JobPermissionLevels
 from snakecore.jobs import groupings
 from snakecore.utils import embed_utils, serializers
 
-NoneType = type(None)
-
 
 class MessageSend(
-    jobs.IntervalJobBase,
-    scheduling_identifier="87b81031-d606-4a95-b86a-2eb72b7eb7b1",
+    jobs.ManagedJobBase,
+    class_uuid="87b81031-d606-4a95-b86a-2eb72b7eb7b1",
     permission_level=JobPermissionLevels.LOWEST,
 ):
     """A job class for sending a message into a
@@ -187,7 +186,7 @@ class MessageSend(
             self.COMPLETE()
 
 
-class _MessageModify(jobs.IntervalJobBase, permission_level=JobPermissionLevels.LOWEST):
+class _MessageModify(jobs.ManagedJobBase, permission_level=JobPermissionLevels.LOWEST):
     """A intermediary job class for modifying a message in a
     Discord text channel. Does not do anything on its own.
 
@@ -259,7 +258,7 @@ class _MessageModify(jobs.IntervalJobBase, permission_level=JobPermissionLevels.
 
 class MessageEdit(
     _MessageModify,
-    scheduling_identifier="d1918a58-b8ab-4a47-9a0b-f1f4be01de40",
+    class_uuid="d1918a58-b8ab-4a47-9a0b-f1f4be01de40",
 ):
     """A job class for editing a message in a
     Discord text channel.
@@ -332,9 +331,7 @@ class MessageEdit(
         await self.data.message.edit(**self.data.kwargs)
 
 
-class MessageDelete(
-    _MessageModify, scheduling_identifier="860055c6-4971-4046-925c-7cafae67d72b"
-):
+class MessageDelete(_MessageModify, class_uuid="860055c6-4971-4046-925c-7cafae67d72b"):
     """A job class for deleting a message in a
     Discord text channel.
 
@@ -375,9 +372,7 @@ class MessageDelete(
         await self.data.message.delete(**self.data.kwargs)
 
 
-class ReactionAdd(
-    _MessageModify, scheduling_identifier="151cf1a5-73c8-4542-ad17-9b9956d0ebbe"
-):
+class ReactionAdd(_MessageModify, class_uuid="151cf1a5-73c8-4542-ad17-9b9956d0ebbe"):
     """Adds a given reaction to a message.
 
     Permission Level:
@@ -445,9 +440,7 @@ class ReactionAdd(
         await self.data.message.add_reaction(self.data.emoji)
 
 
-class ReactionsAdd(
-    _MessageModify, scheduling_identifier="f26bdcb2-8d04-4bf5-82f8-778c7a8af834"
-):
+class ReactionsAdd(_MessageModify, class_uuid="f26bdcb2-8d04-4bf5-82f8-778c7a8af834"):
     """Adds a sequence of reactions to a message.
 
     Permission Level:
@@ -542,9 +535,7 @@ class ReactionsAdd(
                 await message.add_reaction(emojis[i])
 
 
-class ReactionRemove(
-    _MessageModify, scheduling_identifier="e1c474dd-1c56-43b9-91f4-7b74a1ddf1a0"
-):
+class ReactionRemove(_MessageModify, class_uuid="e1c474dd-1c56-43b9-91f4-7b74a1ddf1a0"):
     """Removes a given reaction from a message.
 
     Permission Level:
@@ -625,7 +616,7 @@ class ReactionRemove(
 
 
 class ReactionClearEmoji(
-    _MessageModify, scheduling_identifier="59cf5461-ca9a-45c7-9010-2e5a97e26879"
+    _MessageModify, class_uuid="59cf5461-ca9a-45c7-9010-2e5a97e26879"
 ):
     """Clears a set of reactions from a message.
 
@@ -695,9 +686,7 @@ class ReactionClearEmoji(
         await self.data.message.clear_reaction(self.data.emoji)
 
 
-class ReactionClear(
-    _MessageModify, scheduling_identifier="1637b978-64c1-420c-a12f-09f81fc613ac"
-):
+class ReactionClear(_MessageModify, class_uuid="1637b978-64c1-420c-a12f-09f81fc613ac"):
     """Clears all reactions from a message.
 
     Permission Level:
