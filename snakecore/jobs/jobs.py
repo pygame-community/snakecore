@@ -1262,7 +1262,7 @@ class JobBase(_JobBase):
             permission_level = JobPermissionLevels.SYSTEM
 
         name = cls.__qualname__
-        created_timestamp_ns_str = f"{int(cls._CREATED_AT.timestamp()*1_000_000_000)}"
+        created_timestamp_ns_str = cls._CREATED_AT
 
         if permission_level is not None:
             if isinstance(permission_level, JobPermissionLevels):
