@@ -96,7 +96,7 @@ class EventJobBase(jobs.ManagedJobBase, jobs.EventJobMixin):
 
     def __init_subclass__(
         cls,
-        scheduling_identifier: Optional[str] = None,
+        class_uuid: Optional[str] = None,
         permission_level: Optional[JobPermissionLevels] = None,
     ):
         if not cls.EVENTS:
@@ -114,7 +114,7 @@ class EventJobBase(jobs.ManagedJobBase, jobs.EventJobMixin):
             )
 
         super().__init_subclass__(
-            scheduling_identifier=scheduling_identifier,
+            class_uuid=class_uuid,
             permission_level=permission_level,
         )
 
