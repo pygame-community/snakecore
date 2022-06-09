@@ -30,31 +30,29 @@ class ExtBotBase(commands.bot.BotBase):
         # necessary evil to get extensions dict
         self.__extensions: Dict[str, types.ModuleType] = self._BotBase__extensions
 
-    async def _call_extension_function(self, function, options: Dict[str, Any]):
+    def _bind_extension_func_arguments(
+        self, func, variables: Dict[str, Any]
+    ) -> Optional[inspect.BoundArguments]:
         sig = None
         try:
-            sig = inspect.signature(function)
-        except (ValueError, TypeError):
-            pass
-
-        if (
-            sig is not None
-            and "options" in sig.parameters
-            and sig.parameters["options"].kind
-            in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
-        ):
-            await function(self, options=options)
+            sig = inspect.signature(func)
+        except (TypeError, ValueError):
+            return None
         else:
-            await function(self)
+            try:
+                return sig.bind(self, **variables)
+            except TypeError as t:
+                t.args = (t.args[0] + f" (for {func.__qualname__}{sig!s})",)
+                raise
 
     async def _load_from_module_spec(
         self,
         spec: importlib.machinery.ModuleSpec,
         key: str,
-        options: Optional[Dict[str, Any]] = None,
+        variables: Optional[Dict[str, Any]] = None,
     ) -> None:
 
-        if not isinstance(options, dict):
+        if variables is None or not variables:
             return await super()._load_from_module_spec(spec, key)
 
         # precondition: key not in self.__extensions
@@ -72,8 +70,10 @@ class ExtBotBase(commands.bot.BotBase):
             del sys.modules[key]
             raise errors.NoEntryPointError(key)
 
+        self._bind_extension_func_arguments(setup, variables)
+
         try:
-            await self._call_extension_function(setup, options)
+            await setup(self, **variables)
         except Exception as e:
             del sys.modules[key]
             await self._remove_module_references(lib.__name__)
@@ -87,16 +87,18 @@ class ExtBotBase(commands.bot.BotBase):
         name: str,
         *,
         package: Optional[str] = None,
-        options: Optional[Dict[str, Any]] = None,
+        variables: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Loads an extension.
 
         An extension is a python module that contains commands, cogs, or listeners.
 
-        An extension must have a global function, setup defined as the entry point on what to do when the extension is loaded.
+        An extension must have a global function, `setup` defined as the entry point on what to do when the extension is loaded.
+        This entry point must have a single parameter, the `bot`. Additional positional-or-keyword parameters are supported and can be set
+        with the `variables` keyword argument.
 
         This method adds an extra keyword parameter to `Bot.load_extension` that can
-        be used to pass options to the `setup` function of the extension.
+        be used to pass 'setup variables' to the `setup` function of the extension.
 
         Args:
             name (str): The extension name to reload. It must be dot separated like
@@ -105,14 +107,14 @@ class ExtBotBase(commands.bot.BotBase):
             package (Optional[str], optional): The package name to resolve relative imports with.
               This is required when reloading an extension using a relative path, e.g `.foo.test`.
               Defaults to None.
-            options (Optional[Dict[str, Any]], optional): A dictionary of 'options' to
-              be passed to the `setup` function of the specified extension as a keyword
-              argument. If a dictionary is specified, the `setup` function will be checked for a
-              keyword parameter of the same name before it can recieve the dictionary. If no
-              matching parameter is found or the specified object is not a dictionary,
-              the keyword argument will be omitted. Defaults to None.
+            variables (Optional[Dict[str, Any]], optional): A dictionary of 'setup variables' for
+              the `setup` function of the specified extension as keyword arguments.
+              If a dictionary is specified, the `setup` function will be checked for compatibility.
+              If it is incompatible, `TypeError` will be raised.
 
         Raises:
+            TypeError: Invalid `variables` dictionary structure or an incompatible `setup` function
+              signature for the arguments.
             ExtensionNotFound: The extension could not be imported.
               This is also raised if the name of the extension could not
               be resolved using the provided `package` parameter.
@@ -121,8 +123,15 @@ class ExtBotBase(commands.bot.BotBase):
             ExtensionFailed: The extension or its setup function had an execution error.
         """
 
-        if not isinstance(options, dict):
+        if variables is None or not variables:
             return await super().load_extension(name, package=package)
+        elif not isinstance(variables, dict) or not all(
+            isinstance(k, str) for k in variables.keys()
+        ):
+            raise TypeError(
+                "argument 'variables' must be None or dictionary with only "
+                "string keys"
+            )
 
         name = self._resolve_name(name, package)
         if name in self.__extensions:
@@ -132,14 +141,14 @@ class ExtBotBase(commands.bot.BotBase):
         if spec is None:
             raise commands.errors.ExtensionNotFound(name)
 
-        await self._load_from_module_spec(spec, name, options)
+        await self._load_from_module_spec(spec, name, variables)
 
     async def reload_extension(
         self,
         name: str,
         *,
         package: Optional[str] = None,
-        options: Optional[Dict[str, Any]] = None,
+        variables: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Atomically reloads an extension.
 
@@ -155,14 +164,14 @@ class ExtBotBase(commands.bot.BotBase):
             package (Optional[str], optional): The package name to resolve relative imports with.
               This is required when reloading an extension using a relative path, e.g `.foo.test`.
               Defaults to None.
-            options (Optional[Dict[str, Any]], optional): A dictionary of 'options' to
-              be passed to the `setup` function of the specified extension as a keyword
-              argument. If a dictionary is specified, the `setup` function will be checked for a
-              keyword parameter of the same name before it can recieve the dictionary. If no
-              matching parameter is found or the specified object is not a dictionary,
-              the keyword argument will be omitted. Defaults to None.
+            variables (Optional[Dict[str, Any]], optional): A dictionary of 'setup variables' for
+              the `setup` function of the specified extension as keyword arguments.
+              If a dictionary is specified, the `setup` function will be checked for compatibility.
+              If it is incompatible, `TypeError` will be raised.
 
         Raises:
+            TypeError: Invalid `variables` dictionary structure or an incompatible `setup` function
+              signature for the arguments.
             ExtensionNotLoaded: The extension was not loaded.
             ExtensionNotFound: The extension could not be imported.
               This is also raised if the name of the extension could not
@@ -171,8 +180,15 @@ class ExtBotBase(commands.bot.BotBase):
             ExtensionFailed: The extension setup function had an execution error.
         """
 
-        if not isinstance(options, dict):
+        if variables is None or not variables:
             return await super().reload_extension(name, package=package)
+        elif not isinstance(variables, dict) or not all(
+            isinstance(k, str) for k in variables.keys()
+        ):
+            raise TypeError(
+                "argument 'variables' must be None or dictionary with only "
+                "string keys"
+            )
 
         name = self._resolve_name(name, package)
         lib = self.__extensions.get(name)
@@ -192,13 +208,15 @@ class ExtBotBase(commands.bot.BotBase):
             # Unload and then load the module...
             await self._remove_module_references(lib.__name__)
             await self._call_module_finalizers(lib, name)
-            await self.load_extension(name, options=options)
+            await self.load_extension(name, variables=variables)
         except Exception:
             # if the load failed, the remnants should have been
             # cleaned from the load_extension function call
             # so let's load it from our old compiled library.
 
-            await self._call_extension_function(lib.setup, options)
+            self._bind_extension_func_arguments(lib.setup, variables)
+
+            await lib.setup(self, **variables)
 
             self.__extensions[name] = lib
 
@@ -207,10 +225,13 @@ class ExtBotBase(commands.bot.BotBase):
             raise
 
     async def _call_module_finalizers(
-        self, lib: types.ModuleType, key: str, options: Optional[Dict[str, Any]] = None
+        self,
+        lib: types.ModuleType,
+        key: str,
+        variables: Optional[Dict[str, Any]] = None,
     ) -> None:
 
-        if not isinstance(options, dict):
+        if variables is None or not variables:
             return await super()._call_module_finalizers(lib, key)
 
         try:
@@ -218,8 +239,9 @@ class ExtBotBase(commands.bot.BotBase):
         except AttributeError:
             pass
         else:
+            self._bind_extension_func_arguments(func, variables)
             try:
-                await self._call_extension_function(func, options)
+                await func(self, **variables)
             except Exception:
                 pass
         finally:
@@ -235,7 +257,7 @@ class ExtBotBase(commands.bot.BotBase):
         name: str,
         *,
         package: Optional[str] = None,
-        options: Optional[Dict[str, Any]] = None,
+        variables: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Unloads an extension.
@@ -244,31 +266,40 @@ class ExtBotBase(commands.bot.BotBase):
         removed from the bot and the module is un-imported.
 
         The extension can provide an optional global function, ``teardown``,
-        to do miscellaneous clean-up if necessary. This function takes a single
+        to do miscellaneous clean-up if necessary. This function must take a single
         parameter, the ``bot``, similar to ``setup`` from
-        :meth:`~.Bot.load_extension`.
+        :meth:`~.Bot.load_extension`. Additional positional-or-keyword parameters are supported
+        and can be set with the `variables` keyword argument.
 
-        name (str): The extension name to unload. It must be dot separated like
-            regular Python imports if accessing a sub-module. e.g.
-            `foo.test` if you want to import `foo/test.py`.
-        package (Optional[str], optional): The package name to resolve relative imports with.
-            This is required when reloading an extension using a relative path, e.g `.foo.test`.
-            Defaults to None.
-        options (Optional[Dict[str, Any]], optional): A dictionary of 'options' to
-            be passed to the `teardown` function of the specified extension as a keyword
-            argument. If a dictionary is specified, the `teardown` function will be checked for a
-            keyword parameter of the same name before it can recieve the dictionary. If no
-            matching parameter is found or the specified object is not a dictionary,
-            the keyword argument will be omitted. Defaults to None.
+        Args:
+            name (str): The extension name to unload. It must be dot separated like
+              regular Python imports if accessing a sub-module. e.g.
+              `foo.test` if you want to import `foo/test.py`.
+            package (Optional[str], optional): The package name to resolve relative imports with.
+              This is required when reloading an extension using a relative path, e.g `.foo.test`.
+              Defaults to None.
+            variables (Optional[Dict[str, Any]], optional): A dictionary of 'teardown variables' for
+              the `teardown` function of the specified extension as keyword arguments.
+              If a dictionary is specified, the `teardown` function will be checked for compatibility.
+              If it is incompatible, `TypeError` will be raised, but the extension will still be unloaded.
 
-        Raises:
+        Raises
+            TypeError: Invalid `variables` dictionary structure or an incompatible `teardown` function
+              signature for the arguments.
             ExtensionNotLoaded: The extension was not loaded.
             ExtensionNotFound: The extension could not be imported.
               This is also raised if the name of the extension could not
               be resolved using the provided ``package`` parameter.
         """
-        if not isinstance(options, dict):
+        if variables is None or not variables:
             return await super().unload_extension(name, package=package)
+        elif not isinstance(variables, dict) or not all(
+            isinstance(k, str) for k in variables.keys()
+        ):
+            raise TypeError(
+                "argument 'variables' must be None or dictionary with only "
+                "string keys"
+            )
 
         name = self._resolve_name(name, package)
         lib = self.__extensions.get(name)
@@ -276,7 +307,7 @@ class ExtBotBase(commands.bot.BotBase):
             raise errors.ExtensionNotLoaded(name)
 
         await self._remove_module_references(lib.__name__)
-        await self._call_module_finalizers(lib, name, options)
+        await self._call_module_finalizers(lib, name, variables)
 
 
 class ExtBot(commands.Bot, ExtBotBase):
