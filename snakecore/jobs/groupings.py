@@ -17,8 +17,8 @@ from .jobs import JobBase
 class JobGroup:
     """A base class for job groups, which are class namespaces in which job classes can
     be defined. A JobGroup subclass should be a direct subclass of this base class.
-    Inheritance of job classes defined in a superclass job group that inherits from
-    this class is not supported, as the set of jobs in a job group are not transferrable
+    Inheritance of job classes defined in a superclass job group which inherits from
+    this class is not supported, as the set of job classes in a job group are not transferrable
     to subclasses.
     """
 

@@ -33,9 +33,9 @@ class JobStatus(Enum):
     COMPLETED = auto()
 
 
-class JobVerbs(Enum):
+class JobOps(Enum):
     """An enum of constants representing the operations that job
-    objects can perform on each other.
+    objects can perform on each other with the supervision of a job manager.
     """
 
     CREATE = auto()
@@ -47,6 +47,15 @@ class JobVerbs(Enum):
     REGISTER = auto()
     """The act of registering a job object.
     """
+
+    JOB_CLASS_REGISTER = auto()
+    """The act of registering a job object's class into the job manager.
+    """
+
+    JOB_CLASS_UNREGISTER = auto()
+    """The act of unregistering a job object's class from the job manager.
+    """
+
     SCHEDULE = auto()
     """The act of scheduling a job type for instantiation in the future.
     """
@@ -88,10 +97,12 @@ class JobVerbs(Enum):
     """
 
 
-_JOB_VERBS_SIMP_PAST = dict(
+_JOB_OPS_SIMP_PAST = dict(
     CREATE="CREATED",
     INITIALIZE="INITIALIZED",
     REGISTER="REGISTERED",
+    JOB_CLASS_REGISTER="JOB_CLASS_REGISTERED",
+    JOB_CLASS_UNREGISTER="JOB_CLASS_UNREGISTERED",
     SCHEDULE="SCHEDULED",
     GUARD="GUARDED",
     FIND="FOUND",
@@ -105,10 +116,12 @@ _JOB_VERBS_SIMP_PAST = dict(
     KILL="KILLED",
 )
 
-_JOB_VERBS_PRES_CONT = dict(
+_JOB_OPS_PRES_CONT = dict(
     CREATE="CREATING",
     INITIALIZE="INITIALIZING",
     REGISTER="REGISTERING",
+    JOB_CLASS_REGISTER="JOB_CLASS_REGISTERING",
+    JOB_CLASS_UNREGISTER="JOB_CLASS_UNREGISTERING",
     SCHEDULE="SCHEDULING",
     GUARD="GUARDING",
     FIND="FINDING",

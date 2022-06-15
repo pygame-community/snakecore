@@ -13,6 +13,7 @@ from contextlib import contextmanager
 import datetime
 import itertools
 import inspect
+from multiprocessing import managers
 import sys
 import time
 from types import FunctionType, SimpleNamespace
@@ -24,6 +25,7 @@ from typing import (
     Optional,
     Sequence,
     Type,
+    TypeVar,
     Union,
 )
 
@@ -34,7 +36,7 @@ from snakecore.constants import (
     JobStatus,
     JobStopReasons,
 )
-from snakecore.constants.enums import JobVerbs
+from snakecore.constants.enums import JobOps
 from snakecore.exceptions import JobStateError
 from snakecore import utils
 from snakecore import events
@@ -44,7 +46,7 @@ from snakecore.constants import (
     _UnsetType,
     NoneType,
 )
-from snakecore.jobs.loops import CustomLoop
+from snakecore.jobs.loops import JobLoop
 
 _JOB_CLASS_MAP = {}
 # A dictionary of all Job subclasses that were created.
@@ -63,10 +65,10 @@ def get_job_class_from_runtime_identifier(
 
     if name in _JOB_CLASS_MAP:
         if timestamp_str in _JOB_CLASS_MAP[name]:
-            return _JOB_CLASS_MAP[name][timestamp_str]["class"]
+            return _JOB_CLASS_MAP[name][timestamp_str]
         elif closest_match:
             for ts_str in _JOB_CLASS_MAP[name]:
-                return _JOB_CLASS_MAP[name][ts_str]["class"]
+                return _JOB_CLASS_MAP[name][ts_str]
 
     if default is UNSET:
         raise LookupError(
@@ -108,14 +110,14 @@ def get_job_class_uuid(
           fails to produce the desired output. If omitted, exceptions will be
           raised.
 
+    Returns:
+        str: The string identifier.
+
     Raises:
         TypeError: 'cls' does not inherit from a job base class.
         LookupError: The given job class does not exist in the job class registry.
           This exception should not occur if job classes inherit their base classes
           correctly.
-
-    Returns:
-        str: The string identifier.
     """
 
     if not issubclass(cls, JobBase):
@@ -163,14 +165,14 @@ def get_job_class_runtime_identifier(
           fails to produce the desired output. If omitted, exceptions will be
           raised.
 
+    Returns:
+        str: The string identifier.
+ 
     Raises:
         TypeError: 'cls' does not inherit from a job base class.
         LookupError: The given job class does not exist in the job class registry.
           This exception should not occur if job classes inherit their base classes
           correctly.
-
-    Returns:
-        str: The string identifier.
     """
 
     if not issubclass(cls, JobBase):
@@ -200,63 +202,8 @@ def get_job_class_runtime_identifier(
 
     if name in _JOB_CLASS_MAP:
         if timestamp_str in _JOB_CLASS_MAP[name]:
-            if _JOB_CLASS_MAP[name][timestamp_str]["class"] is cls:
+            if _JOB_CLASS_MAP[name][timestamp_str] is cls:
                 return class_runtime_identifier
-            else:
-                if default is UNSET:
-                    raise ValueError(
-                        f"The given job class has the incorrect identifier"
-                    )
-        else:
-            if default is UNSET:
-                ValueError(
-                    f"The given job class is registered under "
-                    "a different identifier in the job class registry"
-                )
-
-    if default is UNSET:
-        raise LookupError(
-            f"The given job class does not exist in the job class registry"
-        )
-
-    return default
-
-
-def get_job_class_permission_level(
-    cls: Type["JobBase"],
-    default: Any = UNSET,
-    /,
-) -> "JobPermissionLevels":
-
-    if not issubclass(cls, JobBase):
-        if default is UNSET:
-            raise TypeError(
-                "argument 'cls' must be a subclass of a managed job base class"
-            )
-        return default
-
-    try:
-        class_runtime_identifier = cls._RUNTIME_IDENTIFIER
-    except AttributeError:
-        if default is UNSET:
-            raise TypeError(
-                "argument 'cls' must be a subclass of a managed job base class"
-            ) from None
-        return default
-
-    try:
-        name, timestamp_str = class_runtime_identifier.split("-")
-    except (ValueError, AttributeError):
-        if default is UNSET:
-            raise ValueError(
-                "invalid identifier found in the given job class"
-            ) from None
-        return default
-
-    if name in _JOB_CLASS_MAP:
-        if timestamp_str in _JOB_CLASS_MAP[name]:
-            if _JOB_CLASS_MAP[name][timestamp_str]["class"] is cls:
-                return _JOB_CLASS_MAP[name][timestamp_str]["permission_level"]
             else:
                 if default is UNSET:
                     raise ValueError(
@@ -324,30 +271,13 @@ def singletonjob(cls: Optional[Type["JobBase"]] = None, disabled: bool = False):
     return inner_deco
 
 
-def _sysjob(cls: Type["JobBase"]) -> Type["JobBase"]:
-    if issubclass(cls, JobBase):
-        _SystemLevelMixinJobBase.register(cls)
-
-        name, created_timestamp_ns_str = cls._RUNTIME_IDENTIFIER.split("-")
-
-        if name not in _JOB_CLASS_MAP:
-            _JOB_CLASS_MAP[name] = {}
-
-        _JOB_CLASS_MAP[name][created_timestamp_ns_str] = {
-            "class": cls,
-            "permission_level": JobPermissionLevels.SYSTEM,
-        }
-
-        cls._PERMISSION_LEVEL = JobPermissionLevels.SYSTEM
-
-    return cls
-
+_MethT = TypeVar("_MethT", bound=Callable[["ManagedJobBase", Any], Any])
 
 def publicjobmethod(
-    func: Optional[Callable[[Any], Any]] = None,
+    func: Optional[_MethT] = None,
     is_async: Optional[bool] = None,
     disabled: bool = False,
-) -> Callable[[Any], Any]:
+) -> _MethT:
     """A special decorator to expose a managed job class method as public to other managed
     job objects. Can be used as a decorator function with or without extra arguments.
 
@@ -363,7 +293,7 @@ def publicjobmethod(
 
     """
 
-    def inner_deco(func: Callable[[Any], Any]):
+    def inner_deco(func: _MethT) -> _MethT:
         if isinstance(func, FunctionType):
             func.__public = True
             func.__disabled = bool(disabled)
@@ -393,7 +323,7 @@ class _JobBase:
         "_created_at_ts",
         "_runtime_identifier",
         "_data",
-        "_task_loop",
+        "_job_loop",
         "_on_start_exception",
         "_on_run_exception",
         "_on_stop_exception",
@@ -436,10 +366,7 @@ class _JobBase:
         if name not in _JOB_CLASS_MAP:
             _JOB_CLASS_MAP[name] = {}
 
-        _JOB_CLASS_MAP[name][created_timestamp_ns_str] = {
-            "class": cls,
-            "permission_level": JobPermissionLevels.MEDIUM,
-        }
+        _JOB_CLASS_MAP[name][created_timestamp_ns_str] = cls
 
         if class_uuid is not None:
             if not isinstance(class_uuid, str):
@@ -474,7 +401,7 @@ class _JobBase:
 
         self._loop_count: int = 0
 
-        self._task_loop: Optional[CustomLoop] = None
+        self._job_loop: Optional[JobLoop] = None
 
         self._on_start_exception: Optional[Exception] = None
         self._on_run_exception: Optional[Exception] = None
@@ -791,7 +718,7 @@ class _JobBase:
             or self._on_stop_exception
         ):
             return JobStopReasons.Internal.ERROR
-        elif self._task_loop.current_loop == self._count:
+        elif self._job_loop.current_loop == self._count:
             return JobStopReasons.Internal.EXECUTION_COUNT_LIMIT
         elif self._stop_by_self:
             if self._told_to_restart:
@@ -810,14 +737,14 @@ class _JobBase:
         Args:
             *exception_types: The exception types to add.
         """
-        self._task_loop.add_exception_type(*exception_types)
+        self._job_loop.add_exception_type(*exception_types)
 
     def remove_from_exception_whitelist(self, *exception_types):
         """Remove exceptions from the exception whitelist for reconnection.
         Args:
             *exception_types: The exception types to remove.
         """
-        self._task_loop.remove_exception_type(*exception_types)
+        self._job_loop.remove_exception_type(*exception_types)
 
     def clear_exception_whitelist(self, keep_default=True):
         """Clear all the exceptions whitelisted for reconnection.
@@ -827,9 +754,9 @@ class _JobBase:
             in the whitelist. Defaults to True.
 
         """
-        self._task_loop.clear_exception_types()
+        self._job_loop.clear_exception_types()
         if keep_default:
-            self._task_loop.add_exception_type(*DEFAULT_JOB_EXCEPTION_WHITELIST)
+            self._job_loop.add_exception_type(*DEFAULT_JOB_EXCEPTION_WHITELIST)
 
     def get_last_stopping_reason(
         self,
@@ -888,7 +815,7 @@ class _JobBase:
 
     def _START(self) -> bool:
         if not self.is_running():
-            self._task_loop.start()
+            self._job_loop.start()
             return True
 
         return False
@@ -909,7 +836,7 @@ class _JobBase:
             bool: Whether the call was successful.
         """
 
-        task = self._task_loop.get_task()
+        task = self._job_loop.get_task()
 
         if not (
             self._told_to_stop
@@ -921,12 +848,12 @@ class _JobBase:
             self._stop_by_self = True
             if force or self._is_idling:  # forceful stopping is necessary when idling
                 self._stop_by_force = True
-                self._task_loop.cancel()
+                self._job_loop.cancel()
             else:
                 self._skip_on_run = True
                 # graceful stopping doesn't
                 # skip `on_run()` when called in `on_start()`
-                self._task_loop.stop()
+                self._job_loop.stop()
 
             self._told_to_stop = True
             return True
@@ -958,7 +885,7 @@ class _JobBase:
             bool: Whether the call was successful.
         """
 
-        task = self._task_loop.get_task()
+        task = self._job_loop.get_task()
         if (
             not self._told_to_restart
             and not self._stop_by_force
@@ -983,7 +910,7 @@ class _JobBase:
         """DO NOT CALL THIS METHOD MANUALLY.
         See `RESTART()`.
         """
-        task = self._task_loop.get_task()
+        task = self._job_loop.get_task()
         if (
             not self._told_to_restart
             and not self._stop_by_force
@@ -1051,7 +978,7 @@ class _JobBase:
         Returns:
             bool: True/False
         """
-        return self.initialized() and self._task_loop.is_running() and not self._stopped
+        return self.initialized() and self._job_loop.is_running() and not self._stopped
 
     def running_since(self) -> Optional[datetime.datetime]:
         """The last time at which this job object started running, if available.
@@ -1113,7 +1040,7 @@ class _JobBase:
         Returns:
             bool: True/False
         """
-        return self._task_loop.failed()
+        return self._job_loop.failed()
 
     def is_restarting(self) -> bool:
         """Whether this job is restarting.
@@ -1146,12 +1073,12 @@ class _JobBase:
         Args:
             timeout (float, optional): Timeout for awaiting. Defaults to None.
 
+        Returns:
+            Coroutine: A coroutine that evaluates to `JobStatus.STOPPED`.
+
         Raises:
             JobStateError: This job object is not running.
             asyncio.TimeoutError: The timeout was exceeded.
-
-        Returns:
-            Coroutine: A coroutine that evaluates to `JobStatus.STOPPED`.
         """
 
         if not self.is_running():
@@ -1204,6 +1131,15 @@ class _JobBase:
 
         return output_str
 
+    def __str__(self):
+        output_str = (
+            f"<{self.__class__.__qualname__} " +
+            f"(id={self._runtime_identifier} ctd={self.created_at} " +
+            f"stat={self.status().name})>"
+        )
+
+        return output_str
+
 
 class JobBase(_JobBase):
     """The base class of all job objects that run in a job manager,
@@ -1252,45 +1188,10 @@ class JobBase(_JobBase):
     def __init_subclass__(
         cls,
         class_uuid: Optional[str] = None,
-        permission_level: Optional[JobPermissionLevels] = None,
     ):
         super().__init_subclass__(class_uuid=class_uuid)
 
-        is_system_job = issubclass(cls, _SystemLevelMixinJobBase)
-
-        if is_system_job:
-            permission_level = JobPermissionLevels.SYSTEM
-
         name = cls.__qualname__
-        created_timestamp_ns_str = f"{int(cls._CREATED_AT.timestamp()*1_000_000_000)}"
-
-        if permission_level is not None:
-            if isinstance(permission_level, JobPermissionLevels):
-                if (
-                    JobPermissionLevels.LOWEST
-                    <= permission_level
-                    <= JobPermissionLevels.HIGHEST
-                ) or (is_system_job and permission_level is JobPermissionLevels.SYSTEM):
-                    cls._PERMISSION_LEVEL = permission_level
-                else:
-                    raise ValueError(
-                        "argument 'permission_level' must be a usable permission "
-                        "level from the 'JobPermissionLevels' enum"
-                    )
-            else:
-                raise TypeError(
-                    "argument 'permission_level' must be a usable permission "
-                    "level from the 'JobPermissionLevels' enum"
-                )
-
-        else:
-            permission_level = cls._PERMISSION_LEVEL = get_job_class_permission_level(
-                cls.__mro__[1], JobPermissionLevels.MEDIUM
-            )
-
-        _JOB_CLASS_MAP[name][created_timestamp_ns_str][
-            "permission_level"
-        ] = permission_level
 
         if isinstance(cls.OutputFields, type):
             if not issubclass(cls.OutputFields, groupings.OutputNameRecord):
@@ -1423,19 +1324,8 @@ class JobBase(_JobBase):
         self._proxy: "proxies.JobProxy" = proxies.JobProxy(self)
 
     @property
-    def permission_level(self):
-        return self.__class__._PERMISSION_LEVEL
-
-    @classmethod
-    def get_class_permission_level(cls) -> JobPermissionLevels:
-        """Get the permission level of this job class.
-        This permission level applies to all of its
-        job instances.
-
-        Returns:
-            JobPermissionLevels: The permission level.
-        """
-        return cls._PERMISSION_LEVEL
+    def permission_level(self) -> JobPermissionLevels:
+        return self._manager.get_job_class_permission_level(self.__class__)
 
     @property
     def registered_at(self) -> Optional[datetime.datetime]:
@@ -1710,7 +1600,7 @@ class JobBase(_JobBase):
             or self._on_stop_exception
         ):
             return JobStopReasons.Internal.ERROR
-        elif self._task_loop.current_loop == self._count:
+        elif self._job_loop.current_loop == self._count:
             return JobStopReasons.Internal.EXECUTION_COUNT_LIMIT
         elif self._stop_by_self:
             if self._told_to_restart:
@@ -1743,7 +1633,7 @@ class JobBase(_JobBase):
         return False
 
     def RESTART(self) -> bool:
-        task = self._task_loop.get_task()
+        task = self._job_loop.get_task()
         if (
             not self._told_to_restart
             and not self._told_to_be_killed
@@ -1767,7 +1657,7 @@ class JobBase(_JobBase):
         return False
 
     def _RESTART_EXTERNAL(self) -> bool:
-        task = self._task_loop.get_task()
+        task = self._job_loop.get_task()
         if (
             not self._told_to_restart
             and not self._told_to_be_killed
@@ -1918,7 +1808,7 @@ class JobBase(_JobBase):
         Returns:
             bool: True/False
         """
-        return self.alive() and self._task_loop.is_running() and not self._stopped
+        return self.alive() and self._job_loop.is_running() and not self._stopped
 
     def killed(self) -> bool:
         """Whether this job was killed."""
@@ -2013,13 +1903,13 @@ class JobBase(_JobBase):
         Args:
             timeout (float, optional): Timeout for awaiting. Defaults to None.
 
-        Raises:
-            JobStateError: This job object is not running.
-            asyncio.TimeoutError: The timeout was exceeded.
-
         Returns:
             Coroutine: A coroutine that evaluates to either `STOPPED`,
               `KILLED` or `COMPLETED` from the `JobStatus` enum.
+
+        Raises:
+            JobStateError: This job object is not running.
+            asyncio.TimeoutError: The timeout was exceeded.
         """
 
         if not self.is_running():
@@ -2047,14 +1937,14 @@ class JobBase(_JobBase):
         Args:
             timeout (float, optional): Timeout for awaiting. Defaults to None.
 
+        Returns:
+            Coroutine: A coroutine that evaluates to either `KILLED`
+              or `COMPLETED` from the `JobStatus` enum.
+
         Raises:
             JobStateError: This job object is already done or not alive.
             asyncio.TimeoutError: The timeout was exceeded.
             asyncio.CancelledError: The job was killed.
-
-        Returns:
-            Coroutine: A coroutine that evaluates to either `KILLED`
-              or `COMPLETED` from the `JobStatus` enum.
         """
         if self.done():
             raise JobStateError("this job object is already done and not alive.")
@@ -2077,14 +1967,14 @@ class JobBase(_JobBase):
             timeout (float, optional):
                 Timeout for awaiting. Defaults to None.
 
+        Returns:
+            Coroutine: A coroutine that evaluates to `True`.
+
         Raises:
             JobStateError: This job object is already done or not alive,
               or isn't being guarded.
             asyncio.TimeoutError: The timeout was exceeded.
             asyncio.CancelledError: The job was killed.
-
-        Returns:
-            Coroutine: A coroutine that evaluates to `True`.
         """
 
         if not self.alive():
@@ -2108,14 +1998,14 @@ class JobBase(_JobBase):
         """Get a job output queue proxy object for more convenient
         reading of job output queues while this job is running.
 
+        Returns:
+            JobOutputQueueProxy: The output queue proxy.
+
         Raises:
             JobStateError: This job object is already done or not alive,
               or isn't being guarded.
             TypeError: Output queues aren't
               defined for this job type.
-
-        Returns:
-            JobOutputQueueProxy: The output queue proxy.
         """
 
         if not self.alive():
@@ -2143,14 +2033,14 @@ class JobBase(_JobBase):
             raise_exceptions (bool, optional): Whether exceptions
               should be raised. Defaults to False.
 
+        Returns:
+            bool: True/False
+
         Raises:
             TypeError: Output fields aren't supported for this job,
               or `field_name` is not a string.
               ValueError: The specified field name was marked as disabled.
             LookupError: The specified field name is not defined by this job.
-
-        Returns:
-            bool: True/False
         """
 
         if cls.OutputFields is None:
@@ -2201,14 +2091,14 @@ class JobBase(_JobBase):
             raise_exceptions (bool, optional): Whether exceptions should be
               raised. Defaults to False.
 
+        Returns:
+            bool: True/False
+
         Raises:
             TypeError: Output queues aren't supported for this job,
               or `queue_name` is not a string.
             ValueError: The specified queue name was marked as disabled.
             LookupError: The specified queue name is not defined by this job.
-
-        Returns:
-            bool: True/False
         """
         if cls.OutputQueues is None:
             if raise_exceptions:
@@ -2321,14 +2211,14 @@ class JobBase(_JobBase):
               Defaults to `UNSET`, which will
               trigger an exception.
 
+        Returns:
+            object: The output field value.
+
         Raises:
             TypeError: Output fields aren't supported for this job,
               or `field_name` is not a string.
             LookupError: The specified field name is not defined by this job.
             JobStateError: An output field value is not set.
-
-        Returns:
-            object: The output field value.
         """
 
         if self.OutputFields is None:
@@ -2374,13 +2264,13 @@ class JobBase(_JobBase):
               Defaults to `UNSET`, which will
               trigger an exception.
 
+        Returns:
+            list: A list of values.
+
         Raises:
             TypeError: Output queues aren't supported for this job,
               or `queue_name` is not a string.
             LookupError: The specified queue name is not defined by this job.
-
-        Returns:
-            list: A list of values.
         """
 
         self.verify_output_queue_support(queue_name, raise_exceptions=True)
@@ -2490,13 +2380,13 @@ class JobBase(_JobBase):
         Args:
             field_name (str): The name of the target output field.
 
+        Returns:
+            bool: True/False
+
         Raises:
             TypeError: Output fields aren't supported for this job,
               or `field_name` is not a string.
             LookupError: The specified field name is not defined by this job.
-
-        Returns:
-            bool: True/False
         """
 
         self.verify_output_field_support(field_name, raise_exceptions=True)
@@ -2511,13 +2401,13 @@ class JobBase(_JobBase):
         Args:
             queue_name (str): The name of the target output queue.
 
+        Returns:
+            bool: True/False
+
         Raises:
             TypeError: Output queues aren't supported for this job,
               or `queue_name` is not a string.
             LookupError: The specified queue name is not defined by this job.
-
-        Returns:
-            bool: True/False
         """
 
         self.verify_output_queue_support(queue_name, raise_exceptions=True)
@@ -2538,6 +2428,10 @@ class JobBase(_JobBase):
             timeout (float, optional): The maximum amount of
               time to wait in seconds. Defaults to None.
 
+        Returns:
+            Coroutine: A coroutine that evaluates to the value of specified
+              output field.
+
         Raises:
             TypeError: Output fields aren't supported for this job,
               or `field_name` is not a string.
@@ -2545,10 +2439,6 @@ class JobBase(_JobBase):
             JobStateError: This job object is already done.
             asyncio.TimeoutError: The timeout was exceeded.
             asyncio.CancelledError: The job was killed.
-
-        Returns:
-            Coroutine: A coroutine that evaluates to the value of specified
-              output field.
         """
 
         self.verify_output_field_support(field_name, raise_exceptions=True)
@@ -2593,6 +2483,12 @@ class JobBase(_JobBase):
               `JobStatus.OUTPUT_QUEUE_CLEARED` will be the result of the coroutine.
               Defaults to False.
 
+        Returns:
+            Coroutine: A coroutine that evaluates to the most recent output
+              queue value, or `JobStatus.OUTPUT_QUEUE_CLEARED` if the queue
+              is cleared, `JobStatus.KILLED` if this job was killed and
+              `JobStatus.COMPLETED` if this job is completed.
+
         Raises:
             TypeError: Output fields aren't supported for this job,
               or `field_name` is not a string.
@@ -2601,12 +2497,6 @@ class JobBase(_JobBase):
             asyncio.TimeoutError: The timeout was exceeded.
             asyncio.CancelledError: The job was killed, or the output queue
               was cleared.
-
-        Returns:
-            Coroutine: A coroutine that evaluates to the most recent output
-              queue value, or `JobStatus.OUTPUT_QUEUE_CLEARED` if the queue
-              is cleared, `JobStatus.KILLED` if this job was killed and
-              `JobStatus.COMPLETED` if this job is completed.
         """
 
         self.verify_output_queue_support(queue_name, raise_exceptions=True)
@@ -2637,14 +2527,14 @@ class JobBase(_JobBase):
             raise_exceptions (bool, optional): Whether exceptions
               should be raised. Defaults to False.
 
+        Returns:
+            bool: True/False
+
         Raises:
             TypeError: Output fields aren't supported for this job,
               or `field_name` is not a string.
             LookupError: No public method under the specified name is defined by this
               job.
-
-        Returns:
-            bool: True/False
         """
 
         if cls.PUBLIC_METHODS_CHAINMAP is None:
@@ -2728,10 +2618,12 @@ class JobBase(_JobBase):
 
     def run_public_method(self, method_name, *args, **kwargs) -> Any:
         """Run a public method under the specified name and return the
-        result.
+        result. Raise a LookupError if not found.
 
         Args:
             method_name (str): The name of the target method.
+            *args (Any): The positional method arguments.
+            **kwargs (Any): The keyword method arguments.
 
         Returns:
             object: The result of the call.
@@ -2784,9 +2676,12 @@ class JobBase(_JobBase):
 
     def __str__(self):
         output_str = (
-            f"<{self.__class__.__qualname__} "
-            f"(id={self._runtime_identifier} ctd={self.created_at} "
-            f"perm={self._PERMISSION_LEVEL.name} "
+            f"<{self.__class__.__qualname__} " +
+            f"(id={self._runtime_identifier} ctd={self.created_at} " +
+            (
+                f"perm={self._manager.get_job_class_permission_level(self.__class__).name} "
+                if self.alive() else ""
+            ) +
             f"stat={self.status().name})>"
         )
 
@@ -2835,8 +2730,9 @@ class ManagedJobBase(JobBase):
         self._time = self.DEFAULT_TIME if time is UNSET else time
 
         self._loop_count = 0
-        self._task_loop = CustomLoop(
+        self._job_loop = JobLoop(
             self._on_run,
+            self,
             seconds=self._interval_secs,
             hours=0,
             minutes=0,
@@ -2845,9 +2741,9 @@ class ManagedJobBase(JobBase):
             reconnect=self._reconnect,
         )
 
-        self._task_loop.before_loop(self._on_start)
-        self._task_loop.after_loop(self._on_stop)
-        self._task_loop.error(self._on_run_error)
+        self._job_loop.before_loop(self._on_start)
+        self._job_loop.after_loop(self._on_stop)
+        self._job_loop.error(self._on_run_error)
 
     def next_iteration(self):
         """When the next iteration of `.on_run()` will occur.
@@ -2857,7 +2753,7 @@ class ManagedJobBase(JobBase):
             Optional[datetime.datetime]: The time at which
               the next iteration will occur, if available.
         """
-        return self._task_loop.next_iteration()
+        return self._job_loop.next_iteration()
 
     def get_interval(self):
         """Returns a tuple of the seconds, minutes and hours at which this job
@@ -2866,7 +2762,7 @@ class ManagedJobBase(JobBase):
         Returns:
             tuple: `(seconds, minutes, hours)`
         """
-        return self._task_loop.seconds, self._task_loop.minutes, self._task_loop.hours
+        return self._job_loop.seconds, self._job_loop.minutes, self._job_loop.hours
 
     def change_interval(
         self,
@@ -2886,7 +2782,7 @@ class ManagedJobBase(JobBase):
             time (Union[datetime.time, Sequence[datetime.time]], optional):
               Defaults to 0.
         """
-        self._task_loop.change_interval(
+        self._job_loop.change_interval(
             seconds=seconds,
             minutes=minutes,
             hours=hours,
@@ -3007,7 +2903,7 @@ class EventJobMixin(JobBase):
         return self._event_queue
 
     def _add_event(self, event: events.BaseEvent):
-        is_running = self._task_loop.is_running() and not self._stopped
+        is_running = self._job_loop.is_running() and not self._stopped
         if (
             not self._allow_dispatch
             or (self._block_events_on_stop and self._is_stopping)
@@ -3024,7 +2920,7 @@ class EventJobMixin(JobBase):
         self._event_queue.appendleft(event)
 
         if not is_running and self._start_on_dispatch:
-            self._task_loop.start()
+            self._job_loop.start()
 
         elif self._event_queue_futures:
             for fut in self._event_queue_futures:
@@ -3093,7 +2989,6 @@ class EventJobMixin(JobBase):
 
 
 @singletonjob
-@_sysjob
 class JobManagerJob(ManagedJobBase):
     """A singleton managed job that represents the job manager. Its very high permission
     level and internal protections prevents it from being instantiated

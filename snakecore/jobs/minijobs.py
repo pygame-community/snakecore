@@ -15,7 +15,7 @@ from snakecore.constants import UNSET, _UnsetType, NoneType
 from snakecore.exceptions import JobStateError
 
 from snakecore.jobs.jobs import _JobBase
-from snakecore.jobs.loops import CustomLoop
+from snakecore.jobs.loops import JobLoop
 
 
 class MiniJobBase(_JobBase):
@@ -72,8 +72,9 @@ class MiniJobBase(_JobBase):
         self._time = self.DEFAULT_TIME if time is UNSET else time
 
         self._loop_count = 0
-        self._task_loop = CustomLoop(
+        self._job_loop = JobLoop(
             self._on_run,
+            self,
             seconds=self._interval_secs,
             hours=0,
             minutes=0,
@@ -84,9 +85,9 @@ class MiniJobBase(_JobBase):
 
         self._external_data = self.DATA_NAMESPACE_CLASS()
 
-        self._task_loop.before_loop(self._on_start)
-        self._task_loop.after_loop(self._on_stop)
-        self._task_loop.error(self._on_run_error)
+        self._job_loop.before_loop(self._on_start)
+        self._job_loop.after_loop(self._on_stop)
+        self._job_loop.error(self._on_run_error)
 
     @property
     def external_data(self):
@@ -103,7 +104,7 @@ class MiniJobBase(_JobBase):
             Optional[datetime.datetime]: The time at which
               the next iteration will occur, if available.
         """
-        return self._task_loop.next_iteration()
+        return self._job_loop.next_iteration()
 
     def get_interval(self):
         """Returns a tuple of the seconds, minutes and hours at which this job
@@ -112,7 +113,7 @@ class MiniJobBase(_JobBase):
         Returns:
             tuple: `(seconds, minutes, hours)`
         """
-        return self._task_loop.seconds, self._task_loop.minutes, self._task_loop.hours
+        return self._job_loop.seconds, self._job_loop.minutes, self._job_loop.hours
 
     def change_interval(
         self,
@@ -132,7 +133,7 @@ class MiniJobBase(_JobBase):
             time (Union[datetime.time, Sequence[datetime.time]], optional):
               Defaults to 0.
         """
-        self._task_loop.change_interval(
+        self._job_loop.change_interval(
             seconds=seconds,
             minutes=minutes,
             hours=hours,

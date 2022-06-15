@@ -21,6 +21,7 @@ from snakecore.exceptions import JobException
 from snakecore.jobs import groupings, proxies
 from snakecore.jobs.jobs import ManagedJobBase
 from snakecore.utils import serializers
+from snakecore.utils import DequeProxy
 
 from . import messaging
 
@@ -97,7 +98,6 @@ class EventJobBase(jobs.ManagedJobBase, jobs.EventJobMixin):
     def __init_subclass__(
         cls,
         class_uuid: Optional[str] = None,
-        permission_level: Optional[JobPermissionLevels] = None,
     ):
         if not cls.EVENTS:
             raise TypeError("the 'EVENTS' class attribute must not be empty")
@@ -115,7 +115,6 @@ class EventJobBase(jobs.ManagedJobBase, jobs.EventJobMixin):
 
         super().__init_subclass__(
             class_uuid=class_uuid,
-            permission_level=permission_level,
         )
 
     def __init__(
@@ -251,6 +250,10 @@ class EventJobBase(jobs.ManagedJobBase, jobs.EventJobMixin):
         self._stopping_by_empty_queue = False
         self._stopping_by_event_timeout = False
 
+    @property
+    def event_queue(self) -> DequeProxy:
+        return DequeProxy(self._event_queue)
+
     async def _on_start(self):
         if self._clear_events_at_startup:
             self._event_queue.clear()
@@ -348,7 +351,7 @@ class EventJobBase(jobs.ManagedJobBase, jobs.EventJobMixin):
         elif self._stopping_by_event_timeout:
             return JobStopReasons.Internal.EVENT_TIMEOUT
 
-        elif self._task_loop.current_loop == self._count:
+        elif self._job_loop.current_loop == self._count:
             return JobStopReasons.Internal.EXECUTION_COUNT_LIMIT
         elif self._stop_by_self:
             if self._told_to_restart:
@@ -368,6 +371,65 @@ class EventJobBase(jobs.ManagedJobBase, jobs.EventJobMixin):
                 return JobStopReasons.External.UNKNOWN
 
 
+class GenericManagedJob(jobs.ManagedJobBase):
+
+    __slots__ = (
+        "_on_init_func",
+        "_on_start_func",
+        "_on_run_func",
+        "_on_stop_func",
+        "_on_start_error_func",
+        "_on_run_error_func",
+        "_on_stop_error_func",
+    )
+
+    def __init__(
+        self,
+        on_init: Optional[Callable[[jobs.ManagedJobBase], Coroutine[Any, Any, None]]] = None,
+        on_start: Optional[Callable[[jobs.ManagedJobBase], Coroutine[Any, Any, None]]] = None,
+        on_start_error: Optional[Callable[[jobs.ManagedJobBase], Coroutine[Any, Any, None]]] = None,
+        on_run: Optional[Callable[[jobs.ManagedJobBase], Coroutine[Any, Any, None]]] = None,
+        on_run_error: Optional[Callable[[jobs.ManagedJobBase], Coroutine[Any, Any, None]]] = None,
+        on_stop: Optional[Callable[[jobs.ManagedJobBase], Coroutine[Any, Any, None]]] = None,
+        on_stop_error: Optional[Callable[[jobs.ManagedJobBase], Coroutine[Any, Any, None]]] = None,
+        interval: Union[datetime.timedelta, _UnsetType] = UNSET,
+        time: Union[datetime.time, Sequence[datetime.time], _UnsetType] = UNSET,
+        count: Union[int, NoneType, _UnsetType] = UNSET,
+        reconnect: Union[bool, _UnsetType] = UNSET,
+    ):
+        supercls = ManagedJobBase
+        supercls.__init__(interval, time, count, reconnect)
+        self._on_init_func = on_init or supercls.on_init
+        self._on_start_func = on_start or supercls.on_start
+        self._on_start_error_func = on_start_error or supercls.on_start_error
+        self._on_run_func = on_run or supercls.on_run
+        self._on_run_error_func = on_run_error or supercls.on_run_error
+        self._on_stop_func = on_stop or supercls.on_stop
+        self._on_stop_error_func = on_stop_error or supercls.on_stop_error
+
+    
+    async def on_init(self):
+        return await self._on_init_func(self)
+
+    async def on_start(self):
+        return await self._on_start_func(self)
+
+    async def on_start_error(self):
+        return await self._on_start_error_func(self)
+
+    async def on_run(self):
+        return await self._on_run_func(self)
+
+    async def on_run_error(self):
+        return await self._on_run_error_func(self)
+
+    async def on_stop(self):
+        return await self._on_stop_func(self)
+
+    async def on_stop_error(self):
+        return await self._on_stop_error_func(self)
+
+
 class SingleRunJob(jobs.ManagedJobBase):
     """A subclass of `ManagedJobBase` whose subclasses's
     job objects will only run once and then complete themselves.
@@ -381,7 +443,7 @@ class SingleRunJob(jobs.ManagedJobBase):
         self.COMPLETE()
 
 
-class RegisterDelayedJobGroup(groupings.JobGroup):
+class RegisterDelayedJob(jobs.ManagedJobBase):
     """A group of jobs that add a given set of job proxies
     to their `JobManager` after a given period
     of time in seconds.
@@ -392,110 +454,86 @@ class RegisterDelayedJobGroup(groupings.JobGroup):
         first one and the failed proxies in the second.
     """
 
-    class _RegisterDelayedJob(jobs.ManagedJobBase):
-        class OutputFields(groupings.OutputNameRecord):
-            success_failure_tuple: str
-            """A tuple containing two tuples,
-            with the successfully registered job proxies in the
-            first one and the failed proxies in the second.
-            """
+    class OutputFields(groupings.OutputNameRecord):
+        success_failure_tuple: str
+        """A tuple containing two tuples,
+        with the successfully registered job proxies in the
+        first one and the failed proxies in the second.
+        """
 
-        class OutputQueues(groupings.OutputNameRecord):
-            successes: str
-            failures: str
+    class OutputQueues(groupings.OutputNameRecord):
+        successes: str
+        failures: str
 
-        class PublicMethods(groupings.NameRecord):
-            get_successes_async: Optional[Callable[[], Coroutine]]
-            """get successfuly scheduled jobs"""
+    class PublicMethods(groupings.NameRecord):
+        get_successes_async: Optional[Callable[[], Coroutine]]
+        """get successfuly scheduled jobs"""
 
-        DEFAULT_COUNT = 1
+    DEFAULT_COUNT = 1
 
-        def __init__(self, delay: float, *job_proxies: proxies.JobProxy, **kwargs):
-            """Create a new instance.
+    def __init__(self, delay: float, *job_proxies: proxies.JobProxy, **kwargs):
+        """Create a new instance.
 
-            Args:
-                delay (float): The delay for the input jobs in seconds.
-                *job_proxies Union[ClientEventJob, ManagedJobBase]: The jobs to be delayed.
-            """
-            super().__init__(**kwargs)
-            self.data.delay = delay
-            self.data.jobs = deque(job_proxies)
-            self.data.success_jobs = []
-            self.data.success_futures = []
-            self.data.failure_jobs = []
+        Args:
+            delay (float): The delay for the input jobs in seconds.
+            *job_proxies Union[ClientEventJob, ManagedJobBase]: The jobs to be delayed.
+        """
+        super().__init__(**kwargs)
+        self.data.delay = delay
+        self.data.jobs = deque(job_proxies)
+        self.data.success_jobs = []
+        self.data.success_futures = []
+        self.data.failure_jobs = []
 
-        async def on_run(self):
-            await asyncio.sleep(self.data.delay)
-            while self.data.jobs:
-                job_proxy = self.data.jobs.popleft()
-                try:
-                    await self.manager.register_job(job_proxy)
-                except (
-                    ValueError,
-                    TypeError,
-                    LookupError,
-                    JobException,
-                    AssertionError,
-                    discord.DiscordException,
-                ):
-                    self.data.failure_jobs.append(job_proxy)
-                    self.push_output_queue("failures", job_proxy)
-                else:
-                    self.data.success_jobs.append(job_proxy)
-                    self.push_output_queue("successes", job_proxy)
+    async def on_run(self):
+        await asyncio.sleep(self.data.delay)
+        while self.data.jobs:
+            job_proxy = self.data.jobs.popleft()
+            try:
+                await self.manager.register_job(job_proxy)
+            except (
+                ValueError,
+                TypeError,
+                LookupError,
+                JobException,
+                AssertionError,
+                discord.DiscordException,
+            ):
+                self.data.failure_jobs.append(job_proxy)
+                self.push_output_queue("failures", job_proxy)
+            else:
+                self.data.success_jobs.append(job_proxy)
+                self.push_output_queue("successes", job_proxy)
 
-            success_jobs_tuple = tuple(self.data.success_jobs)
+        success_jobs_tuple = tuple(self.data.success_jobs)
 
-            self.set_output_field(
-                "success_failure_tuple",
-                (success_jobs_tuple, tuple(self.data.failure_jobs)),
-            )
+        self.set_output_field(
+            "success_failure_tuple",
+            (success_jobs_tuple, tuple(self.data.failure_jobs)),
+        )
 
-            for fut in self.data.success_futures:
-                if not fut.cancelled():
-                    fut.set_result(success_jobs_tuple)
+        for fut in self.data.success_futures:
+            if not fut.cancelled():
+                fut.set_result(success_jobs_tuple)
 
-        @jobs.publicjobmethod(is_async=True)
-        def get_successes_async(self):
-            loop = asyncio.get_event_loop()
-            fut = loop.create_future()
-            self.data.success_futures.append(fut)
-            return asyncio.wait_for(fut, None)
+    @jobs.publicjobmethod(is_async=True)
+    def get_successes_async(self):
+        loop = asyncio.get_event_loop()
+        fut = loop.create_future()
+        self.data.success_futures.append(fut)
+        return asyncio.wait_for(fut, None)
 
-        async def on_stop(self):
-            self.COMPLETE()
-
-    class MediumPermLevel(
-        _RegisterDelayedJob,
-        class_uuid="8d2330f4-7a2a-4fd1-8144-62ca57d4799c",
-        permission_level=JobPermissionLevels.MEDIUM,
-    ):
-        pass
-
-    class HighPermLevel(
-        _RegisterDelayedJob,
-        class_uuid="129f8662-f72d-4ee3-81ea-f302a15b2cca",
-        permission_level=JobPermissionLevels.HIGH,
-    ):
-        pass
-
-    class HighestPermLevel(
-        _RegisterDelayedJob,
-        class_uuid="6b7e5a87-1727-4f4b-ae89-418f4e90f3d4",
-        permission_level=JobPermissionLevels.HIGHEST,
-    ):
-        pass
-
+    async def on_stop(self):
+        self.COMPLETE()
 
 class MethodCallJob(
     jobs.ManagedJobBase,
     class_uuid="7d2fee26-d8b9-4e93-b761-4d152d355bae",
-    permission_level=JobPermissionLevels.LOWEST,
 ):
     """A job class for calling the method of a specified name on an object given as
     argument.
 
-    Permission Level:
+    Recommended Permission Level:
         JobPermissionLevels.LOWEST
 
     Output Fields:

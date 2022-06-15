@@ -6,7 +6,7 @@ Copyright (c) 2022-present pygame-community
 This file defines some important utility functions for the library.
 """
 
-from collections import ChainMap, defaultdict
+from collections import ChainMap, defaultdict, deque
 import datetime
 import os
 import platform
@@ -755,3 +755,81 @@ def class_getattr(
         ) from None
 
     return default
+
+
+class DequeProxy:
+    __slots__ = ("__deque")
+    def __init__(self, deque_obj: deque):
+        self.__deque = deque_obj
+
+    @property
+    def maxlen(self):
+        return self.__deque.maxlen
+    
+    def __copy__(self):
+        return self.__class__(self.__deque)
+
+    copy = __copy__
+
+    def count(self, __x: Any):
+        return self.__deque.count(__x)
+
+    def index(self, __x: Any, **kwargs) -> int:
+        return self.__deque.index(__x, **kwargs)
+
+    def __len__(self):
+        return self.__deque.__len__()
+
+    def __lt__(self, __other: deque, /):
+        return self.__deque.__lt__(__other)
+
+    def __le__(self, __other: deque, /):
+        return self.__deque.__le__(__other)
+
+    def __gt__(self, __other: deque, /):
+        return self.__deque.__lt__(__other)
+
+    def __ge__(self, __other: deque, /):
+        return self.__deque.__ge__(__other)
+
+    def __eq__(self, __o: object, /) -> bool:
+        return self.__deque.__eq__(__o)
+
+    def __ne__(self, __o: object, /) -> bool:
+        return self.__deque.__ne__(__o)
+
+    def __bool__(self):
+        return self.__deque.__bool__()
+
+    def __contains__(self, __o: object):
+        return self.__deque.__contains__(__o)
+
+    def __getitem__(self, __index: int, /):
+        return self.__deque.__getitem__(__index)
+
+    def __hash__(self) -> int:
+        return self.__deque.__hash__()
+
+    def __iter__(self):
+        return self.__deque.__iter__()
+
+    def __reversed__(self):
+        return self.__deque.__reversed__()
+
+    def __add__(self, __other: deque, /):
+        return self.__deque.__add__(__other)
+
+    def __mul__(self, __other: int, /):
+        return self.__deque.__mul__(__other)
+
+    def __rmul__(self, __other: int, /):
+        return self.__deque.__rmul__(__other)
+
+    def __add__(self, __other: deque, /):
+        return self.__deque.__add__(__other)
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.__deque!r})"
+
+    def __str__(self) -> str:
+        return f"{self.__class__.__name__}({self.__deque!s})"

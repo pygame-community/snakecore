@@ -15,8 +15,7 @@ import types
 from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Type, Union
 
 from snakecore import events
-from snakecore.constants import UNSET, _UnsetType
-from snakecore.constants.enums import JobPermissionLevels
+from snakecore.constants import UNSET, _UnsetType, JobPermissionLevels, JobOps
 from snakecore.exceptions import JobStateError
 
 from . import jobs, manager
@@ -198,6 +197,7 @@ class _JobProxy:
         "__done",
         "__job_class",
         "__identifier",
+        "__permission_level",
         "_created_at",
         "_registered_at",
         "_done",
@@ -222,6 +222,7 @@ class _JobProxy:
             return
         self.__job_class = job.__class__
         self.__identifier = job._runtime_identifier
+        self.__permission_level = job.permission_level if job.alive() else None
         self._created_at = job.created_at
         self._registered_at = job.registered_at
         self._done = job.done()
@@ -250,8 +251,8 @@ class _JobProxy:
         return self.__job_class
 
     @property
-    def permission_level(self) -> JobPermissionLevels:
-        return self.__job_class._PERMISSION_LEVEL
+    def permission_level(self) -> Optional[JobPermissionLevels]:
+        return self.__j.permission_level if self.__j is not None else self.__permission_level
 
     @property
     def runtime_identifier(self) -> str:
@@ -794,7 +795,7 @@ class JobManagerProxy:
 
         Args:
             op (str): The operation. Must be one of the operations defined in the
-              `JobVerbs` class namespace.
+              `JobOps` class namespace.
             target (Optional[JobProxy], optional): The target job's proxy for an
               operation.
               Defaults to None.
@@ -822,6 +823,14 @@ class JobManagerProxy:
     def _unguard(self):
         ...
 
+    get_job_class_permission_level = manager.JobManager.get_job_class_permission_level
+
+    register_job_class = manager.JobManager.register_job_class
+
+    unregister_job_class = manager.JobManager.unregister_job_class
+
+    job_class_is_registered = manager.JobManager.job_class_is_registered
+
     create_job = manager.JobManager.create_job
 
     initialize_job = manager.JobManager.initialize_job
@@ -829,8 +838,6 @@ class JobManagerProxy:
     register_job = manager.JobManager.register_job
 
     create_and_register_job = manager.JobManager.create_and_register_job
-
-    create_register_and_start_job = manager.JobManager.create_register_and_start_job
 
     job_scheduling_is_initialized = manager.JobManager.job_scheduling_is_initialized
 
@@ -922,11 +929,15 @@ class _JobManagerProxy:  # hidden implementation to trick type-checker engines
             else self.__mgr.get_global_job_stop_timeout()
         )
 
+    def get_job_class_permission_level(self, cls: Type[jobs.ManagedJobBase], default: Any = UNSET, /) -> Union[JobPermissionLevels, Any]:
+        return self.__mgr.get_job_class_permission_level(cls, default)
+
     def verify_permissions(
         self,
         op: JobPermissionLevels,
         target: Optional[JobProxy] = None,
         target_cls: Optional[Type[jobs.ManagedJobBase]] = None,
+        register_permission_level: Optional[JobPermissionLevels] = None,
         schedule_identifier: Optional[str] = None,
         schedule_creator_identifier: Optional[str] = None,
     ) -> bool:
@@ -935,10 +946,20 @@ class _JobManagerProxy:  # hidden implementation to trick type-checker engines
             op,
             target=target if target is not None else target,
             target_cls=target_cls,
+            register_permission_level=register_permission_level,
             schedule_identifier=schedule_identifier,
             schedule_creator_identifier=schedule_creator_identifier,
             raise_exceptions=False,
         )
+
+    def register_job_class(self, cls: Type[jobs.ManagedJobBase], permission_level: JobPermissionLevels):      
+        return self.__mgr.register_job_class(cls, permission_level=permission_level, _iv=self.__j)
+
+    def unregister_job_class(self, cls: Type[jobs.ManagedJobBase]):
+        return self.__mgr.unregister_job_class(cls, _iv=self.__j)
+
+    def job_class_is_registered(self, cls: Type[jobs.ManagedJobBase]) -> bool:
+        return self.__mgr.job_class_is_registered(cls)
 
     def create_job(
         self,
@@ -965,20 +986,6 @@ class _JobManagerProxy:  # hidden implementation to trick type-checker engines
         **kwargs,
     ) -> JobProxy:
         return await self.__mgr.create_and_register_job(
-            cls,
-            *args,
-            _return_proxy=True,
-            _iv=self.__j,
-            **kwargs,
-        )
-
-    async def create_register_and_start_job(
-        self,
-        cls: Type[jobs.ManagedJobBase],
-        *args,
-        **kwargs,
-    ) -> JobProxy:
-        return await self.__mgr.create_register_and_start_job(
             cls,
             *args,
             _return_proxy=True,

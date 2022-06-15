@@ -21,7 +21,6 @@ from snakecore.utils import embed_utils, serializers
 class MessageSend(
     jobs.ManagedJobBase,
     class_uuid="87b81031-d606-4a95-b86a-2eb72b7eb7b1",
-    permission_level=JobPermissionLevels.LOWEST,
 ):
     """A job class for sending a message into a
     discord text channel.
@@ -186,7 +185,7 @@ class MessageSend(
             self.COMPLETE()
 
 
-class _MessageModify(jobs.ManagedJobBase, permission_level=JobPermissionLevels.LOWEST):
+class _MessageModify(jobs.ManagedJobBase):
     """A intermediary job class for modifying a message in a
     Discord text channel. Does not do anything on its own.
 
