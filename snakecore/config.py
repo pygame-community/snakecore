@@ -334,7 +334,7 @@ class CoreConfig(ConfigurationBase):
 
     global_client = Field(var_type=discord.Client, write_once=True)
     init_mods = Field(init_constr=dict, var_type=dict[ModuleName, bool])
-    db_channel = Field(init_val=None, var_type=Optional[discord.TextChannel])
+    db_channel = Field(init_val=None, var_type=Optional[discord.abc.Messageable])
 
 
 conf = CoreConfig()
