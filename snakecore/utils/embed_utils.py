@@ -1721,6 +1721,8 @@ async def replace_embed_from_dict_at(
             embeds[index] = create_embed_from_dict(embed_dict)
             return await message.edit(embeds=embeds)
 
+        return message
+
     return await message.edit(embed=create_embed_from_dict(embed_dict))
 
 
@@ -1756,7 +1758,7 @@ async def edit_embed_from_dict_at(
 
     index = embed_count + index if index < 0 else index
 
-    if 0 < index < len(message.embeds):
+    if 0 <= index < len(message.embeds):
         embeds[index] = discord.Embed.from_dict(
             edit_embed_dict_from_dict(
                 embeds[index].to_dict(),
