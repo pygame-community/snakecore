@@ -1714,11 +1714,12 @@ async def replace_embed_from_dict_at(
 
     embed_count = len(embeds)
 
-    index = embed_count + index if index < 0 else index
+    if index is not None:
+        index = embed_count + index if index < 0 else index
 
-    if 0 < index < len(message.embeds):
-        embeds[index] = create_embed_from_dict(embed_dict)
-        return await message.edit(embeds=embeds)
+        if 0 <= index < len(message.embeds):
+            embeds[index] = create_embed_from_dict(embed_dict)
+            return await message.edit(embeds=embeds)
 
     return await message.edit(embed=create_embed_from_dict(embed_dict))
 
