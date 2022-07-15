@@ -1721,6 +1721,8 @@ async def replace_embed_from_dict_at(
             embeds[index] = create_embed_from_dict(embed_dict)
             return await message.edit(embeds=embeds)
 
+        return message
+
     return await message.edit(embed=create_embed_from_dict(embed_dict))
 
 
