@@ -1,1 +1,1 @@
-# SnakeCore
+# snakecore

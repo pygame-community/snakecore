@@ -13,7 +13,17 @@ import platform
 import re
 import sys
 import traceback
-from typing import Any, Callable, Iterable, Optional, Sequence, Union
+from typing import (
+    Any,
+    Callable,
+    Generic,
+    Iterable,
+    MutableSequence,
+    Optional,
+    Sequence,
+    TypeVar,
+    Union,
+)
 
 import discord
 
@@ -757,15 +767,19 @@ def class_getattr(
     return default
 
 
-class DequeProxy:
-    __slots__ = ("__deque")
-    def __init__(self, deque_obj: deque):
+_T = TypeVar("_T")
+
+
+class DequeProxy(MutableSequence[_T], Generic[_T]):
+    __slots__ = "__deque"
+
+    def __init__(self, deque_obj: deque[_T]):
         self.__deque = deque_obj
 
     @property
     def maxlen(self):
         return self.__deque.maxlen
-    
+
     def __copy__(self):
         return self.__class__(self.__deque)
 

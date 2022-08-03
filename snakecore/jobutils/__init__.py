@@ -16,7 +16,11 @@ import discord
 
 from snakecore import events, jobs
 from snakecore.constants import UNSET, _UnsetType, NoneType
-from snakecore.constants.enums import JobPermissionLevels, JobStopReasons
+from snakecore.constants.enums import (
+    JobBoolFlags as JF,
+    JobPermissionLevels,
+    JobStopReasons,
+)
 from snakecore.exceptions import JobException
 from snakecore.jobs import groupings, proxies
 from snakecore.jobs.jobs import ManagedJobBase
@@ -84,15 +88,8 @@ class EventJobBase(jobs.ManagedJobBase, jobs.EventJobMixin):
     """
 
     __slots__ = (
-        "_clear_events_at_startup",
         "_oe_max_dispatches",
-        "_oe_dispatch_only_initial",
-        "_oe_await_dispatch",
         "_oe_dispatch_timeout_secs",
-        "_oe_stop_after_dispatch_timeout",
-        "_oe_stop_if_no_events",
-        "_stopping_by_event_timeout",
-        "_stopping_by_empty_queue",
     )
 
     def __init_subclass__(
@@ -153,35 +150,45 @@ class EventJobBase(jobs.ManagedJobBase, jobs.EventJobMixin):
         else:
             self._max_event_queue_size = None
 
-        self._allow_event_queue_overflow = not not (
-            self.DEFAULT_ALLOW_EVENT_QUEUE_OVERFLOW
-            if allow_event_queue_overflow is UNSET
-            else allow_event_queue_overflow
-        )
+        self._bools |= JF.ALLOW_EVENT_QUEUE_OVERFLOW * int(
+            not not (
+                self.DEFAULT_ALLOW_EVENT_QUEUE_OVERFLOW
+                if allow_event_queue_overflow is UNSET
+                else allow_event_queue_overflow
+            )
+        )  # True/False
 
-        self._block_events_on_stop = not not (
-            self.DEFAULT_BLOCK_EVENTS_ON_STOP
-            if block_events_on_stop is UNSET
-            else block_events_on_stop
-        )
+        self._bools |= JF.BLOCK_EVENTS_ON_STOP * int(
+            not not (
+                self.DEFAULT_BLOCK_EVENTS_ON_STOP
+                if block_events_on_stop is UNSET
+                else block_events_on_stop
+            )
+        )  # True/False
 
-        self._block_events_while_stopped = not not (
-            self.DEFAULT_BLOCK_EVENTS_WHILE_STOPPED
-            if block_events_while_stopped is UNSET
-            else block_events_while_stopped
-        )
+        self._bools |= JF.BLOCK_EVENTS_WHILE_STOPPED * int(
+            not not (
+                self.DEFAULT_BLOCK_EVENTS_WHILE_STOPPED
+                if block_events_while_stopped is UNSET
+                else block_events_while_stopped
+            )
+        )  # True/False
 
-        self._start_on_dispatch = not not (
-            self.DEFAULT_START_ON_DISPATCH
-            if start_on_dispatch is UNSET
-            else start_on_dispatch
-        )
+        self._bools |= JF.START_ON_DISPATCH * int(
+            not not (
+                self.DEFAULT_START_ON_DISPATCH
+                if start_on_dispatch is UNSET
+                else start_on_dispatch
+            )
+        )  # True/False
 
-        self._clear_events_at_startup = not not (
-            self.DEFAULT_CLEAR_EVENTS_AT_STARTUP
-            if clear_events_at_startup is UNSET
-            else clear_events_at_startup
-        )
+        self._bools |= JF.CLEAR_EVENTS_AT_STARTUP * int(
+            not not (
+                self.DEFAULT_CLEAR_EVENTS_AT_STARTUP
+                if clear_events_at_startup is UNSET
+                else clear_events_at_startup
+            )
+        )  # True/False
 
         oe_max_dispatches = (
             self.DEFAULT_OE_MAX_DISPATCHES
@@ -196,17 +203,21 @@ class EventJobBase(jobs.ManagedJobBase, jobs.EventJobMixin):
         else:
             self._oe_max_dispatches = None
 
-        self._oe_dispatch_only_initial = not not (
-            self.DEFAULT_OE_DISPATCH_ONLY_INITIAL
-            if oe_dispatch_only_initial is UNSET
-            else oe_dispatch_only_initial
-        )
+        self._bools |= JF.OE_DISPATCH_ONLY_INITIAL * int(
+            not not (
+                self.DEFAULT_OE_DISPATCH_ONLY_INITIAL
+                if oe_dispatch_only_initial is UNSET
+                else oe_dispatch_only_initial
+            )
+        )  # True/False
 
-        self._oe_await_dispatch = not not (
-            self.DEFAULT_OE_AWAIT_DISPATCH
-            if oe_await_dispatch is UNSET
-            else oe_await_dispatch
-        )
+        self._bools |= JF.OE_AWAIT_DISPATCH * int(
+            not not (
+                self.DEFAULT_OE_AWAIT_DISPATCH
+                if oe_await_dispatch is UNSET
+                else oe_await_dispatch
+            )
+        )  # True/False
 
         oe_dispatch_timeout = (
             self.DEFAULT_OE_DISPATCH_TIMEOUT
@@ -221,41 +232,53 @@ class EventJobBase(jobs.ManagedJobBase, jobs.EventJobMixin):
         else:
             self._oe_dispatch_timeout_secs = None
 
-        self._oe_stop_after_dispatch_timeout = not not (
-            self.DEFAULT_OE_STOP_AFTER_DISPATCH_TIMEOUT
-            if oe_stop_after_dispatch_timeout is UNSET
-            else oe_stop_after_dispatch_timeout
-        )
+        self._bools |= JF.OE_STOP_AFTER_DISPATCH_TIMEOUT * int(
+            not not (
+                self.DEFAULT_OE_STOP_AFTER_DISPATCH_TIMEOUT
+                if oe_stop_after_dispatch_timeout is UNSET
+                else oe_stop_after_dispatch_timeout
+            )
+        )  # True/False
 
-        self._oe_stop_if_no_events = not not (
-            self.DEFAULT_OE_STOP_IF_NO_EVENTS
-            if oe_stop_if_no_events is UNSET
-            else oe_stop_if_no_events
-        )
+        self._bools |= JF.OE_STOP_IF_NO_EVENTS * int(
+            not not (
+                self.DEFAULT_OE_STOP_IF_NO_EVENTS
+                if oe_stop_if_no_events is UNSET
+                else oe_stop_if_no_events
+            )
+        )  # True/False
 
-        if self._block_events_while_stopped or self._clear_events_at_startup:
-            self._start_on_dispatch = False
+        if self._bools & (
+            JF.BLOCK_EVENTS_WHILE_STOPPED | JF.CLEAR_EVENTS_AT_STARTUP
+        ):  # any
+            self._bools &= self._bools ^ JF.START_ON_DISPATCH  # False
 
-        self._allow_dispatch = True
+        self._bools |= JF.ALLOW_DISPATCH  # True
 
         if (
             self._oe_max_dispatches is not None
             and self._oe_max_dispatches > 1
-            or self._oe_dispatch_only_initial
+            or self._bools & JF.OE_DISPATCH_ONLY_INITIAL
         ):
-            self._oe_await_dispatch = False
+            self._bools &= self._bools ^ JF.OE_AWAIT_DISPATCH  # False
 
         self._event_queue = deque(maxlen=self._max_event_queue_size)
 
-        self._stopping_by_empty_queue = False
-        self._stopping_by_event_timeout = False
+        self._bools &= self._bools ^ (
+            JF.STOPPING_BY_EMPTY_QUEUE | JF.STOPPING_BY_EVENT_TIMEOUT
+        )  # False
 
     @property
     def event_queue(self) -> DequeProxy:
+        """A read-only proxy to this job's event queue.
+
+        Returns:
+            DequeProxy: The event queue proxy.
+        """
         return DequeProxy(self._event_queue)
 
     async def _on_start(self):
-        if self._clear_events_at_startup:
+        if self._bools & JF.CLEAR_EVENTS_AT_STARTUP:
             self._event_queue.clear()
 
         await super()._on_start()
@@ -274,33 +297,33 @@ class EventJobBase(jobs.ManagedJobBase, jobs.EventJobMixin):
             event = self._event_queue.pop()
         else:
             try:
-                self._is_idling = True
+                self._bools |= JF.IS_IDLING  # True
                 self._idling_since_ts = time.time()
                 event = await asyncio.wait_for(
                     self.next_event(), timeout=self._oe_dispatch_timeout_secs
                 )
-                self._is_idling = False
+                self._bools &= self._bools ^ JF.IS_IDLING  # False
                 self._idling_since_ts = None
             except asyncio.TimeoutError:
-                if self._oe_stop_after_dispatch_timeout:
-                    self._stopping_by_event_timeout = True
+                if self._bools & JF.OE_STOP_AFTER_DISPATCH_TIMEOUT:
+                    self._bools |= JF.STOPPING_BY_EVENT_TIMEOUT  # True
                     self.STOP()
 
         return event
 
     async def on_run(self):
-        if not self._event_queue and self._oe_stop_if_no_events:
-            self._stopping_by_empty_queue = True
+        if not self._event_queue and self._bools & JF.OE_STOP_IF_NO_EVENTS:
+            self._bools |= JF.STOPPING_BY_EMPTY_QUEUE  # True
             self.STOP()
             return
 
         max_dispatches = self._oe_max_dispatches
 
         if max_dispatches is None:
-            if self._oe_dispatch_only_initial:
+            if self._bools & JF.OE_DISPATCH_ONLY_INITIAL:
                 max_dispatches = len(self._event_queue)
 
-            elif self._oe_await_dispatch:
+            elif self._bools & JF.OE_AWAIT_DISPATCH:
                 while True:
                     if (event := await self._await_next_event_with_timeout()) is None:
                         return
@@ -312,7 +335,7 @@ class EventJobBase(jobs.ManagedJobBase, jobs.EventJobMixin):
 
         max_dispatches = min(len(self._event_queue), max_dispatches)
 
-        if self._oe_await_dispatch:
+        if self._bools & JF.OE_AWAIT_DISPATCH:
             for _ in range(max_dispatches):
                 if (event := await self._await_next_event_with_timeout()) is None:
                     return
@@ -331,13 +354,14 @@ class EventJobBase(jobs.ManagedJobBase, jobs.EventJobMixin):
     ):
         super()._stop_cleanup(reason=reason)
 
-        self._stopping_by_event_timeout = False
-        self._stopping_by_empty_queue = False
+        self._bools &= self._bools ^ (
+            JF.STOPPING_BY_EVENT_TIMEOUT | JF.STOPPING_BY_EMPTY_QUEUE
+        )  # False
 
     def get_stopping_reason(
         self,
     ) -> Optional[Union[JobStopReasons.Internal, JobStopReasons.External]]:
-        if not self._is_stopping:
+        if not self._bools & JF.IS_STOPPING:
             return
         elif (
             self._on_start_exception
@@ -345,27 +369,27 @@ class EventJobBase(jobs.ManagedJobBase, jobs.EventJobMixin):
             or self._on_stop_exception
         ):
             return JobStopReasons.Internal.ERROR
-        elif self._stopping_by_empty_queue:
+        elif self._bools & JF.STOPPING_BY_EMPTY_QUEUE:
             return JobStopReasons.Internal.EMPTY_EVENT_QUEUE
 
-        elif self._stopping_by_event_timeout:
+        elif self._bools & JF.STOPPING_BY_EVENT_TIMEOUT:
             return JobStopReasons.Internal.EVENT_TIMEOUT
 
         elif self._job_loop.current_loop == self._count:
             return JobStopReasons.Internal.EXECUTION_COUNT_LIMIT
-        elif self._stop_by_self:
-            if self._told_to_restart:
+        elif self._bools & JF.TOLD_TO_STOP_BY_SELF:
+            if self._bools & JF.TOLD_TO_RESTART:
                 return JobStopReasons.Internal.RESTART
-            elif self._told_to_complete:
+            elif self._bools & JF.TOLD_TO_COMPLETE:
                 return JobStopReasons.Internal.COMPLETION
-            elif self._told_to_be_killed:
+            elif self._bools & JF.TOLD_TO_BE_KILLED:
                 return JobStopReasons.Internal.KILLING
             else:
                 return JobStopReasons.Internal.UNSPECIFIC
         else:
-            if self._told_to_restart:
+            if self._bools & JF.TOLD_TO_RESTART:
                 return JobStopReasons.External.RESTART
-            elif self._told_to_be_killed:
+            elif self._bools & JF.TOLD_TO_BE_KILLED:
                 return JobStopReasons.External.KILLING
             else:
                 return JobStopReasons.External.UNKNOWN
@@ -385,13 +409,27 @@ class GenericManagedJob(jobs.ManagedJobBase):
 
     def __init__(
         self,
-        on_init: Optional[Callable[[jobs.ManagedJobBase], Coroutine[Any, Any, None]]] = None,
-        on_start: Optional[Callable[[jobs.ManagedJobBase], Coroutine[Any, Any, None]]] = None,
-        on_start_error: Optional[Callable[[jobs.ManagedJobBase], Coroutine[Any, Any, None]]] = None,
-        on_run: Optional[Callable[[jobs.ManagedJobBase], Coroutine[Any, Any, None]]] = None,
-        on_run_error: Optional[Callable[[jobs.ManagedJobBase], Coroutine[Any, Any, None]]] = None,
-        on_stop: Optional[Callable[[jobs.ManagedJobBase], Coroutine[Any, Any, None]]] = None,
-        on_stop_error: Optional[Callable[[jobs.ManagedJobBase], Coroutine[Any, Any, None]]] = None,
+        on_init: Optional[
+            Callable[[jobs.ManagedJobBase], Coroutine[Any, Any, None]]
+        ] = None,
+        on_start: Optional[
+            Callable[[jobs.ManagedJobBase], Coroutine[Any, Any, None]]
+        ] = None,
+        on_start_error: Optional[
+            Callable[[jobs.ManagedJobBase], Coroutine[Any, Any, None]]
+        ] = None,
+        on_run: Optional[
+            Callable[[jobs.ManagedJobBase], Coroutine[Any, Any, None]]
+        ] = None,
+        on_run_error: Optional[
+            Callable[[jobs.ManagedJobBase], Coroutine[Any, Any, None]]
+        ] = None,
+        on_stop: Optional[
+            Callable[[jobs.ManagedJobBase], Coroutine[Any, Any, None]]
+        ] = None,
+        on_stop_error: Optional[
+            Callable[[jobs.ManagedJobBase], Coroutine[Any, Any, None]]
+        ] = None,
         interval: Union[datetime.timedelta, _UnsetType] = UNSET,
         time: Union[datetime.time, Sequence[datetime.time], _UnsetType] = UNSET,
         count: Union[int, NoneType, _UnsetType] = UNSET,
@@ -407,7 +445,6 @@ class GenericManagedJob(jobs.ManagedJobBase):
         self._on_stop_func = on_stop or supercls.on_stop
         self._on_stop_error_func = on_stop_error or supercls.on_stop_error
 
-    
     async def on_init(self):
         return await self._on_init_func(self)
 
@@ -432,9 +469,8 @@ class GenericManagedJob(jobs.ManagedJobBase):
 
 class SingleRunJob(jobs.ManagedJobBase):
     """A subclass of `ManagedJobBase` whose subclasses's
-    job objects will only run once and then complete themselves.
-    If they fail
-    automatically. For more control, use `ManagedJobBase` directly.
+    job objects will only run once and then complete themselves
+    if they fail automatically. For more control, use `ManagedJobBase` directly.
     """
 
     DEFAULT_COUNT = 1
@@ -525,75 +561,3 @@ class RegisterDelayedJob(jobs.ManagedJobBase):
 
     async def on_stop(self):
         self.COMPLETE()
-
-class MethodCallJob(
-    jobs.ManagedJobBase,
-    class_uuid="7d2fee26-d8b9-4e93-b761-4d152d355bae",
-):
-    """A job class for calling the method of a specified name on an object given as
-    argument.
-
-    Recommended Permission Level:
-        JobPermissionLevels.LOWEST
-
-    Output Fields:
-        'output': The returned output of the method call.
-    """
-
-    class OutputFields(groupings.OutputNameRecord):
-        output: str
-        "The returned output of the method call."
-
-    DEFAULT_COUNT = 1
-    DEFAULT_RECONNECT = False
-
-    def __init__(
-        self,
-        instance: object,
-        method_name: str,
-        is_async: bool = False,
-        instance_args: tuple[Any, ...] = (),
-        instance_kwargs: Optional[dict] = None,
-    ):
-
-        super().__init__()
-
-        self.data.instance = instance
-        self.data.method_name = method_name + ""
-        self.data.is_async = is_async
-
-        if not isinstance(instance, serializers.BaseSerializer):
-            getattr(instance, method_name)
-
-        self.data.instance_args = list(instance_args)
-        self.data.instance_kwargs = instance_kwargs or {}
-
-    async def on_init(self):
-        if isinstance(self.data.instance, serializers.BaseSerializer):
-            self.data.instance = await self.data.instance.deserialized_async()
-            getattr(self.data.instance, self.data.method_name)
-
-        for i in range(len(self.data.instance_args)):
-            arg = self.data.instance_args[i]
-            if isinstance(arg, serializers.BaseSerializer):
-                self.data.instance_args[i] = await arg.deserialized_async()
-
-        for key in self.data.instance_kwargs:
-            kwarg = self.data.instance_kwargs[key]
-            if isinstance(kwarg, serializers.BaseSerializer):
-                self.data.instance_kwargs[key] = await kwarg.deserialized_async()
-
-    async def on_run(self):
-        output = getattr(self.data.instance, self.data.method_name)(
-            *self.data.instance_args, **self.data.instance_kwargs
-        )
-        if self.data.is_async:
-            output = await output
-
-        self.set_output_field("output", output)
-
-    async def on_stop(self):
-        if self.run_failed():
-            self.KILL()
-        else:
-            self.COMPLETE()

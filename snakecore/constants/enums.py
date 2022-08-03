@@ -278,3 +278,87 @@ class JobPermissionLevels(IntEnum):
         - Can stop, restart, kill or unschedule any job of the same permission level.
         - Can guard or unguard any job.
     """
+
+
+class JobBoolFlags:
+    """
+    - `bool1 = bool2 = ... = True`:
+        - `flags |= flag1 | flag2 | ...`
+        - `flags = flags | flag1 | flag2 | ...`
+
+    ...
+    - `bool1 = bool2 = ... = False`:
+        - `flags &= flags ^ (flag1 | flag2 | ...)`
+        - `flags = flags & (flags ^ (flag1 | flag2 | ...))`
+
+    ...
+    - `bool1 = not bool1; bool2 = not bool2; ...`:
+        - `flags ^= flag1 | flag2 | ...`
+        - `flags = flags ^ (flag1 |flag2 | ...)`
+
+    ...
+    - `[not] bool1 is True`:
+        - `[not] flags & flag1`
+
+    ...
+    - `[not] bool1 is False`:
+        - `[not] not flags & flag1`
+
+    ...
+    - `[not] any(bool1, bool2, ...)`:
+        - `[not] bool( flags & (flag1 | flag2 | ...) )`
+
+    ...
+    - `[not] all(bool1, bool2, ...)`:
+        - `[not] (flags & (TRUE := flag1 | flag2 | ...) == TRUE)`
+        - `[not] bool(flags & flag1 and flags & flag2 ...)`
+        - `[not] (flags & (flag1 | flag2 | ...) == (flag1 | flag2 | ...))`
+
+    ...
+    """
+
+    TRUE = 1
+    FALSE = 0
+
+    # _JobBase
+    INITIALIZED = 1 << 0
+    IS_INITIALIZING = 1 << 1
+
+    IS_STARTING = 1 << 2
+    IS_IDLING = 1 << 3
+
+    TOLD_TO_STOP = 1 << 4
+    TOLD_TO_STOP_BY_SELF = 1 << 5
+    TOLD_TO_STOP_BY_FORCE = 1 << 6
+    IS_STOPPING = 1 << 7
+    STOPPED = 1 << 8
+
+    TOLD_TO_RESTART = 1 << 9
+
+    SKIP_NEXT_RUN = 1 << 10
+
+    # ManagedJobBase
+    COMPLETED = 1 << 11
+    TOLD_TO_COMPLETE = 1 << 12
+
+    KILLED = 1 << 13
+    TOLD_TO_BE_KILLED = 1 << 14
+    INTERNAL_STARTUP_KILL = 1 << 15
+    EXTERNAL_STARTUP_KILL = 1 << 16
+
+    # EventJobMixin
+    CLEAR_EVENTS_AT_STARTUP = 1 << 17
+    ALLOW_EVENT_QUEUE_OVERFLOW = 1 << 18
+    BLOCK_EVENTS_ON_STOP = 1 << 19
+    START_ON_DISPATCH = 1 << 20
+    BLOCK_EVENTS_WHILE_STOPPED = 1 << 21
+    ALLOW_DISPATCH = 1 << 22
+
+    # EventJobBase
+    OE_DISPATCH_ONLY_INITIAL = 1 << 23
+    OE_AWAIT_DISPATCH = 1 << 24
+
+    OE_STOP_AFTER_DISPATCH_TIMEOUT = 1 << 25
+    OE_STOP_IF_NO_EVENTS = 1 << 26
+    STOPPING_BY_EVENT_TIMEOUT = 1 << 27
+    STOPPING_BY_EMPTY_QUEUE = 1 << 28
