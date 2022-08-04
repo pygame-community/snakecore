@@ -6,6 +6,7 @@ Copyright (c) 2022-present pygame-community
 This file defines some important utility functions for the library.
 """
 
+import asyncio
 from collections import ChainMap, defaultdict, deque
 import collections
 import datetime
@@ -866,3 +867,31 @@ class DequeProxy(MutableSequence[_T], Generic[_T]):
 
     def __str__(self) -> str:
         return f"{self.__class__.__name__}({self.__deque!s})"
+
+
+_global_task_set: set[
+    asyncio.Task
+] = set()  # prevents asyncio.Task objects from disappearing due
+# to reference loss, not to be modified manually
+
+
+def hold_task(task: asyncio.Task):
+    """Store an `asyncio.Task` object in a container to place a protective reference
+    on it in order to prevent its loss at runtime. The given task will be given a
+    callback that automatically removes it from the container when it is done.
+
+    Args:
+        task (asyncio.Task): The task.
+    """
+    if task in _global_task_set:
+        return
+
+    _global_task_set.add(task)
+    task.add_done_callback(_global_task_set_remove_callback)
+
+
+def _global_task_set_remove_callback(task: asyncio.Task):
+    if task in _global_task_set:
+        _global_task_set.remove(task)
+
+    task.remove_done_callback(_global_task_set_remove_callback)
