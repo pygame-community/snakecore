@@ -1558,7 +1558,9 @@ class JobBase(_JobBase):
 
             if not (self.OutputFields or self.OutputQueues):
                 self._proxy._eject_from_source()
-                self._manager._eject()
+
+            self._manager._eject()
+
         else:
             self._bools |= JF.STOPPED  # True
             self._stopped_since_ts = time.time()

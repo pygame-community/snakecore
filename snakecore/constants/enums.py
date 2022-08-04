@@ -41,19 +41,13 @@ class JobOps(Enum):
     CREATE = auto()
     """The act of creating/instantiating a job object.
     """
+
     INITIALIZE = auto()
     """The act of initializing a job object.
     """
+
     REGISTER = auto()
     """The act of registering a job object.
-    """
-
-    JOB_CLASS_REGISTER = auto()
-    """The act of registering a job object's class into the job manager.
-    """
-
-    JOB_CLASS_UNREGISTER = auto()
-    """The act of unregistering a job object's class from the job manager.
     """
 
     SCHEDULE = auto()
