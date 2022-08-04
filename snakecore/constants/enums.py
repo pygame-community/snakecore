@@ -198,7 +198,7 @@ class JobPermissionLevels(IntEnum):
         - Can discover and view all alive jobs, and request data from them.
     """
 
-    NORMAL = MEDIUM = 1 << 1
+    MEDIUM = 1 << 1
     """An elevated permission level, with additional control over jobs
     of a lower permission level.
 
