@@ -1266,7 +1266,7 @@ class JobBase(_JobBase):
 
         self._manager: Union["proxies.JobManagerProxy", Any] = None
         self._creator: Optional["proxies.JobProxy"] = None
-        self._permission_level = Optional[JobPermissionLevels] = None
+        self._permission_level: Optional[JobPermissionLevels] = None
 
         self._registered_at_ts: Optional[float] = None
         self._done_since_ts: Optional[float] = None
@@ -1424,7 +1424,7 @@ class JobBase(_JobBase):
             raise
 
         finally:
-            self._is_starting = False
+            self._bools &= self._bools ^ JF.IS_STARTING  # False
 
     def _stop_cleanup(
         self,
@@ -1437,17 +1437,6 @@ class JobBase(_JobBase):
             if isinstance(reason, (JobStopReasons.External, JobStopReasons.Internal))
             else self.get_stopping_reason()
         )
-
-        self._skip_on_run = False
-        self._is_starting = False
-        self._internal_startup_kill = False
-        self._external_startup_kill = False
-
-        self._told_to_stop = False
-        self._stop_by_self = False
-        self._stop_by_force = False
-        self._is_stopping = False
-        self._told_to_restart = False
 
         self._loop_count = 0
 
@@ -2737,8 +2726,8 @@ class JobBase(_JobBase):
             f"<{self.__class__.__qualname__} "
             + f"(id={self._runtime_id} ctd={self.created_at} "
             + (
-                f"perm={self._manager.get_job_class_permission_level(self.__class__).name} "
-                if self._manager is not None
+                f"perm={self._permission_level.name} "
+                if self._permission_level is not None
                 else ""
             )
             + f"stat={self.status().name})>"

@@ -42,7 +42,7 @@ class JobProxy:  # will be overridden at runtime
         "_killed_at",
         "_completed_at",
         "_done",
-        "_bools",
+        "_job_bools",
     )
 
     def __init__(self, job: "jobs.JobBase"):

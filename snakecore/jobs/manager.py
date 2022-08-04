@@ -235,7 +235,9 @@ class JobManager:
             }
 
             self._manager_job = self._get_job_from_proxy(
-                await self.create_and_register_job(jobs.JobManagerJob)
+                await self.create_and_register_job(
+                    jobs.JobManagerJob, with_permission_level=JobPermissionLevels.SYSTEM
+                )
             )
             self._manager_job._creator = self._manager_job._proxy
             return True
@@ -279,9 +281,8 @@ class JobManager:
                     "JobManagerJob cannot be manually instantiated"
                 )
 
-            elif (
-                register_permission_level is not None
-                and not isinstance(register_permission_level, JobPermissionLevels)
+            elif register_permission_level is not None and (
+                not isinstance(register_permission_level, JobPermissionLevels)
                 or register_permission_level >= JobPermissionLevels.SYSTEM
             ):
                 raise TypeError(
@@ -733,7 +734,7 @@ class JobManager:
             ) from None
 
         if job.__class__._RUNTIME_ID not in self._job_class_data:
-            self._job_class_data[job.__class__] = {
+            self._job_class_data[job.__class__._RUNTIME_ID] = {
                 "class": job.__class__,
                 "instances": {},
             }
@@ -1578,7 +1579,7 @@ class JobManager:
             jobs_identifiers = self._event_job_ids[event_class_identifier]
 
             for identifier in jobs_identifiers:
-                event_job = self._job_id_map[identifier]
+                event_job = self._job_id_map[identifier][0]
                 event_copy = event.copy()
                 if event_job.event_check(event_copy):
                     event_job._add_event(event_copy)
@@ -1700,39 +1701,26 @@ class JobManager:
                 is_running=False,
                 stopped=False,
                 _return_proxy=False,
-                _iv=self._manager_job,
             ),
-            starting=self.find_jobs(
-                is_starting=True, _return_proxy=False, _iv=self._manager_job
-            ),
+            starting=self.find_jobs(is_starting=True, _return_proxy=False),
             running=self.find_jobs(
                 is_running=True,
                 is_idling=False,
                 is_starting=False,
                 is_restarting=False,
                 _return_proxy=False,
-                _iv=self._manager_job,
             ),
-            idling=self.find_jobs(
-                is_idling=True, _return_proxy=False, _iv=self._manager_job
-            ),
+            idling=self.find_jobs(is_idling=True, _return_proxy=False),
             stopping=self.find_jobs(
                 is_stopping=True,
                 is_restarting=False,
                 is_completing=False,
                 is_being_killed=False,
                 _return_proxy=False,
-                _iv=self._manager_job,
             ),
-            completing=self.find_jobs(
-                is_completing=True, _return_proxy=False, _iv=self._manager_job
-            ),
-            being_killed=self.find_jobs(
-                is_being_killed=True, _return_proxy=False, _iv=self._manager_job
-            ),
-            stopped=self.find_jobs(
-                stopped=True, _return_proxy=False, _iv=self._manager_job
-            ),
+            completing=self.find_jobs(is_completing=True, _return_proxy=False),
+            being_killed=self.find_jobs(is_being_killed=True, _return_proxy=False),
+            stopped=self.find_jobs(stopped=True, _return_proxy=False),
         )
 
         categorized_jobs_str = "\n\n".join(
