@@ -9,6 +9,7 @@ This file defines some important utility functions for the library.
 from collections import ChainMap, defaultdict, deque
 import collections
 import datetime
+import itertools
 import os
 import platform
 import re
@@ -702,8 +703,8 @@ class FastChainMap(collections.ChainMap):
     def get(self, key, default=None):
         return self[key] if any(key in m for m in self.maps) else default
 
-
-FastChainMap.update()
+    def __iter__(self):
+        return iter({k: None for k in itertools.chain(*self.maps)})
 
 
 def class_getattr_unique(

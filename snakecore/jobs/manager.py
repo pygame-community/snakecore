@@ -688,7 +688,7 @@ class JobManager:
         return j
 
     def __iter__(self):
-        return iter(job_tuple[0]._proxy for job_tuple in self._job_id_map.values())
+        return iter(job._proxy for job, _ in self._job_id_map.values())
 
     def _add_job(
         self,
@@ -888,7 +888,7 @@ class JobManager:
 
         elif created_at is not None:
             if isinstance(created_at, datetime.datetime):
-                for job in self._job_id_map.values():
+                for job, _ in self._job_id_map.values():
                     if job.created_at == created_at:
                         return job._proxy if _return_proxy else job
                 return None
@@ -994,6 +994,8 @@ class JobManager:
 
         self._check_init_and_running()
 
+        job_map = self._job_id_map
+
         filter_functions = []
 
         if classes:
@@ -1014,7 +1016,17 @@ class JobManager:
                     ) from None
 
             if exact_class_match:
-                filter_functions.append(lambda job: job.__class__ in classes)
+                if query_match_mode == "all":
+                    job_map = FastChainMap(
+                        *(
+                            self._job_class_data[job_class._RUNTIME_ID]["instances"]
+                            for job_class in classes
+                            if job_class._RUNTIME_ID in self._job_class_data
+                        ),
+                        ignore_defaultdicts=True,
+                    )
+                else:
+                    filter_functions.append(lambda job: job.__class__ in classes)
             else:
                 filter_functions.append(lambda job: isinstance(job, classes))
 
@@ -1151,25 +1163,21 @@ class JobManager:
         if filter_functions:
             if _return_proxy:
                 return tuple(
-                    job_tuple[0]._proxy
-                    for job_tuple in self._job_id_map.values()
-                    if bool_func(
-                        filter_func(job_tuple[0]) for filter_func in filter_functions
-                    )
+                    job._proxy
+                    for job, _ in job_map.values()
+                    if bool_func(filter_func(job) for filter_func in filter_functions)
                 )
 
             return tuple(
-                job_tuple[0]
-                for job_tuple in self._job_id_map.values()
-                if bool_func(
-                    filter_func(job_tuple[0]) for filter_func in filter_functions
-                )
+                job
+                for job, _ in job_map.values()
+                if bool_func(filter_func(job) for filter_func in filter_functions)
             )
 
         if _return_proxy:
-            return tuple(job_tuple[0]._proxy for job_tuple in self._job_id_map.values())
+            return tuple(job._proxy for job, _ in job_map.values())
 
-        return tuple(job_tuple[0] for job_tuple in self._job_id_map.values())
+        return tuple(job for job, _ in job_map.values())
 
     def start_job(
         self,
@@ -1627,7 +1635,7 @@ class JobManager:
         self._check_init_and_running()
         self._check_manager_misuse()
 
-        for job in self._job_id_map.values():
+        for job, _ in self._job_id_map.values():
             job._STOP_EXTERNAL(force=force)
 
     def kill_all_jobs(self, awaken: bool = True):
@@ -1636,7 +1644,7 @@ class JobManager:
         self._check_init_and_running()
         self._check_manager_misuse()
 
-        for job in self._job_id_map.values():
+        for job, _ in self._job_id_map.values():
             job._KILL_EXTERNAL(awaken=awaken)
 
     def resume(self):
