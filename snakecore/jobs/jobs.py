@@ -48,12 +48,13 @@ from snakecore.exceptions import (
 from snakecore import utils
 from snakecore import events
 from snakecore.constants import (
-    _SYSTEM_JOB_RUNTIME_IDENTIFIERS,
+    _SYSTEM_JOB_RUNTIME_IDS,
     UNSET,
     _UnsetType,
     NoneType,
 )
 from snakecore.jobs.loops import JobLoop
+from snakecore.utils.utils import FastChainMap
 
 _JOB_CLASS_MAP = {}
 # A dictionary of all Job subclasses that were created.
@@ -64,11 +65,11 @@ _JOB_CLASS_UUID_MAP = {}
 # Do not access outside of this module.
 
 
-def get_job_class_from_runtime_identifier(
-    class_runtime_identifier: str, default: Any = UNSET, /, closest_match: bool = False
+def get_job_class_from_runtime_id(
+    class_runtime_id: str, default: Any = UNSET, /, closest_match: bool = False
 ) -> "JobBase":
 
-    name, timestamp_str = class_runtime_identifier.split("-")
+    name, timestamp_str = class_runtime_id.split("-")
 
     if name in _JOB_CLASS_MAP:
         if timestamp_str in _JOB_CLASS_MAP[name]:
@@ -80,7 +81,7 @@ def get_job_class_from_runtime_identifier(
     if default is UNSET:
         raise LookupError(
             f"cannot find job class with an identifier of "
-            f"'{class_runtime_identifier}' in the job class registry"
+            f"'{class_runtime_id}' in the job class registry"
         )
     return default
 
@@ -158,13 +159,13 @@ def get_job_class_uuid(
     return default
 
 
-def get_job_class_runtime_identifier(
+def get_job_class_runtime_id(
     cls: Type["JobBase"],
     default: Any = UNSET,
     /,
 ) -> Union[str, Any]:
-    """Get a job class by its runtime identifier string. This is the safe way
-    of looking up job class runtime identifiers.
+    """Get a job class by its runtime id string. This is the safe way
+    of looking up job class runtime ids.
 
     Args:
         cls (Type[JobBase]): The job class whose identifier should be fetched.
@@ -190,7 +191,7 @@ def get_job_class_runtime_identifier(
         return default
 
     try:
-        class_runtime_identifier = cls._RUNTIME_IDENTIFIER
+        class_runtime_id = cls._RUNTIME_ID
     except AttributeError:
         if default is UNSET:
             raise TypeError(
@@ -199,7 +200,7 @@ def get_job_class_runtime_identifier(
         return default
 
     try:
-        name, timestamp_str = class_runtime_identifier.split("-")
+        name, timestamp_str = class_runtime_id.split("-")
     except (ValueError, AttributeError):
         if default is UNSET:
             raise ValueError(
@@ -210,7 +211,7 @@ def get_job_class_runtime_identifier(
     if name in _JOB_CLASS_MAP:
         if timestamp_str in _JOB_CLASS_MAP[name]:
             if _JOB_CLASS_MAP[name][timestamp_str] is cls:
-                return class_runtime_identifier
+                return class_runtime_id
             else:
                 if default is UNSET:
                     raise ValueError(
@@ -253,10 +254,6 @@ class JobNamespace(SimpleNamespace):
         return JobNamespace(**dct)
 
     __copy__ = copy
-
-
-class _SystemLevelMixinJobBase(ABC):
-    pass
 
 
 def singletonjob(cls: Optional[Type["JobBase"]] = None, disabled: bool = False):
@@ -329,7 +326,7 @@ class _JobBase:
         "_count",
         "_loop_count",
         "_created_at_ts",
-        "_runtime_identifier",
+        "_runtime_id",
         "_data",
         "_job_loop",
         "_on_start_exception",
@@ -345,7 +342,7 @@ class _JobBase:
 
     _CREATED_AT = datetime.datetime.now(datetime.timezone.utc)
     _UUID: Optional[str] = None
-    _RUNTIME_IDENTIFIER = f"JobBase-{int(_CREATED_AT.timestamp()*1_000_000_000)}"
+    _RUNTIME_ID = f"JobBase-{int(_CREATED_AT.timestamp()*1_000_000_000)}"
 
     DATA_NAMESPACE_CLASS = JobNamespace
 
@@ -358,7 +355,7 @@ class _JobBase:
         name = cls.__qualname__
         created_timestamp_ns_str = f"{int(cls._CREATED_AT.timestamp()*1_000_000_000)}"
 
-        cls._RUNTIME_IDENTIFIER = f"{name}-{created_timestamp_ns_str}"
+        cls._RUNTIME_ID = f"{name}-{created_timestamp_ns_str}"
 
         if name not in _JOB_CLASS_MAP:
             _JOB_CLASS_MAP[name] = {}
@@ -387,8 +384,8 @@ class _JobBase:
         self._created_at_ts = time.time()
         self._data = self.DATA_NAMESPACE_CLASS()
 
-        self._runtime_identifier: str = (
-            f"{id(self)}-{int(self._created_at_ts*1_000_000_000)}"
+        self._runtime_id: str = (
+            f"{self.__class__._RUNTIME_ID}:{int(self._created_at_ts*1_000_000_000)}"
         )
 
         self._interval_secs: int = 0
@@ -417,26 +414,26 @@ class _JobBase:
         self._stopped_since_ts: Optional[float] = None
 
     @classmethod
-    def get_class_runtime_identifier(self) -> str:
-        """Get the runtime identifier of this job class.
+    def get_class_runtime_id(self) -> str:
+        """Get the runtime id of this job class.
 
         Returns:
-            str: The runtime identifier.
+            str: The runtime id.
         """
-        return self._RUNTIME_IDENTIFIER
+        return self._RUNTIME_ID
 
     @classmethod
-    def get_class_uuid(self) -> str:
+    def get_class_uuid(cls) -> str:
         """Get the UUID of this job class.
 
         Returns:
             str: The UUID.
         """
-        return self._UUID
+        return cls._UUID
 
     @property
-    def runtime_identifier(self) -> str:
-        return self._runtime_identifier
+    def runtime_id(self) -> str:
+        return self._runtime_id
 
     @property
     def created_at(self) -> datetime.datetime:
@@ -1128,16 +1125,14 @@ class _JobBase:
         return output
 
     def __repr__(self):
-        output_str = (
-            f"<{self.__class__.__qualname__} " f"(id={self._runtime_identifier})>"
-        )
+        output_str = f"<{self.__class__.__qualname__} " f"(id={self._runtime_id})>"
 
         return output_str
 
     def __str__(self):
         output_str = (
             f"<{self.__class__.__qualname__} "
-            + f"(id={self._runtime_identifier} ctd={self.created_at} "
+            + f"(id={self._runtime_id} ctd={self.created_at} "
             + f"stat={self.status().name})>"
         )
 
@@ -1151,6 +1146,7 @@ class JobBase(_JobBase):
     __slots__ = (
         "_manager",
         "_creator",
+        "_permission_level",
         "_registered_at_ts",
         "_done_since_ts",
         "_output_fields",
@@ -1168,8 +1164,7 @@ class JobBase(_JobBase):
     )
 
     _CREATED_AT = datetime.datetime.now(datetime.timezone.utc)
-    _RUNTIME_IDENTIFIER = f"JobBase-{int(_CREATED_AT.timestamp()*1_000_000_000)}"
-    _PERMISSION_LEVEL: JobPermissionLevels = JobPermissionLevels.MEDIUM
+    _RUNTIME_ID = f"JobBase-{int(_CREATED_AT.timestamp()*1_000_000_000)}"
     _SINGLE: bool = False
 
     OutputFields: Optional[Union[Any, "groupings.OutputNameRecord"]] = None
@@ -1177,7 +1172,7 @@ class JobBase(_JobBase):
     PublicMethods: Optional[Union[Any, "groupings.NameRecord"]] = None
 
     PUBLIC_METHODS_MAP: Optional[dict[str, Callable[..., Any]]] = None
-    PUBLIC_METHODS_CHAINMAP: Optional[ChainMap[str, Callable[..., Any]]] = None
+    PUBLIC_METHODS_CHAINMAP: Optional[FastChainMap[str, Callable[..., Any]]] = None
 
     DATA_NAMESPACE_CLASS = JobNamespace
 
@@ -1261,8 +1256,9 @@ class JobBase(_JobBase):
         )
 
         if mro_public_methods:
-            cls.PUBLIC_METHODS_CHAINMAP = ChainMap(
+            cls.PUBLIC_METHODS_CHAINMAP = FastChainMap(
                 *mro_public_methods,
+                ignore_defaultdicts=True,
             )
 
     def __init__(self):
@@ -1270,6 +1266,7 @@ class JobBase(_JobBase):
 
         self._manager: Union["proxies.JobManagerProxy", Any] = None
         self._creator: Optional["proxies.JobProxy"] = None
+        self._permission_level = Optional[JobPermissionLevels] = None
 
         self._registered_at_ts: Optional[float] = None
         self._done_since_ts: Optional[float] = None
@@ -1316,9 +1313,22 @@ class JobBase(_JobBase):
 
         self._proxy: "proxies.JobProxy" = proxies.JobProxy(self)
 
+    @classmethod
+    def singleton(cls) -> bool:
+        """Whether this job class is a singleton, meaning
+        that it may only be registered once per job manager.
+
+        Returns:
+            bool: True/False
+        """
+        return cls._SINGLE
+
     @property
     def permission_level(self) -> JobPermissionLevels:
-        return self._manager.get_job_class_permission_level(self.__class__)
+        if self._permission_level is not None:
+            return self._permission_level
+
+        raise JobNotAlive("This job object doesn't yet have a permission level")
 
     @property
     def registered_at(self) -> Optional[datetime.datetime]:
@@ -2725,10 +2735,10 @@ class JobBase(_JobBase):
     def __str__(self):
         output_str = (
             f"<{self.__class__.__qualname__} "
-            + f"(id={self._runtime_identifier} ctd={self.created_at} "
+            + f"(id={self._runtime_id} ctd={self.created_at} "
             + (
                 f"perm={self._manager.get_job_class_permission_level(self.__class__).name} "
-                if self.alive()
+                if self._manager is not None
                 else ""
             )
             + f"stat={self.status().name})>"
@@ -3052,9 +3062,11 @@ class JobManagerJob(ManagedJobBase):
     or modified by other jobs.
     """
 
+    _RUNTIME_ID = "JobManagerJob-0"
+
     def __init__(self):
         super().__init__()
-        self._runtime_identifier = _SYSTEM_JOB_RUNTIME_IDENTIFIERS["JobManagerJob"]
+        self._runtime_id = "JobManagerJob-0:0"
 
     async def on_run(self):
         await self.await_done()

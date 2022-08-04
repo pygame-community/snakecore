@@ -7,8 +7,10 @@ at runtime.
 """
 
 import asyncio
+from collections import ChainMap
 from concurrent.futures import ProcessPoolExecutor
 from contextlib import asynccontextmanager, contextmanager
+from ctypes.wintypes import tagRECT
 import datetime
 import pickle
 import random
@@ -40,7 +42,7 @@ from snakecore.exceptions import (
     JobPermissionError,
     JobStateError,
 )
-from snakecore.utils import utils
+from snakecore.utils import FastChainMap
 from snakecore import events
 from . import jobs, loops
 
@@ -57,6 +59,7 @@ class JobManager:
         self,
         loop: Optional[asyncio.AbstractEventLoop] = None,
         global_job_timeout: Optional[float] = None,
+        default_job_permission_level: JobPermissionLevels = JobPermissionLevels.MEDIUM,
     ):
         """Create a new job manager instance.
 
@@ -65,6 +68,8 @@ class JobManager:
               manager and all of its jobs. Defaults to None.
             global_job_timeout (Optional[float], optional): The default global job timeout
               in seconds. Defaults to None.
+            global_job_timeout (JobPermissionLevels, optional): The default job permission level
+            for any job. Defaults to `MEDIUM`.
         """
         if loop is None:
             try:
@@ -73,17 +78,19 @@ class JobManager:
                 loop = asyncio.get_event_loop()
 
         self._created_at = datetime.datetime.now(datetime.timezone.utc)
-        self._runtime_identifier = (
+        self._runtime_id = (
             f"{id(self)}-{int(self._created_at.timestamp()*1_000_000_000)}"
         )
 
         self._loop = loop
         self._event_job_ids = {}
-        self._job_class_info_dict: dict[
-            Type[jobs.ManagedJobBase], dict[str, Union[int, JobPermissionLevels]]
+        self._job_class_data: dict[str, dict[str, Any]] = {}
+        self._default_job_permission_level: Optional[
+            JobPermissionLevels
+        ] = default_job_permission_level
+        self._job_id_map: dict[
+            str, tuple[jobs.ManagedJobBase, JobPermissionLevels]
         ] = {}
-        self._default_permission_level: Optional[JobPermissionLevels] = None
-        self._job_id_map = {}
         self._manager_job = None
         self._event_waiting_queues = {}
         self._initialized = False
@@ -109,7 +116,7 @@ class JobManager:
         elif not self._is_running:
             raise RuntimeError("this job manager is not running")
 
-    def _check_within_job(self):
+    def _check_manager_misuse(self):
         current_job: Union[jobs.ManagedJobBase, int] = loops._current_job.get(
             (_rand := random.getrandbits(4))
         )
@@ -119,26 +126,16 @@ class JobManager:
                 raise RuntimeError(
                     "could not determine the current job of this execution context"
                 )
-            elif current_job._runtime_identifier in self._job_id_map:
+            elif current_job._runtime_id in self._job_id_map:
                 raise JobPermissionError(
                     "explicitly using job managers from within their jobs is not allowed"
                 )
 
         return True
 
-    def _check_job_class_registered(self, cls: Type[jobs.ManagedJobBase]):
-        if not any(
-            supercls in self._job_class_info_dict for supercls in cls.__mro__[:-1]
-        ):
-            raise RuntimeError(
-                f"class '{cls.__name__}' and none of its non-virtual "
-                "superclasses are registered under this job manager for job registration"
-            )
-        return True
-
     @property
     def identifier(self) -> str:
-        return self._runtime_identifier
+        return self._runtime_id
 
     def set_event_loop(self, loop: asyncio.AbstractEventLoop):
         """Set the event loop of this job manager. This is useful
@@ -204,35 +201,13 @@ class JobManager:
         if timeout:
             timeout = float(timeout)
 
-        self._check_within_job()
+        self._check_manager_misuse()
         self._global_job_stop_timeout = timeout
 
-    @staticmethod
-    def _unpickle_dict(byte_data):
-        unpickled_data = pickle.loads(byte_data)
+    def get_default_job_permission_level(self) -> Optional[JobPermissionLevels]:
+        return self._default_job_permission_level
 
-        if not isinstance(unpickled_data, dict):
-            raise TypeError(
-                f"invalid object of type '{unpickled_data.__class__}' in pickle data, "
-                "must be of type 'dict'"
-            )
-        return unpickled_data
-
-    @staticmethod
-    def _pickle_dict(target_dict):
-        if not isinstance(target_dict, dict):
-            raise TypeError(
-                "argument 'target_dict' must be of type 'dict', "
-                f"not {target_dict.__class__}"
-            )
-
-        pickled_data = pickle.dumps(target_dict)
-        return pickled_data
-
-    def get_default_permission_level(self) -> Optional[JobPermissionLevels]:
-        return self._default_permission_level
-
-    def set_default_permission_level(self, permission_level: JobPermissionLevels):
+    def set_default_job_permission_level(self, permission_level: JobPermissionLevels):
         if not isinstance(permission_level, JobPermissionLevels):
             raise TypeError(
                 "argument 'permission_level' must be a usable enum value from the 'JobPermissionLevels' enum"
@@ -242,118 +217,7 @@ class JobManager:
                 "argument 'permission_level' must be a usable enum value from the 'JobPermissionLevels' enum"
             )
 
-        self._default_permission_level = permission_level
-
-    def register_job_class(
-        self,
-        cls: Type[jobs.ManagedJobBase],
-        permission_level: Optional[JobPermissionLevels] = None,
-        _iv: Optional[jobs.ManagedJobBase] = None,
-    ) -> bool:
-
-        if not issubclass(cls, jobs.ManagedJobBase):
-            raise TypeError("argument 'cls' must be an instance of 'ManagedJobBase'")
-
-        if permission_level is None:
-            if self._default_permission_level is None:
-                raise TypeError(
-                    "argument 'permission_level' cannot be None if no default permission level is set for job classes"
-                )
-            permission_level = self._default_permission_level
-
-        elif not isinstance(permission_level, JobPermissionLevels):
-            raise TypeError(
-                "argument 'permission_level' must be a usable enum value from the 'JobPermissionLevels' enum"
-            )
-        elif permission_level >= JobPermissionLevels.SYSTEM:
-            raise ValueError(
-                "argument 'permission_level' must be a usable enum value from the 'JobPermissionLevels' enum"
-            )
-
-        if isinstance(_iv, jobs.ManagedJobBase):
-            self._verify_permissions(
-                _iv,
-                op=JobOps.JOB_CLASS_REGISTER,
-                register_permission_level=permission_level,
-            )
-        else:
-            self._check_within_job()
-            _iv = self._manager_job
-
-        if cls not in self._job_class_info_dict:
-            self._job_class_info_dict[cls] = {
-                "count": 0,
-                "permission_level": permission_level,
-            }
-            return True
-
-        elif "permission_level" not in self._job_class_info_dict[cls]:
-            self._job_class_info_dict[cls]["permission_level"] = permission_level
-            return True
-
-        return False
-
-    def unregister_job_class(
-        self, cls: Type[jobs.ManagedJobBase], _iv: Optional[jobs.ManagedJobBase] = None
-    ) -> bool:
-        if cls in self._job_class_info_dict:
-            if self._job_class_info_dict[cls]["count"]:
-                raise RuntimeError(
-                    "cannot unregister a job class which has running instances in a job manager"
-                )
-
-            if isinstance(_iv, jobs.ManagedJobBase):
-                self._verify_permissions(
-                    _iv,
-                    op=JobOps.JOB_CLASS_UNREGISTER,
-                    register_permission_level=self._job_class_info_dict[cls][
-                        "permission_level"
-                    ],
-                )
-            else:
-                self._check_within_job()
-                _iv = self._manager_job
-
-            del self._job_class_info_dict[cls]
-            return True
-
-        return False
-
-    def job_class_is_registered(self, cls: Type[jobs.ManagedJobBase]) -> bool:
-        return any(
-            supercls in self._job_class_info_dict
-            and "permission_level" in self._job_class_info_dict[supercls]
-            for supercls in cls.__mro__[:-1]
-        )
-
-    def get_job_class_permission_level(
-        self, cls: Type[jobs.ManagedJobBase], default: Any = UNSET, /
-    ) -> Union[JobPermissionLevels, Any]:
-        if not issubclass(cls, jobs.ManagedJobBase):
-            if default is UNSET:
-                raise TypeError(
-                    "argument 'cls' must be an instance of 'ManagedJobBase'"
-                )
-            return default
-
-        if (
-            cls in self._job_class_info_dict
-            and "permission_level" in self._job_class_info_dict[cls]
-        ):
-            return self._job_class_info_dict[cls]["permission_level"]
-
-        for supercls in cls.__mro__[:-1]:
-            if (
-                supercls in self._job_class_info_dict
-                and "permission_level" in self._job_class_info_dict[supercls]
-            ):
-                return self._job_class_info_dict[supercls]["permission_level"]
-        else:
-            if default is UNSET:
-                raise RuntimeError(
-                    f"class '{cls.__name__}' and none of its non-virtual superclasses were registered in this job manager"
-                )
-            return default
+        self._default_job_permission_level = permission_level
 
     async def initialize(self) -> bool:
         """Initialize this job manager, if it hasn't yet been initialized.
@@ -365,10 +229,11 @@ class JobManager:
         if not self._initialized:
             self._initialized = True
             self._is_running = True
-            self._job_class_info_dict[jobs.JobManagerJob] = {
-                "count": 0,
-                "permission_level": JobPermissionLevels.SYSTEM,
+            self._job_class_data[jobs.JobManagerJob._RUNTIME_ID] = {
+                "class": jobs.JobManagerJob,
+                "instances": {},
             }
+
             self._manager_job = self._get_job_from_proxy(
                 await self.create_and_register_job(jobs.JobManagerJob)
             )
@@ -382,19 +247,19 @@ class JobManager:
         invoker: jobs.ManagedJobBase,
         op: JobOps,
         target: Optional[Union[jobs.ManagedJobBase, "proxies.JobProxy"]] = None,
-        target_cls: Optional[jobs.ManagedJobBase] = None,
         register_permission_level: Optional[JobPermissionLevels] = None,
+        target_cls: Optional[Type[jobs.ManagedJobBase]] = None,
         raise_exceptions=True,
     ) -> bool:
 
-        if invoker is self._manager_job:
+        if (
+            isinstance(invoker, jobs.JobManagerJob)
+            and invoker._runtime_id in self._job_id_map
+        ):
             return True
 
-        invoker_cls = invoker.__class__
-
-        self._check_job_class_registered(invoker_cls)
-
         if target is not None:
+            target_cls = target.__class__
             if isinstance(target, proxies.JobProxy):
                 target = self._get_job_from_proxy(target)
 
@@ -403,125 +268,111 @@ class JobManager:
                     "argument 'target' must be a an instance of a job object or a job proxy"
                 )
 
-        target_cls = target.__class__ if target else target_cls
-        target_cls_permission_level = None
+            elif isinstance(target, jobs.JobManagerJob):
+                raise JobPermissionError(
+                    "argument 'target' cannot be a JobManagerJob instance"
+                )
 
         if target_cls is not None:
-            self._check_job_class_registered(target_cls)
+            if issubclass(target_cls, jobs.JobManagerJob):
+                raise JobPermissionError(
+                    "JobManagerJob cannot be manually instantiated"
+                )
 
-        invoker_cls_permission_level = self.get_job_class_permission_level(invoker_cls)
+            elif (
+                register_permission_level is not None
+                and not isinstance(register_permission_level, JobPermissionLevels)
+                or register_permission_level >= JobPermissionLevels.SYSTEM
+            ):
+                raise TypeError(
+                    "argument 'with_permission_level' must be a usable enum value "
+                    "defined in the 'JobPermissionLevels' enum"
+                )
+
+        invoker_permission_level = self._job_id_map[invoker._runtime_id][1]
 
         if not isinstance(op, JobOps):
             raise TypeError(
-                "argument 'op' must be an enum value defined in the 'JobOps' " "enum"
+                "argument 'op' must be an enum value defined in the 'JobOps' enum"
             )
 
         elif (
-            op is JobOps.FIND and invoker_cls_permission_level < JobPermissionLevels.LOW
-        ):
-            if raise_exceptions:
-                raise JobPermissionError(
-                    f"insufficient permission level of {invoker_cls.__qualname__} "
-                    f"({invoker_cls_permission_level.name}) "
-                    f"for {_JOB_OPS_PRES_CONT[op.name].lower()} "
-                    "job objects"
-                )
-            return False
-
-        elif (
             op is JobOps.CUSTOM_EVENT_DISPATCH
-            and invoker_cls_permission_level < JobPermissionLevels.HIGH
+            and invoker_permission_level < JobPermissionLevels.MEDIUM
         ):
             if raise_exceptions:
                 raise JobPermissionError(
-                    f"insufficient permission level of {invoker_cls.__qualname__} "
-                    f"({invoker_cls_permission_level.name}) "
+                    f"insufficient permission level of {invoker._runtime_id} "
+                    f"({invoker_permission_level.name}) "
                     "for dispatching custom events to job objects "
                 )
             return False
 
         elif (
             op is JobOps.EVENT_DISPATCH
-            and invoker_cls_permission_level < JobPermissionLevels.HIGH
+            and invoker_permission_level < JobPermissionLevels.HIGH
         ):
             if raise_exceptions:
                 raise JobPermissionError(
-                    f"insufficient permission level of {invoker_cls.__qualname__} "
-                    f"({invoker_cls_permission_level.name}) "
+                    f"insufficient permission level of {invoker._runtime_id} "
+                    f"({invoker_permission_level.name}) "
                     "for dispatching non-custom events to job objects "
                 )
             return False
 
-        if op in (
+        elif op in (
             JobOps.CREATE,
             JobOps.INITIALIZE,
-            JobOps.REGISTER,
         ):
-            target_cls_permission_level = self.get_job_class_permission_level(
-                target_cls
-            )
-
-            if invoker_cls_permission_level < JobPermissionLevels.MEDIUM:
+            if invoker_permission_level < JobPermissionLevels.MEDIUM:
                 if raise_exceptions:
                     raise JobPermissionError(
-                        f"insufficient permission level of {invoker_cls.__qualname__} "
-                        f"({invoker_cls_permission_level.name}) "
+                        f"insufficient permission level of {invoker._runtime_id} "
+                        f"({invoker_permission_level.name}) "
                         f"for {_JOB_OPS_PRES_CONT[op.name].lower()} job objects"
                     )
                 return False
 
-            err_msg = (
-                f"insufficient permission level of '{invoker_cls.__qualname__}' "
-                f"({invoker_cls_permission_level.name}) "
-                f"for {_JOB_OPS_PRES_CONT[op.name].lower()} "
-                f"job objects of the specified class '{target_cls.__qualname__}' "
-                f"({target_cls_permission_level.name})"
-            )
+        elif op is JobOps.REGISTER:
 
-            if invoker_cls_permission_level == JobPermissionLevels.MEDIUM:
-                if target_cls_permission_level >= JobPermissionLevels.MEDIUM:
-                    if raise_exceptions:
-                        raise JobPermissionError(err_msg)
-                    return False
-
-            elif (
-                invoker_cls_permission_level == JobPermissionLevels.HIGH
-                and target_cls_permission_level > JobPermissionLevels.HIGH
-            ) or (
-                invoker_cls_permission_level == JobPermissionLevels.HIGHEST
-                and target_cls_permission_level > JobPermissionLevels.HIGHEST
-            ):
-                if raise_exceptions:
-                    raise JobPermissionError(err_msg)
-                return False
-
-        elif op in (JobOps.JOB_CLASS_REGISTER, JobOps.JOB_CLASS_UNREGISTER):
             if register_permission_level is None:
                 raise TypeError(
-                    "argument 'register_permission_level'"
-                    "cannot be None if enum 'op' is 'JOB_CLASS_REGISTER' "
-                    "or 'JOB_CLASS_UNREGISTER'"
+                    "argument 'with_permission_level'"
+                    " cannot be None if enum 'op' is 'REGISTER'"
                 )
 
-            if invoker_cls_permission_level < JobPermissionLevels.HIGHEST:
+            if invoker_permission_level < JobPermissionLevels.MEDIUM:
                 if raise_exceptions:
                     raise JobPermissionError(
-                        f"insufficient permission level of {invoker_cls.__qualname__} "
-                        f"({invoker_cls_permission_level.name}) "
-                        f"for (un)registering job classes"
+                        f"insufficient permission level of {invoker._runtime_id} "
+                        f"({invoker_permission_level.name}) "
+                        f"for {_JOB_OPS_PRES_CONT[op.name].lower()} job objects"
                     )
                 return False
 
-            if (
-                invoker_cls_permission_level == JobPermissionLevels.HIGHEST
-                and register_permission_level > JobPermissionLevels.HIGHEST
+            elif (
+                invoker_permission_level is JobPermissionLevels.MEDIUM
+                and register_permission_level >= JobPermissionLevels.MEDIUM
             ):
                 if raise_exceptions:
                     raise JobPermissionError(
-                        f"insufficient permission level of '{invoker_cls.__qualname__}' "
-                        f"({invoker_cls_permission_level.name}) "
-                        f"for (un)registering job classes at/of a permission level of "
-                        f"({register_permission_level.name})"
+                        f"insufficient permission level of {invoker._runtime_id} "
+                        f"({invoker_permission_level.name}) "
+                        f"for {_JOB_OPS_PRES_CONT[op.name].lower()} job objects"
+                        f"with the permission level '{register_permission_level.name}'"
+                    )
+                return False
+
+            elif (
+                invoker_permission_level is JobPermissionLevels.HIGH
+                and register_permission_level > JobPermissionLevels.HIGH
+            ):
+                if raise_exceptions:
+                    raise JobPermissionError(
+                        f"insufficient permission level of {invoker._runtime_id} "
+                        f"({invoker_permission_level.name}) "
+                        f"for {_JOB_OPS_PRES_CONT[op.name].lower()} job objects"
+                        f"with the permission level '{register_permission_level.name}'"
                     )
                 return False
 
@@ -529,36 +380,40 @@ class JobManager:
             if target is None:
                 raise TypeError(
                     "argument 'target'"
-                    " cannot be None if enum 'op' is 'START',"
-                    " 'RESTART', 'STOP' 'KILL', 'GUARD' or 'UNGUARD'"
+                    "cannot be None if enum 'op' is 'START', "
+                    "'RESTART', 'STOP' 'KILL', 'GUARD' or 'UNGUARD'"
                 )
 
-            target_cls_permission_level = self.get_job_class_permission_level(
-                target_cls
-            )
-
-            if invoker_cls_permission_level < JobPermissionLevels.HIGH:
+            if invoker_permission_level < JobPermissionLevels.MEDIUM:
                 if raise_exceptions:
                     raise JobPermissionError(
-                        f"insufficient permission level of {invoker_cls.__qualname__} "
-                        f"({invoker_cls_permission_level.name}) "
+                        f"insufficient permission level of {invoker._runtime_id} "
+                        f"({invoker_permission_level.name}) "
                         f"for {_JOB_OPS_PRES_CONT[op.name].lower()} job objects"
                     )
                 return False
 
-            elif invoker_cls_permission_level in (
-                JobPermissionLevels.HIGH,
-                JobPermissionLevels.HIGHEST,
-            ):
+            elif invoker_permission_level is JobPermissionLevels.MEDIUM:
                 if target._creator is not invoker._proxy:
                     if raise_exceptions:
                         raise JobPermissionError(
-                            f"insufficient permission level of '{invoker_cls.__qualname__}' "
-                            f"({invoker_cls_permission_level.name}) "
+                            f"insufficient permission level of '{invoker._runtime_id}' "
+                            f"({invoker_permission_level.name}) "
                             f"for {_JOB_OPS_PRES_CONT[op.name].lower()} "
                             f"job objects of the specified class '{target_cls.__qualname__}' "
-                            f"({target_cls_permission_level.name}) "
                             "its instance did not create."
+                        )
+                    return False
+
+            elif invoker_permission_level is JobPermissionLevels.HIGH:
+                if target_permission_level > JobPermissionLevels.HIGH:
+                    if raise_exceptions:
+                        raise JobPermissionError(
+                            f"insufficient permission level of '{invoker._runtime_id}' "
+                            f"({invoker_permission_level.name}) "
+                            f"for {_JOB_OPS_PRES_CONT[op.name].lower()} "
+                            f"job objects of the specified class '{target_cls.__qualname__}' "
+                            f"with permission level '{target_permission_level.name}'"
                         )
                     return False
 
@@ -575,58 +430,53 @@ class JobManager:
                     " 'RESTART', 'STOP' 'KILL' or 'GUARD'"
                 )
 
-            target_cls_permission_level = self.get_job_class_permission_level(
-                target_cls
-            )
+            target_permission_level = self._job_id_map[target._runtime_id][1]
 
-            if invoker_cls_permission_level < JobPermissionLevels.MEDIUM:
+            if invoker_permission_level < JobPermissionLevels.MEDIUM:
                 raise JobPermissionError(
-                    f"insufficient permission level of {invoker_cls.__qualname__}"
-                    f" ({invoker_cls_permission_level.name})"
-                    f" for {_JOB_OPS_PRES_CONT[op.name].lower()} job objects"
+                    f"insufficient permission level of {invoker._runtime_id} "
+                    f"({invoker_permission_level.name}) "
+                    f"for {_JOB_OPS_PRES_CONT[op.name].lower()} job objects "
                 )
 
-            elif invoker_cls_permission_level == JobPermissionLevels.MEDIUM:
+            elif invoker_permission_level is JobPermissionLevels.MEDIUM:
                 if (
-                    target_cls_permission_level < JobPermissionLevels.MEDIUM
+                    target_permission_level < JobPermissionLevels.MEDIUM
                     and target._creator is not invoker._proxy
                 ):
                     if raise_exceptions:
                         raise JobPermissionError(
-                            f"insufficient permission level of '{invoker_cls.__qualname__}' "
-                            f"({invoker_cls_permission_level.name}) "
+                            f"insufficient permission level of '{invoker._runtime_id}' "
+                            f"({invoker_permission_level.name}) "
                             f"for {_JOB_OPS_PRES_CONT[op.name].lower()} "
                             f"job objects of the specified class '{target_cls.__qualname__}' "
-                            f"({target_cls_permission_level.name}) that "
-                            "its instance did not create."
+                            f"with permission level '{target_permission_level.name}' "
+                            "that it did not create."
                         )
                     return False
 
-                elif target_cls_permission_level >= JobPermissionLevels.MEDIUM:
+                elif target_permission_level >= JobPermissionLevels.MEDIUM:
                     if raise_exceptions:
-                        raise JobPermissionError
+                        raise JobPermissionError(
+                            f"insufficient permission level of '{invoker._runtime_id}' "
+                            f"({invoker_permission_level.name}) "
+                            f"for {_JOB_OPS_PRES_CONT[op.name].lower()} "
+                            f"job objects of the specified class '{target_cls.__qualname__}' "
+                            f"with permission level '{target_permission_level.name}'"
+                        )
                     return False
 
-            else:
-                err_msg = (
-                    f"insufficient permission level of '{invoker_cls.__qualname__}' "
-                    f"({invoker_cls_permission_level.name}) "
-                    f"for {_JOB_OPS_PRES_CONT[op.name].lower()} "
-                    f"job objects of the specified class '{target_cls.__qualname__}' "
-                    f"({target_cls_permission_level.name})"
-                )
-                if invoker_cls_permission_level == JobPermissionLevels.HIGH:
-                    if target_cls_permission_level >= JobPermissionLevels.HIGH:
-                        if raise_exceptions:
-                            raise JobPermissionError(err_msg)
-                        return False
-
-                elif invoker_cls_permission_level == JobPermissionLevels.HIGHEST:
-                    if target_cls_permission_level > JobPermissionLevels.HIGHEST:
-                        if raise_exceptions:
-                            raise JobPermissionError(err_msg)
-                        return False
-
+            elif invoker_permission_level is JobPermissionLevels.HIGH:
+                if target_permission_level >= JobPermissionLevels.HIGH:
+                    if raise_exceptions:
+                        raise JobPermissionError(
+                            f"insufficient permission level of '{invoker._runtime_id}' "
+                            f"({invoker_permission_level.name}) "
+                            f"for {_JOB_OPS_PRES_CONT[op.name].lower()} "
+                            f"job objects of the specified class '{target_cls.__qualname__}' "
+                            f"with permission level '{target_permission_level.name}'"
+                        )
+                    return False
         return True
 
     def create_job(
@@ -653,16 +503,9 @@ class JobManager:
         self._check_init_and_running()
 
         if isinstance(_iv, jobs.ManagedJobBase):
-            if (
-                not self.job_class_is_registered(cls)
-                and self._default_permission_level is not None
-            ):
-                self.register_job_class(
-                    cls, self._default_permission_level, _iv=self._manager_job
-                )
             self._verify_permissions(_iv, op=JobOps.CREATE, target_cls=cls)
         else:
-            self._check_within_job()
+            self._check_manager_misuse()
             _iv = self._manager_job
 
         job = cls(*args, **kwargs)
@@ -709,7 +552,7 @@ class JobManager:
         if isinstance(_iv, jobs.ManagedJobBase):
             self._verify_permissions(_iv, op=JobOps.INITIALIZE, target=job)
         else:
-            self._check_within_job()
+            self._check_manager_misuse()
             _iv = self._manager_job
 
         if job._guardian is not None and _iv._proxy is not job._guardian:
@@ -739,6 +582,7 @@ class JobManager:
     async def register_job(
         self,
         job_proxy: "proxies.JobProxy",
+        with_permission_level: Optional[JobPermissionLevels] = None,
         start: bool = True,
         _iv: Optional[jobs.ManagedJobBase] = None,
     ):
@@ -749,6 +593,10 @@ class JobManager:
             job (JobProxy): The job object to be registered.
             start (bool): Whether the given job object should start automatically
               upon registration.
+            with_permission_level (Optional[JobPermissionLevels], optional)
+              The permission level under which the job object should be registered.
+              If set to `None`, the default job manager permission level will be
+              chosen. Defaults to None.
 
         Raises:
             JobIsDone: The given job object is already done.
@@ -762,10 +610,24 @@ class JobManager:
 
         job = self._get_job_from_proxy(job_proxy)
 
+        if with_permission_level is None:
+            with_permission_level = self._default_job_permission_level
+
+        elif not isinstance(with_permission_level, JobPermissionLevels):
+            raise TypeError(
+                "argument 'with_permission_level' must be None or a usable enum value "
+                "defined in the 'JobPermissionLevels' enum"
+            )
+
         if isinstance(_iv, jobs.ManagedJobBase):
-            self._verify_permissions(_iv, op=JobOps.REGISTER, target=job)
+            self._verify_permissions(
+                _iv,
+                op=JobOps.REGISTER,
+                target=job,
+                register_permission_level=with_permission_level,
+            )
         else:
-            self._check_within_job()
+            self._check_manager_misuse()
             _iv = self._manager_job
 
         if job._guardian is not None and _iv._proxy is not job._guardian:
@@ -781,21 +643,22 @@ class JobManager:
 
         if (
             job.__class__._SINGLE
-            and job.__class__ in self._job_class_info_dict
-            and self._job_class_info_dict[job.__class__]["count"]
+            and job.__class__._RUNTIME_ID in self._job_class_data
+            and len(self._job_class_data[job.__class__._RUNTIME_ID]["instances"]) > 0
         ):
             raise JobException(
                 "cannot have more than one instance of a"
                 f" '{job.__class__.__qualname__}' job registered at a time."
             )
 
-        self._add_job(job, start=start)
+        self._add_job(job, with_permission_level=with_permission_level, start=start)
         job._registered_at_ts = time.time()
 
     async def create_and_register_job(
         self,
         cls: Type[jobs.ManagedJobBase],
         *args,
+        with_permission_level: Optional[JobPermissionLevels] = None,
         _return_proxy: bool = True,
         _iv: Optional[jobs.ManagedJobBase] = None,
         **kwargs,
@@ -806,23 +669,31 @@ class JobManager:
         Args:
             cls (Type[jobs.ManagedJobBase]): The job class to instantiate.
             *args (Any): Positional arguments for the job constructor.
-            **kwargs (Any): Keyword-pnly arguments for the job constructor.
+            with_permission_level (Optional[JobPermissionLevels], optional)
+              The permission level under which the job object should be registered.
+              If set to `None`, the default job manager permission level will be
+              chosen. Defaults to None.
+            **kwargs (Any): Keyword arguments for the job constructor
+              (excluding `with_permission_level`).
 
         Returns:
             JobProxy: A job proxy object.
         """
         j = self.create_job(cls, *args, _return_proxy=False, _iv=_iv, **kwargs)
-        await self.register_job(j._proxy, start=True, _iv=_iv)
+        await self.register_job(
+            j._proxy, start=True, with_permission_level=with_permission_level, _iv=_iv
+        )
         if _return_proxy:
             return j._proxy
         return j
 
     def __iter__(self):
-        return iter(job._proxy for job in self._job_id_map.values())
+        return iter(job_tuple[0]._proxy for job_tuple in self._job_id_map.values())
 
     def _add_job(
         self,
         job: jobs.ManagedJobBase,
+        with_permission_level: JobPermissionLevels,
         start: bool = True,
     ):
         """THIS METHOD IS ONLY MEANT FOR INTERNAL USE BY THIS CLASS.
@@ -832,6 +703,8 @@ class JobManager:
         Args:
             job: jobs.ManagedJobBase:
                 The job to add.
+            with_permission_level (JobPermissionLevels)
+              The permission level under which the job object should be added.
             start (bool, optional):
                 Whether a given interval job object should start immediately
                 after being added. Defaults to True.
@@ -842,18 +715,16 @@ class JobManager:
                 manager, or this job manager has not been initialized.
         """
 
-        if job._runtime_identifier in self._job_id_map:
+        if job._runtime_id in self._job_id_map:
             raise RuntimeError(
                 "the given job is already present in this manager"
             ) from None
 
         if isinstance(job, jobs.EventJobMixin):
             for ev_type in job.EVENTS:
-                if ev_type._RUNTIME_IDENTIFIER not in self._event_job_ids:
-                    self._event_job_ids[ev_type._RUNTIME_IDENTIFIER] = set()
-                self._event_job_ids[ev_type._RUNTIME_IDENTIFIER].add(
-                    job._runtime_identifier
-                )
+                if ev_type._RUNTIME_ID not in self._event_job_ids:
+                    self._event_job_ids[ev_type._RUNTIME_ID] = set()
+                self._event_job_ids[ev_type._RUNTIME_ID].add(job._runtime_id)
 
         elif not isinstance(job, jobs.ManagedJobBase):
             raise TypeError(
@@ -861,14 +732,19 @@ class JobManager:
                 f"not {job.__class__.__qualname__}"
             ) from None
 
-        if job.__class__ not in self._job_class_info_dict:
-            self._job_class_info_dict[job.__class__] = {"count": 0}
+        if job.__class__._RUNTIME_ID not in self._job_class_data:
+            self._job_class_data[job.__class__] = {
+                "class": job.__class__,
+                "instances": {},
+            }
 
-        self._job_class_info_dict[job.__class__]["count"] += 1
+        self._job_class_data[job.__class__._RUNTIME_ID]["instances"][
+            job._runtime_id
+        ] = (job, with_permission_level)
 
-        self._job_id_map[job._runtime_identifier] = job
+        self._job_id_map[job._runtime_id] = (job, with_permission_level)
 
-        job._registered_at_ts = time.time()
+        job._permission_level = with_permission_level
 
         if start:
             job._START_EXTERNAL()
@@ -894,26 +770,26 @@ class JobManager:
         if isinstance(job, jobs.EventJobMixin):
             for ev_type in job.EVENTS:
                 if (
-                    ev_type._RUNTIME_IDENTIFIER in self._event_job_ids
-                    and job._runtime_identifier
-                    in self._event_job_ids[ev_type._RUNTIME_IDENTIFIER]
+                    ev_type._RUNTIME_ID in self._event_job_ids
+                    and job._runtime_id in self._event_job_ids[ev_type._RUNTIME_ID]
                 ):
-                    self._event_job_ids[ev_type._RUNTIME_IDENTIFIER].remove(
-                        job._runtime_identifier
-                    )
-                if not self._event_job_ids[ev_type._RUNTIME_IDENTIFIER]:
-                    del self._event_job_ids[ev_type._RUNTIME_IDENTIFIER]
+                    self._event_job_ids[ev_type._RUNTIME_ID].remove(job._runtime_id)
+                if not self._event_job_ids[ev_type._RUNTIME_ID]:
+                    del self._event_job_ids[ev_type._RUNTIME_ID]
 
-        if job._runtime_identifier in self._job_id_map:
-            del self._job_id_map[job._runtime_identifier]
-
-        self._job_class_info_dict[job.__class__]["count"] -= 1
+        if job._runtime_id in self._job_id_map:
+            del self._job_id_map[job._runtime_id]
 
         if (
-            self._job_class_info_dict[job.__class__]["count"] == 0
-            and "permission_level" not in self._job_class_info_dict[job.__class__]
+            job._runtime_id
+            in self._job_class_data[job.__class__._RUNTIME_ID]["instances"]
         ):
-            del self._job_class_info_dict[job.__class__]
+            del self._job_class_data[job.__class__._RUNTIME_ID]["instances"][
+                job._runtime_id
+            ]
+
+        if not self._job_class_data[job.__class__._RUNTIME_ID]["instances"]:
+            del self._job_class_data[job.__class__._RUNTIME_ID]
 
     def _remove_jobs(self, *jobs: jobs.ManagedJobBase):
         """THIS METHOD IS ONLY MEANT FOR INTERNAL USE BY THIS CLASS.
@@ -944,7 +820,7 @@ class JobManager:
 
         job = self._get_job_from_proxy(job_proxy)
 
-        return job in self._job_id_map.values()
+        return job._runtime_id in self._job_id_map
 
     def has_job_identifier(self, identifier: str) -> bool:
         """Whether a job with the given identifier is contained in this job manager.
@@ -960,13 +836,23 @@ class JobManager:
 
         return identifier in self._job_id_map
 
+    def get_job_permission_level(
+        self, job_proxy: "proxies.JobProxy"
+    ) -> JobPermissionLevels:
+
+        job = self._get_job_from_proxy(job_proxy)
+
+        if job._runtime_id in self._job_id_map:
+            return self._job_id_map[job._runtime_id][1]
+
+        raise LookupError("could not find the specified job in this job manager")
+
     def find_job(
         self,
         *,
         identifier: Union[str, _UnsetType] = None,
         created_at: Union[datetime.datetime, _UnsetType] = None,
         _return_proxy: bool = True,
-        _iv: Optional[jobs.ManagedJobBase] = None,
     ) -> Optional["proxies.JobProxy"]:
         """Find the first job that matches the given criteria specified as arguments,
         and return a proxy to it, otherwise return `None`.
@@ -988,18 +874,12 @@ class JobManager:
 
         self._check_init_and_running()
 
-        if isinstance(_iv, jobs.ManagedJobBase):
-            self._verify_permissions(_iv, op=JobOps.FIND)
-        else:
-            self._check_within_job()
-            _iv = self._manager_job
-
         if identifier is not None:
             if isinstance(identifier, str):
                 if identifier in self._job_id_map:
                     if _return_proxy:
-                        return self._job_id_map[identifier]._proxy
-                    return self._job_id_map[identifier]
+                        return self._job_id_map[identifier][0]._proxy
+                    return self._job_id_map[identifier][0]
                 return None
 
             raise TypeError(
@@ -1053,7 +933,6 @@ class JobManager:
         stopped: Union[bool, _UnsetType] = UNSET,
         query_match_mode: Literal["ANY", "ALL"] = "ALL",
         _return_proxy: bool = True,
-        _iv: Optional[jobs.ManagedJobBase] = None,
     ) -> tuple["proxies.JobProxy"]:
         """Find jobs that match the given criteria specified as arguments,
         and return a tuple of proxy objects to them.
@@ -1114,12 +993,6 @@ class JobManager:
         """
 
         self._check_init_and_running()
-
-        if isinstance(_iv, jobs.ManagedJobBase):
-            self._verify_permissions(_iv, op=JobOps.FIND)
-        else:
-            self._check_within_job()
-            _iv = self._manager_job
 
         filter_functions = []
 
@@ -1278,20 +1151,25 @@ class JobManager:
         if filter_functions:
             if _return_proxy:
                 return tuple(
-                    job._proxy
-                    for job in self._job_id_map.values()
-                    if bool_func(filter_func(job) for filter_func in filter_functions)
+                    job_tuple[0]._proxy
+                    for job_tuple in self._job_id_map.values()
+                    if bool_func(
+                        filter_func(job_tuple[0]) for filter_func in filter_functions
+                    )
                 )
+
             return tuple(
-                job
-                for job in self._job_id_map.values()
-                if bool_func(filter_func(job) for filter_func in filter_functions)
+                job_tuple[0]
+                for job_tuple in self._job_id_map.values()
+                if bool_func(
+                    filter_func(job_tuple[0]) for filter_func in filter_functions
+                )
             )
 
         if _return_proxy:
-            return tuple(job._proxy for job in self._job_id_map.values())
+            return tuple(job_tuple[0]._proxy for job_tuple in self._job_id_map.values())
 
-        return tuple(self._job_id_map.values())
+        return tuple(job_tuple[0] for job_tuple in self._job_id_map.values())
 
     def start_job(
         self,
@@ -1324,7 +1202,7 @@ class JobManager:
         if isinstance(_iv, jobs.ManagedJobBase):
             self._verify_permissions(_iv, op=JobOps.START, target=job)
         else:
-            self._check_within_job()
+            self._check_manager_misuse()
             _iv = self._manager_job
 
         if job._guardian is not None and _iv._proxy is not job._guardian:
@@ -1371,7 +1249,7 @@ class JobManager:
         if isinstance(_iv, jobs.ManagedJobBase):
             self._verify_permissions(_iv, op=JobOps.RESTART, target=job)
         else:
-            self._check_within_job()
+            self._check_manager_misuse()
             _iv = self._manager_job
 
         if job._guardian is not None and _iv._proxy is not job._guardian:
@@ -1421,7 +1299,7 @@ class JobManager:
         if isinstance(_iv, jobs.ManagedJobBase):
             self._verify_permissions(_iv, op=JobOps.STOP, target=job)
         else:
-            self._check_within_job()
+            self._check_manager_misuse()
             _iv = self._manager_job
 
         if job._guardian is not None and _iv._proxy is not job._guardian:
@@ -1471,7 +1349,7 @@ class JobManager:
         if isinstance(_iv, jobs.ManagedJobBase):
             self._verify_permissions(_iv, op=JobOps.KILL, target=job)
         else:
-            self._check_within_job()
+            self._check_manager_misuse()
             _iv = self._manager_job
 
         if job._guardian is not None and _iv._proxy is not job._guardian:
@@ -1513,7 +1391,7 @@ class JobManager:
         if isinstance(_iv, jobs.ManagedJobBase):
             self._verify_permissions(_iv, op=JobOps.GUARD, target=job)
         else:
-            self._check_within_job()
+            self._check_manager_misuse()
             _iv = self._manager_job
 
         if job._guardian is not None:
@@ -1524,9 +1402,9 @@ class JobManager:
         if _iv._guarded_job_proxies_dict is None:
             _iv._guarded_job_proxies_dict = {}
 
-        if job._runtime_identifier not in _iv._guarded_job_proxies_dict:
+        if job._runtime_id not in _iv._guarded_job_proxies_dict:
             job._guardian = _iv._proxy
-            _iv._guarded_job_proxies_dict[job._runtime_identifier] = job._proxy
+            _iv._guarded_job_proxies_dict[job._runtime_id] = job._proxy
         else:
             raise JobIsGuarded(
                 "the given target job object is already"
@@ -1560,7 +1438,7 @@ class JobManager:
         if isinstance(_iv, jobs.ManagedJobBase):
             self._verify_permissions(_iv, op=JobOps.UNGUARD, target=job)
         else:
-            self._check_within_job()
+            self._check_manager_misuse()
             _iv = self._manager_job
 
         if job._guardian is None:
@@ -1570,15 +1448,15 @@ class JobManager:
 
         if (
             _iv._guarded_job_proxies_dict is not None
-            and job._runtime_identifier in _iv._guarded_job_proxies_dict
+            and job._runtime_id in _iv._guarded_job_proxies_dict
         ):
             job._guardian = None
-            del _iv._guarded_job_proxies_dict[job._runtime_identifier]
+            del _iv._guarded_job_proxies_dict[job._runtime_id]
 
         elif _iv is self._manager_job:
             job._guardian = None
 
-            del guardian._guarded_job_proxies_dict[job._runtime_identifier]
+            del guardian._guarded_job_proxies_dict[job._runtime_id]
 
         else:
             raise JobStateError(
@@ -1633,7 +1511,7 @@ class JobManager:
         self._check_init_and_running()
 
         job = self._get_job_from_proxy(job_proxy)
-        return job._runtime_identifier in self._job_id_map
+        return job._runtime_id in self._job_id_map
 
     def dispatch_event(
         self,
@@ -1660,14 +1538,14 @@ class JobManager:
         else:
             if not isinstance(event, events.BaseEvent):
                 raise TypeError("argument 'event' must be an instance of BaseEvent")
-            self._check_within_job()
+            self._check_manager_misuse()
             _iv = self._manager_job
 
         if _iv is not None:
             # for cases where the default _iv might not yet be set
             event._dispatcher = _iv._proxy
 
-        event_class_identifier = event.__class__._RUNTIME_IDENTIFIER
+        event_class_identifier = event.__class__._RUNTIME_ID
 
         if event_class_identifier in self._event_waiting_queues:
             target_event_waiting_queue = self._event_waiting_queues[
@@ -1736,10 +1614,10 @@ class JobManager:
         wait_list = [event_types, check, future]
 
         for event_type in event_types:
-            if event_type._RUNTIME_IDENTIFIER not in self._event_waiting_queues:
-                self._event_waiting_queues[event_type._RUNTIME_IDENTIFIER] = []
+            if event_type._RUNTIME_ID not in self._event_waiting_queues:
+                self._event_waiting_queues[event_type._RUNTIME_ID] = []
 
-            self._event_waiting_queues[event_type._RUNTIME_IDENTIFIER].append(wait_list)
+            self._event_waiting_queues[event_type._RUNTIME_ID].append(wait_list)
 
         return asyncio.wait_for(future, timeout)
 
@@ -1747,7 +1625,7 @@ class JobManager:
         """Stop all job objects that are in this job manager."""
 
         self._check_init_and_running()
-        self._check_within_job()
+        self._check_manager_misuse()
 
         for job in self._job_id_map.values():
             job._STOP_EXTERNAL(force=force)
@@ -1756,7 +1634,7 @@ class JobManager:
         """Kill all job objects that are in this job manager."""
 
         self._check_init_and_running()
-        self._check_within_job()
+        self._check_manager_misuse()
 
         for job in self._job_id_map.values():
             job._KILL_EXTERNAL(awaken=awaken)

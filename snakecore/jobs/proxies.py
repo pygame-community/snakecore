@@ -30,9 +30,19 @@ class JobProxy:  # will be overridden at runtime
     __slots__ = (
         "__j",
         "__job_class",
-        "__runtime_identifier",
+        "__runtime_id",
+        "__permission_level",
+        "__creator",
         "_created_at",
         "_registered_at",
+        "_done_since",
+        "_initialized_since",
+        "_alive_since",
+        "_last_stopping_reason",
+        "_killed_at",
+        "_completed_at",
+        "_done",
+        "_bools",
     )
 
     def __init__(self, job: "jobs.JobBase"):
@@ -56,7 +66,7 @@ class JobProxy:  # will be overridden at runtime
         ...
 
     @property
-    def runtime_identifier(self) -> str:
+    def runtime_id(self) -> str:
         ...
 
     @property
@@ -181,23 +191,7 @@ class JobProxy:  # will be overridden at runtime
 
 
 class _JobProxy:
-    __slots__ = (
-        "__j",
-        "__job_class",
-        "__runtime_identifier",
-        "__permission_level",
-        "__creator",
-        "_created_at",
-        "_registered_at",
-        "_done_since",
-        "_initialized_since",
-        "_alive_since",
-        "_last_stopping_reason",
-        "_killed_at",
-        "_completed_at",
-        "_done",
-        "_bools",
-    )
+    __slots__ = JobProxy.__slots__
 
     def __init__(self, job: "jobs.JobBase"):
         self.__j = job
@@ -208,7 +202,7 @@ class _JobProxy:
         if job is None:
             return
         self.__job_class = job.__class__
-        self.__runtime_identifier = job._runtime_identifier
+        self.__runtime_id = job._runtime_id
         self.__permission_level = job.permission_level if job.alive() else None
         self.__creator = job.creator
         self._created_at = job.created_at
@@ -245,8 +239,8 @@ class _JobProxy:
         )
 
     @property
-    def runtime_identifier(self) -> str:
-        return self.__runtime_identifier
+    def runtime_id(self) -> str:
+        return self.__runtime_id
 
     @property
     def creator(self) -> Optional["JobProxy"]:
@@ -805,13 +799,7 @@ class JobManagerProxy:
     def _self_ungard(self):
         ...
 
-    get_job_class_permission_level = manager.JobManager.get_job_class_permission_level
-
-    register_job_class = manager.JobManager.register_job_class
-
-    unregister_job_class = manager.JobManager.unregister_job_class
-
-    job_class_is_registered = manager.JobManager.job_class_is_registered
+    get_job_permission_level = manager.JobManager.get_job_permission_level
 
     create_job = manager.JobManager.create_job
 
@@ -861,7 +849,7 @@ class JobManagerProxy:
 
 
 class _JobManagerProxy:  # hidden implementation to trick type-checker engines
-    __slots__ = ("__mgr", "__j", "_job_stop_timeout")
+    __slots__ = JobManagerProxy.__slots__
 
     def __init__(self, mgr: manager.JobManager, job: jobs.JobBase):
         self.__mgr = mgr
@@ -882,11 +870,6 @@ class _JobManagerProxy:  # hidden implementation to trick type-checker engines
             else self.__mgr.get_global_job_stop_timeout()
         )
 
-    def get_job_class_permission_level(
-        self, cls: Type[jobs.ManagedJobBase], default: Any = UNSET, /
-    ) -> Union[JobPermissionLevels, Any]:
-        return self.__mgr.get_job_class_permission_level(cls, default)
-
     def verify_permissions(
         self,
         op: JobPermissionLevels,
@@ -903,18 +886,8 @@ class _JobManagerProxy:  # hidden implementation to trick type-checker engines
             raise_exceptions=False,
         )
 
-    def register_job_class(
-        self, cls: Type[jobs.ManagedJobBase], permission_level: JobPermissionLevels
-    ):
-        return self.__mgr.register_job_class(
-            cls, permission_level=permission_level, _iv=self.__j
-        )
-
-    def unregister_job_class(self, cls: Type[jobs.ManagedJobBase]):
-        return self.__mgr.unregister_job_class(cls, _iv=self.__j)
-
-    def job_class_is_registered(self, cls: Type[jobs.ManagedJobBase]) -> bool:
-        return self.__mgr.job_class_is_registered(cls)
+    def get_job_permission_level(self, job_proxy: JobProxy) -> JobPermissionLevels:
+        return self.__mgr.get_job_permission_level(job_proxy)
 
     def create_job(
         self,
@@ -1036,7 +1009,6 @@ class _JobManagerProxy:  # hidden implementation to trick type-checker engines
             identifier=identifier,
             created_at=created_at,
             _return_proxy=True,
-            _iv=self.__j,
         )
 
     def find_jobs(
@@ -1096,7 +1068,6 @@ class _JobManagerProxy:  # hidden implementation to trick type-checker engines
             stopped=stopped,
             query_match_mode=query_match_mode,
             _return_proxy=True,
-            _iv=self.__j,
         )
 
     def wait_for_event(

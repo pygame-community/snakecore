@@ -7,6 +7,7 @@ This file defines some important utility functions for the library.
 """
 
 from collections import ChainMap, defaultdict, deque
+import collections
 import datetime
 import os
 import platform
@@ -663,29 +664,46 @@ def recursive_dict_delete(
     return old_dict
 
 
-def chainmap_getitem(map: ChainMap, key: Any):
-    """A better approach to looking up from
-    ChainMap objects, by treating inner
-    defaultdict maps as a rare special case.
-    Args:
-        map (ChainMap): The ChainMap.
-        key (Any): The key.
-    Returns:
-        object: The lookup result.
-    Raises:
-        KeyError: key not found.
+class FastChainMap(collections.ChainMap):
+    """A drop-in replacement for ChainMap with
+    optimized versions of some of its superclass's methods.
     """
-    for mapping in map.maps:
-        if not isinstance(mapping, defaultdict):
-            if key in mapping:
-                return mapping[key]
-            continue
 
-        try:
-            return mapping[key]  # can't use 'key in mapping' with defaultdict
-        except KeyError:
-            pass
-    return map.__missing__(key)
+    def __init__(self, *maps, ignore_defaultdicts: bool = False):
+        """Initialize a FastChainMap by setting *maps* to the given mappings.
+        If no mappings are provided, a single empty dictionary is used.
+        *ignore_defaultdicts* can be used to speed up lookups by ignoring
+        defaultdict objects during key lookup.
+
+        """
+        self.maps = list(maps) or [{}]  # always at least one map
+        self.ignore_defaultdicts = ignore_defaultdicts
+
+    def __getitem__(self, key):
+        if self.ignore_defaultdicts:
+            for mapping in self.maps:
+                if key in mapping:
+                    return mapping[key]
+
+        else:
+            for mapping in self.maps:
+                if not isinstance(mapping, defaultdict):
+                    if key in mapping:
+                        return mapping[key]
+                    continue
+
+                try:
+                    return mapping[key]  # can't use 'key in mapping' with defaultdict
+                except KeyError:
+                    pass
+
+        return self.__missing__(key)  # support subclasses that define __missing__
+
+    def get(self, key, default=None):
+        return self[key] if any(key in m for m in self.maps) else default
+
+
+FastChainMap.update()
 
 
 def class_getattr_unique(

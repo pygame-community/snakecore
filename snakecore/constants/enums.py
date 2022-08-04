@@ -200,14 +200,7 @@ class JobPermissionLevels(IntEnum):
     applicable to job objects.
     """
 
-    LOWEST = 1
-    """The lowest permission level.
-    An Isolated job which has no information about other jobs being executed.
-    Permissions:
-        - Can manage its own execution at will.
-    """
-
-    LOW = 1 << 1
+    LOW = 1
     """A low permission level.
 
     Permissions:
@@ -215,73 +208,64 @@ class JobPermissionLevels(IntEnum):
         - Can discover and view all alive jobs, and request data from them.
     """
 
-    MEDIUM = 1 << 2
-    """The default permission level, with simple job management permissions.
-
-    Permissions:
-        - Can manage its own execution at will.
-        - Can discover and view all alive jobs, and request data from them.
-        - Can instantiate, register, start and schedule jobs of a lower permission level.
-        - Can stop, restart, or kill jobs instantiated by itself or unschedule its scheduled jobs.
-        - Can unschedule jobs that don't have an alive job as a scheduler.
-    """
-
-    HIGH = 1 << 3
+    NORMAL = MEDIUM = 1 << 1
     """An elevated permission level, with additional control over jobs
     of a lower permission level.
 
     Permissions:
         - Can manage its own execution at will.
         - Can discover and view all alive jobs, and request data from them.
-        - Can instantiate, register, start and schedule jobs of a lower permission level.
-        - Can stop, restart, or kill jobs instantiated by itself or unschedule its scheduled jobs.
-        - Can unschedule jobs that don't have an alive job as a scheduler.
-        - Can stop, restart, kill or unschedule any job of a lower permission level.
+        - Can instantiate, register or start jobs of a lower permission level.
+        - Can stop, restart or kill jobs instantiated by itself.
+        - Can stop, restart or kill any job of a lower permission level.
         - Can guard and unguard jobs of a lower permission level instantiated by itself.
         - Can dispatch custom events to other jobs (`CustomEvent` subclasses).
     """
 
-    HIGHEST = 1 << 4
+    HIGH = 1 << 2
     """The highest usable permission level, with additional control over jobs
     of a lower permission level. Lower permissions additionally apply to this level.
 
     Permissions:
         - Can manage its own execution at will.
         - Can discover and view all alive jobs, and request data from them.
-        - Can instantiate, register, start and schedule jobs of a lower permission level.
-        - Can stop, restart, or kill jobs instantiated by itself or unschedule its scheduled jobs.
-        - Can unschedule jobs that don't have an alive job as a scheduler.
-        - Can stop, restart, kill or unschedule any job of a lower permission level.
+        - Can instantiate, register or start jobs of a lower permission level.
+        - Can stop, restart or kill jobs instantiated by itself.
+        - Can stop, restart or kill any job of a lower permission level.
         - Can guard and unguard jobs of a lower permission level instantiated by itself.
-        - Can guard and unguard jobs of the same permission level instantiated by itself.
         - Can dispatch custom events to other jobs (`CustomEvent` subclasses).
         - Can dispatch any event to other jobs (`BaseEvent` subclasses).
-        - Can instantiate, register, start and schedule jobs of the same permission level.
-        - Can stop, restart, kill or unschedule any job of the same permission level.
+        - Can instantiate, register or start jobs of the same permission level.
+        - Can stop, restart or kill any job of the same permission level.
+        - Can guard and unguard jobs of a lower or same permission level.
     """
 
-    SYSTEM = 1 << 5
+    SYSTEM = 1 << 3
     """The highest possible permission level reserved for system-level jobs. Cannot be used directly.
     Lower permissions additionally apply to this level.
 
     Permissions:
         - Can manage its own execution at will.
         - Can discover and view all alive jobs, and request data from them.
-        - Can instantiate, register, start and schedule jobs of a lower permission level.
-        - Can stop, restart, or kill jobs instantiated by itself or unschedule its scheduled jobs.
-        - Can unschedule jobs that don't have an alive job as a scheduler.
-        - Can stop, restart, kill or unschedule any job of a lower permission level.
+        - Can instantiate, register or start jobs of a lower permission level.
+        - Can stop, restart or kill jobs instantiated by itself.
+        - Can stop, restart or kill any job of a lower permission level.
         - Can guard and unguard jobs of a lower permission level instantiated by itself.
         - Can dispatch custom events to other jobs (`CustomEvent` subclasses).
         - Can dispatch any event to other jobs (`BaseEvent` subclasses).
-        - Can instantiate, register, start and schedule jobs of the same permission level.
-        - Can stop, restart, kill or unschedule any job of the same permission level.
+        - Can instantiate, register or start jobs of the same permission level.
+        - Can stop, restart or kill any job of the same permission level.
+        - Can guard and unguard jobs of a lower or same permission level.
         - Can guard or unguard any job.
     """
 
 
 class JobBoolFlags:
     """
+    Bit flags to be used by job classes for storing
+    boolean values. Can be inherited and extended using
+    the `LAST_FLAG_OFFSET` as a starting offset instead of 0.
+
     - `bool1 = bool2 = ... = True`:
         - `flags |= flag1 | flag2 | ...`
         - `flags = flags | flag1 | flag2 | ...`
@@ -362,3 +346,5 @@ class JobBoolFlags:
     OE_STOP_IF_NO_EVENTS = 1 << 26
     STOPPING_BY_EVENT_TIMEOUT = 1 << 27
     STOPPING_BY_EMPTY_QUEUE = 1 << 28
+
+    LAST_FLAG_OFFSET = 28

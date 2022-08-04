@@ -11,7 +11,7 @@ import discord
 
 from snakecore import config, events
 from .jobs import (
-    get_job_class_from_runtime_identifier,
+    get_job_class_from_runtime_id,
     JobNamespace,
     singletonjob,
     publicjobmethod,
