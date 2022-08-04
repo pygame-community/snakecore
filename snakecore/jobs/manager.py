@@ -1631,22 +1631,60 @@ class JobManager:
         return asyncio.wait_for(future, timeout)
 
     def stop_all_jobs(self, force: bool = False):
-        """Stop all job objects that are in this job manager."""
+        """Stop all job objects that are in this job manager.
+
+        Args:
+            force (bool, optional): Whether a job object should always
+              be stopped forcefully instead of gracefully, thereby ignoring any
+              exceptions that it might have handled when reconnecting is enabled
+              for it. Job objects that are idling are always stopped forcefully.
+              Defaults to False.
+
+            Returns:
+              An awaitable object that can be used to wait until
+              the stopping process is completed.
+        """
 
         self._check_init_and_running()
         self._check_manager_misuse()
 
+        stop_awaitables = []
+
         for job, _ in self._job_id_map.values():
+            if job.is_running():
+                stop_awaitables.append(job.await_stop())
             job._STOP_EXTERNAL(force=force)
 
+        return asyncio.gather(*stop_awaitables)
+
     def kill_all_jobs(self, awaken: bool = True):
-        """Kill all job objects that are in this job manager."""
+        """Kill all job objects that are in this job manager.
+
+        Args:
+            awaken (bool, optional): Whether to awaken job objects before
+              killing them, if they were stopped. Defaults to True.
+
+        Returns:
+            An awaitable object that can be used to wait until
+            the killing process is completed.
+        """
 
         self._check_init_and_running()
         self._check_manager_misuse()
 
+        done_awaitables = []
+
+        manager_job_data = self._job_id_map.pop(self._manager_job._runtime_id)
+        # don't kill job manager's job
+
         for job, _ in self._job_id_map.values():
+            done_awaitables.append(job.await_done())
             job._KILL_EXTERNAL(awaken=awaken)
+
+        self._job_id_map[self._manager_job._runtime_id] = manager_job_data
+        self._manager_job._STOP_EXTERNAL(force=True)
+
+        return asyncio.gather(*done_awaitables)
 
     def resume(self):
         """Resume the execution of this job manager.
@@ -1659,18 +1697,20 @@ class JobManager:
         if self._is_running:
             raise RuntimeError("this job manager is still running")
 
+        self._manager_job._START_EXTERNAL()
+
         self._is_running = True
 
     def stop(
         self,
-        job_operation: Union[Literal[JobOps.KILL], Literal[JobOps.STOP]] = JobOps.KILL,
+        job_operation: Union[Literal[JobOps.KILL], Literal[JobOps.STOP]] = JobOps.STOP,
     ):
         """Stop this job manager from running, while optionally killing/stopping the jobs in it
         and shutting down its executors.
 
         Args:
             job_operation (Union[JobOps.KILL, JobOps.STOP]): The operation to
-              perform on the jobs in this job manager. Defaults to JobOps.KILL.
+              perform on the jobs in this job manager. Defaults to JobOps.STOP.
               Killing will always be done by starting up jobs and killing them immediately.
               Stopping will always be done by force. For more control, use the standalone
               functions for modifiying jobs.
@@ -1684,12 +1724,24 @@ class JobManager:
                 "argument 'job_operation' must be 'KILL' or 'STOP' from the JobOps enum"
             )
 
-        if job_operation is JobOps.STOP:
-            self.stop_all_jobs(force=True)
-        elif job_operation is JobOps.KILL:
-            self.kill_all_jobs(awaken=True)
+        fut = None
 
-        self._is_running = False
+        if job_operation is JobOps.STOP:
+            fut = self.stop_all_jobs(force=True)
+        elif job_operation is JobOps.KILL:
+            fut = self.kill_all_jobs(awaken=True)
+        else:
+            raise TypeError(
+                "argument 'job_operation' must be 'KILL' or 'STOP' from the JobOps enum"
+            )
+
+        def complete_stop(future: asyncio.Future):
+            self._is_running = False
+            future.remove_done_callback(complete_stop)
+
+        fut.add_done_callback(complete_stop)
+
+        return fut
 
     def __repr__(self):
         return f"<{self.__class__.__name__} ({len(self._job_id_map)} jobs registered)>"
