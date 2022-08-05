@@ -23,7 +23,6 @@ from snakecore.constants.enums import (
 )
 from snakecore.exceptions import JobException
 from snakecore.jobs import groupings, proxies
-from snakecore.jobs.jobs import ManagedJobBase
 from snakecore.utils import serializers
 from snakecore.utils import DequeProxy
 
@@ -78,7 +77,7 @@ class EventJobBase(jobs.ManagedJobBase, jobs.EventJobMixin):
     """
 
     DEFAULT_OE_STOP_AFTER_DISPATCH_TIMEOUT: bool = False
-    """Whether to stop if the timeout period for awaiting another event was reached.
+    """Whether to stop a job if the timeout period for awaiting another event was reached.
     Defaults to False.
     """
 
@@ -135,7 +134,7 @@ class EventJobBase(jobs.ManagedJobBase, jobs.EventJobMixin):
         oe_stop_after_dispatch_timeout: Union[bool, _UnsetType] = UNSET,
         oe_stop_if_no_events: Union[bool, _UnsetType] = UNSET,
     ):
-        ManagedJobBase.__init__(self, interval, time, count, reconnect)
+        jobs.ManagedJobBase.__init__(self, interval, time, count, reconnect)
 
         max_event_queue_size = (
             self.DEFAULT_MAX_EVENT_QUEUE_SIZE
@@ -435,7 +434,7 @@ class GenericManagedJob(jobs.ManagedJobBase):
         count: Union[int, NoneType, _UnsetType] = UNSET,
         reconnect: Union[bool, _UnsetType] = UNSET,
     ):
-        supercls = ManagedJobBase
+        supercls = jobs.ManagedJobBase
         supercls.__init__(interval, time, count, reconnect)
         self._on_init_func = on_init or supercls.on_init
         self._on_start_func = on_start or supercls.on_start
