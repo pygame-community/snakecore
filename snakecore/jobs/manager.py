@@ -117,11 +117,9 @@ class JobManager:
             raise RuntimeError("this job manager is not running")
 
     def _check_manager_misuse(self):
-        current_job: Union[jobs.ManagedJobBase, int] = loops._current_job.get(
-            (_rand := random.getrandbits(4))
-        )
-
-        if current_job is not _rand:
+        if (
+            current_job := loops._current_job.get((_rand := random.getrandbits(4)))
+        ) is not _rand:
             if not isinstance(current_job, jobs.ManagedJobBase):
                 raise RuntimeError(
                     "could not determine the current job of this execution context"
@@ -934,7 +932,7 @@ class JobManager:
         stopped: Union[bool, _UnsetType] = UNSET,
         query_match_mode: Literal["ANY", "ALL"] = "ALL",
         _return_proxy: bool = True,
-    ) -> tuple["proxies.JobProxy"]:
+    ) -> tuple["proxies.JobProxy", ...]:
         """Find jobs that match the given criteria specified as arguments,
         and return a tuple of proxy objects to them.
 
@@ -1528,7 +1526,9 @@ class JobManager:
         _iv: Optional[jobs.ManagedJobBase] = None,
     ):
         """Dispatch an instance of a `BaseEvent` subclass to all event job
-        objects in this job manager that are listening for it.
+        objects in this job manager that are listening for it. If that
+        event does not have a dispatcher, this job manager's representative
+        job will be set as the event dispatcher.
 
         Args:
             event (BaseEvent): The event to be dispatched.
@@ -1550,9 +1550,8 @@ class JobManager:
             self._check_manager_misuse()
             _iv = self._manager_job
 
-        if _iv is not None:
-            # for cases where the default _iv might not yet be set
-            event._dispatcher = _iv._proxy
+        if _iv is not None and event._dispatcher is None:
+            event._dispatcher = _iv._proxy  # inject event dispatcher
 
         event_class_identifier = event.__class__._RUNTIME_ID
 

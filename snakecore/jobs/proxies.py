@@ -748,6 +748,11 @@ class JobManagerProxy:
     def _loop(self):
         ...
 
+    @property
+    def manager_job(self) -> JobProxy:
+        """The job manager's representative job."""
+        ...
+
     def get_job_stop_timeout(
         self,
     ) -> Optional[float]:  # placeholder method with docstring
@@ -858,6 +863,11 @@ class _JobManagerProxy:  # hidden implementation to trick type-checker engines
 
     def is_running(self):
         return self.__mgr.is_running()
+
+    @property
+    def manager_job(self) -> JobProxy:
+        """The job manager's representative job."""
+        return self.__mgr._manager_job._proxy
 
     @property
     def _loop(self):
@@ -1044,7 +1054,7 @@ class _JobManagerProxy:  # hidden implementation to trick type-checker engines
         is_completing: Union[bool, _UnsetType] = UNSET,
         stopped: Union[bool, _UnsetType] = UNSET,
         query_match_mode: Literal["ANY", "ALL"] = "ALL",
-    ) -> tuple[JobProxy]:
+    ) -> tuple[JobProxy, ...]:
 
         return self.__mgr.find_jobs(
             classes=classes,

@@ -123,7 +123,12 @@ class BaseEvent:
     _CREATED_AT = datetime.datetime.now(datetime.timezone.utc)
     _RUNTIME_ID = f"BaseEvent-{int(_CREATED_AT.timestamp()*1_000_000_000)}"
 
-    __slots__ = ("_dispatcher", "_event_created_at_ts", "_runtime_id")
+    __slots__ = (
+        "_dispatcher",
+        "_event_created_at_ts",
+        "_real_event_created_at_ts",
+        "_runtime_id",
+    )
 
     __base_slots__ = __slots__
     # helper class attribute for faster copying by skipping initialization when
@@ -145,14 +150,20 @@ class BaseEvent:
 
         cls.__base_slots__ = tuple(get_all_slot_names(cls))
 
-    def __init__(self, event_created_at: Optional[datetime.datetime] = None):
+    def __init__(
+        self, event_created_at: Optional[datetime.datetime] = None, dispatcher=None
+    ):
+        self._real_event_created_at_ts = time.time()
         if event_created_at is None:
-            self._event_created_at_ts = time.time()
+            self._event_created_at_ts = self._real_event_created_at_ts
         else:
             self._event_created_at_ts = event_created_at.timestamp()
 
-        self._runtime_id = f"{id(self)}-{int(self._event_created_at_ts*1_000_000_000)}"
-        self._dispatcher = None
+        self._runtime_id = (
+            f"{self.__class__._RUNTIME_ID}:"
+            f"{int(self._real_event_created_at_ts*1_000_000_000)}"
+        )
+        self._dispatcher = dispatcher
 
     @classmethod
     def get_class_runtime_id(cls) -> str:
@@ -174,11 +185,23 @@ class BaseEvent:
         return self._runtime_id
 
     @property
+    def real_event_created_at(self) -> datetime.datetime:
+        """The time at which this event object was
+        created at.
+
+        Returns:
+            datetime.datetime: The time.
+        """
+        return datetime.datetime.fromtimestamp(
+            self._real_event_created_at_ts,
+            tz=datetime.timezone.utc,
+        )
+
+    @property
     def event_created_at(self) -> datetime.datetime:
-        """The time at which this event occured or was
-        created at, which can be optionally set
-        during instantiation. Defaults to the time
-        of instantiation of the event object.
+        """The time at which this event occured,
+        which can be optionally set during instantiation.
+        Defaults to the time of instantiation of the event object.
 
         Returns:
             datetime.datetime: The time.
@@ -190,16 +213,46 @@ class BaseEvent:
 
     @property
     def dispatcher(self):
-        """A proxy of the job object that dispatched this event, if available."""
+        """The object that dispatched this event, if available."""
         return self._dispatcher
 
     def copy(self) -> "BaseEvent":
+        """Create a shallow copy of this event object.
+        All shallow copies of this event retain the exact
+        same attributes and properties.
+
+        Returns:
+            BaseEvent: The new copy.
+        """
         new_obj = self.__class__.__new__(self.__class__)
+
         for attr in self.__base_slots__:
             setattr(new_obj, attr, getattr(self, attr))
         return new_obj
 
     __copy__ = copy
+
+    def copy_unique(self) -> "BaseEvent":
+        """Create a shallow copy of this event object,
+        but treat that event as a newly dispatched object,
+        by giving it a new runtime id and creation time.
+        This event object will also become the dispatcher
+        of the new unique copy.
+
+        Returns:
+            BaseEvent: The new unique copy.
+        """
+        unique_copy = self.copy()
+        old_real_event_created_at_ts = unique_copy._real_event_created_at_ts
+        unique_copy._real_event_created_at_ts = time.time()
+        if old_real_event_created_at_ts is unique_copy._event_created_at_ts:
+            # overwrite custom event creation time if none was initially provided
+            unique_copy._event_created_at_ts = unique_copy._real_event_created_at_ts
+
+        unique_copy._runtime_id = f"{self.__class__._RUNTIME_ID}:{int(self._real_event_created_at_ts*1_000_000_000)}"
+        unique_copy._dispatcher = self
+
+        return unique_copy
 
     def __repr__(self):
         attrs = " ".join(
