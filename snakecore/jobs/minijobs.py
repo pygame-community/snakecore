@@ -153,7 +153,7 @@ class MiniJobBase(_JobBase):
         if self._bools & JF.SKIP_NEXT_RUN:
             return
 
-        self._bools &= self._bools ^ JF.IS_IDLING  # False
+        self._bools &= ~JF.IS_IDLING  # False
         self._idling_since_ts = None
 
         await self.on_run()

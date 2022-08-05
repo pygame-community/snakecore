@@ -451,10 +451,10 @@ class _JobBase:
             self._bools |= JF.IS_INITIALIZING  # True
             await self.on_init()
         except Exception:
-            self._bools &= self._bools ^ JF.IS_INITIALIZING  # False
+            self._bools &= ~JF.IS_INITIALIZING  # False
             raise
         else:
-            self._bools &= self._bools ^ JF.IS_INITIALIZING  # False
+            self._bools &= ~JF.IS_INITIALIZING  # False
             self._bools |= JF.INITIALIZED  # True
             self._initialized_since_ts = time.time()
 
@@ -472,7 +472,7 @@ class _JobBase:
         self._on_stop_exception = None
 
         self._bools |= JF.IS_STARTING  # True
-        self._bools &= self._bools ^ (JF.STOPPED | JF.IS_IDLING)  # False
+        self._bools &= ~(JF.STOPPED | JF.IS_IDLING)  # False
 
         self._stopped_since_ts = None
         self._idling_since_ts = None
@@ -491,7 +491,7 @@ class _JobBase:
             raise
 
         finally:
-            self._bools &= self._bools ^ JF.IS_STARTING  # False
+            self._bools &= ~JF.IS_STARTING  # False
 
     async def on_start(self):
         """DO NOT CALL THIS METHOD MANUALLY, EXCEPT WHEN USING `super()` WITHIN
@@ -537,7 +537,7 @@ class _JobBase:
 
         self._loop_count = 0
 
-        self._bools &= self._bools ^ (
+        self._bools &= ~(
             JF.SKIP_NEXT_RUN
             | JF.IS_STARTING
             | JF.TOLD_TO_STOP
@@ -1298,15 +1298,15 @@ class JobBase(_JobBase):
         self._guarded_job_proxies_dict: Optional[dict[str, "proxies.JobProxy"]] = None
         # will be assigned by job manager
 
-        self._bools &= self._bools ^ (
+        self._bools &= ~(
             JF.COMPLETED | JF.TOLD_TO_COMPLETE | JF.KILLED | JF.TOLD_TO_BE_KILLED
         )  # False
 
-        self._bools &= self._bools ^ JF.INTERNAL_STARTUP_KILL  # False
+        self._bools &= ~JF.INTERNAL_STARTUP_KILL  # False
         # needed for jobs to react to killing at
         # startup, to send them to `on_stop()` immediately
 
-        self._bools &= self._bools ^ JF.EXTERNAL_STARTUP_KILL  # False
+        self._bools &= ~JF.EXTERNAL_STARTUP_KILL  # False
         # give a job a chance to react to an external startup kill
 
         self._alive_since_ts: Optional[float] = None
@@ -1403,7 +1403,7 @@ class JobBase(_JobBase):
         self._on_stop_exception = None
 
         self._bools |= JF.IS_STARTING  # True
-        self._bools &= self._bools ^ (JF.STOPPED | JF.IS_IDLING)  # False
+        self._bools &= ~(JF.STOPPED | JF.IS_IDLING)  # False
 
         self._stopped_since_ts = None
         self._idling_since_ts = None
@@ -1424,7 +1424,7 @@ class JobBase(_JobBase):
             raise
 
         finally:
-            self._bools &= self._bools ^ JF.IS_STARTING  # False
+            self._bools &= ~JF.IS_STARTING  # False
 
     def _stop_cleanup(
         self,
@@ -1440,7 +1440,7 @@ class JobBase(_JobBase):
 
         self._loop_count = 0
 
-        self._bools &= self._bools ^ (
+        self._bools &= ~(
             JF.SKIP_NEXT_RUN
             | JF.IS_STARTING
             | JF.INTERNAL_STARTUP_KILL
@@ -1453,7 +1453,7 @@ class JobBase(_JobBase):
         )  # False
 
         if self._bools & (JF.TOLD_TO_COMPLETE | JF.TOLD_TO_BE_KILLED):  # any
-            self._bools &= self._bools ^ JF.INITIALIZED  # False
+            self._bools &= ~JF.INITIALIZED  # False
             if self._guardian is not None:
                 if self._unguard_futures is not None:
                     for fut in self._unguard_futures:
@@ -1461,7 +1461,7 @@ class JobBase(_JobBase):
                             fut.set_result(True)
 
                     self._unguard_futures.clear()
-                    self._manager._unguard()
+                    self._manager._self_ungard()
 
             if self._guarded_job_proxies_dict is not None:
                 for job_proxy in self._guarded_job_proxies_dict.values():
@@ -1473,7 +1473,7 @@ class JobBase(_JobBase):
                 self._output_queue_proxies.clear()
 
             if self._bools & JF.TOLD_TO_COMPLETE:
-                self._bools &= self._bools ^ JF.TOLD_TO_COMPLETE  # False
+                self._bools &= ~JF.TOLD_TO_COMPLETE  # False
                 self._bools |= JF.COMPLETED  # True
                 self._done_since_ts = time.time()
 
@@ -1503,7 +1503,7 @@ class JobBase(_JobBase):
                                 fut.set_result(JobStatus.COMPLETED)
 
             elif self._bools & JF.TOLD_TO_BE_KILLED:
-                self._bools &= self._bools ^ JF.TOLD_TO_BE_KILLED  # False
+                self._bools &= ~JF.TOLD_TO_BE_KILLED  # False
                 self._bools |= JF.KILLED  # True
                 self._done_since_ts = time.time()
 
@@ -1532,13 +1532,13 @@ class JobBase(_JobBase):
                             if not fut.done():
                                 fut.set_result(JobStatus.KILLED)
 
-        self._bools &= self._bools ^ JF.IS_IDLING  # False
+        self._bools &= ~JF.IS_IDLING  # False
         self._idling_since_ts = None
 
         self._running_since_ts = None
 
         if self._bools & (JF.KILLED | JF.COMPLETED):  # any
-            self._bools &= self._bools ^ JF.STOPPED  # False
+            self._bools &= ~JF.STOPPED  # False
             self._stopped_since_ts = None
 
             if self._done_callbacks is not None:
@@ -2859,7 +2859,7 @@ class ManagedJobBase(JobBase):
         elif self._bools & JF.SKIP_NEXT_RUN:
             return
 
-        self._bools &= self._bools ^ JF.IS_IDLING  # False
+        self._bools &= ~JF.IS_IDLING  # False
         self._idling_since_ts = None
 
         await self.on_run()
@@ -2946,7 +2946,7 @@ class EventJobMixin(JobBase):
         if self._bools & (
             JF.BLOCK_EVENTS_WHILE_STOPPED | JF.CLEAR_EVENTS_AT_STARTUP
         ):  # any
-            self._bools &= self._bools ^ JF.START_ON_DISPATCH  # False
+            self._bools &= ~JF.START_ON_DISPATCH  # False
 
         self._bools |= JF.ALLOW_DISPATCH  # True
 
@@ -3019,7 +3019,7 @@ class EventJobMixin(JobBase):
         while running an operation, thereby disabling event dispatch to it.
         """
         try:
-            self._bools &= self._bools ^ JF.ALLOW_DISPATCH  # False
+            self._bools &= ~JF.ALLOW_DISPATCH  # False
             yield
         finally:
             self._bools |= JF.ALLOW_DISPATCH  # True
@@ -3037,7 +3037,7 @@ class EventJobMixin(JobBase):
         """Block the event queue of this event job, thereby disabling
         event dispatch to it.
         """
-        self._bools &= self._bools ^ JF.ALLOW_DISPATCH  # False
+        self._bools &= ~JF.ALLOW_DISPATCH  # False
 
     def unblock_queue(self):
         """Unblock the event queue of this event job, thereby enabling

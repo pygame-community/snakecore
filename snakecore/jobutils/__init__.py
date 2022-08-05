@@ -251,7 +251,7 @@ class EventJobBase(jobs.ManagedJobBase, jobs.EventJobMixin):
         if self._bools & (
             JF.BLOCK_EVENTS_WHILE_STOPPED | JF.CLEAR_EVENTS_AT_STARTUP
         ):  # any
-            self._bools &= self._bools ^ JF.START_ON_DISPATCH  # False
+            self._bools &= ~JF.START_ON_DISPATCH  # False
 
         self._bools |= JF.ALLOW_DISPATCH  # True
 
@@ -260,11 +260,11 @@ class EventJobBase(jobs.ManagedJobBase, jobs.EventJobMixin):
             and self._oe_max_dispatches > 1
             or self._bools & JF.OE_DISPATCH_ONLY_INITIAL
         ):
-            self._bools &= self._bools ^ JF.OE_AWAIT_DISPATCH  # False
+            self._bools &= ~JF.OE_AWAIT_DISPATCH  # False
 
         self._event_queue = deque(maxlen=self._max_event_queue_size)
 
-        self._bools &= self._bools ^ (
+        self._bools &= ~(
             JF.STOPPING_BY_EMPTY_QUEUE | JF.STOPPING_BY_EVENT_TIMEOUT
         )  # False
 
@@ -302,7 +302,7 @@ class EventJobBase(jobs.ManagedJobBase, jobs.EventJobMixin):
                 event = await asyncio.wait_for(
                     self.next_event(), timeout=self._oe_dispatch_timeout_secs
                 )
-                self._bools &= self._bools ^ JF.IS_IDLING  # False
+                self._bools &= ~JF.IS_IDLING  # False
                 self._idling_since_ts = None
             except asyncio.TimeoutError:
                 if self._bools & JF.OE_STOP_AFTER_DISPATCH_TIMEOUT:
@@ -354,7 +354,7 @@ class EventJobBase(jobs.ManagedJobBase, jobs.EventJobMixin):
     ):
         super()._stop_cleanup(reason=reason)
 
-        self._bools &= self._bools ^ (
+        self._bools &= ~(
             JF.STOPPING_BY_EVENT_TIMEOUT | JF.STOPPING_BY_EMPTY_QUEUE
         )  # False
 
