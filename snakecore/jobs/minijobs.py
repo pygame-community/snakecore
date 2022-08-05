@@ -12,10 +12,11 @@ from typing import Optional, Sequence, Union
 
 import discord
 from snakecore.constants import UNSET, _UnsetType, NoneType
-from snakecore.exceptions import JobStateError
+from snakecore.constants.enums import JobBoolFlags as JF
+from snakecore.exceptions import JobInitializationError, JobStateError
 
 from snakecore.jobs.jobs import _JobBase
-from snakecore.jobs.loops import CustomLoop
+from snakecore.jobs.loops import JobLoop
 
 
 class MiniJobBase(_JobBase):
@@ -65,28 +66,29 @@ class MiniJobBase(_JobBase):
         )
         self._count = self.DEFAULT_COUNT if count is UNSET else count
 
-        self._reconnect = not not (
+        reconnect = not not (
             self.DEFAULT_RECONNECT if reconnect is UNSET else reconnect
         )
 
         self._time = self.DEFAULT_TIME if time is UNSET else time
 
         self._loop_count = 0
-        self._task_loop = CustomLoop(
+        self._job_loop = JobLoop(
             self._on_run,
+            self,
             seconds=self._interval_secs,
             hours=0,
             minutes=0,
             time=self._time or discord.utils.MISSING,
             count=self._count,
-            reconnect=self._reconnect,
+            reconnect=reconnect,
         )
 
         self._external_data = self.DATA_NAMESPACE_CLASS()
 
-        self._task_loop.before_loop(self._on_start)
-        self._task_loop.after_loop(self._on_stop)
-        self._task_loop.error(self._on_run_error)
+        self._job_loop.before_loop(self._on_start)
+        self._job_loop.after_loop(self._on_stop)
+        self._job_loop.error(self._on_run_error)
 
     @property
     def external_data(self):
@@ -103,7 +105,7 @@ class MiniJobBase(_JobBase):
             Optional[datetime.datetime]: The time at which
               the next iteration will occur, if available.
         """
-        return self._task_loop.next_iteration()
+        return self._job_loop.next_iteration()
 
     def get_interval(self):
         """Returns a tuple of the seconds, minutes and hours at which this job
@@ -112,7 +114,7 @@ class MiniJobBase(_JobBase):
         Returns:
             tuple: `(seconds, minutes, hours)`
         """
-        return self._task_loop.seconds, self._task_loop.minutes, self._task_loop.hours
+        return self._job_loop.seconds, self._job_loop.minutes, self._job_loop.hours
 
     def change_interval(
         self,
@@ -132,7 +134,7 @@ class MiniJobBase(_JobBase):
             time (Union[datetime.time, Sequence[datetime.time]], optional):
               Defaults to 0.
         """
-        self._task_loop.change_interval(
+        self._job_loop.change_interval(
             seconds=seconds,
             minutes=minutes,
             hours=hours,
@@ -148,15 +150,15 @@ class MiniJobBase(_JobBase):
         pass
 
     async def _on_run(self):
-        if self._skip_on_run:
+        if self._bools & JF.SKIP_NEXT_RUN:
             return
 
-        self._is_idling = False
+        self._bools &= ~JF.IS_IDLING  # False
         self._idling_since_ts = None
 
         await self.on_run()
         if self._interval_secs:  # There is a task loop interval set
-            self._is_idling = True
+            self._bools |= JF.IS_IDLING  # True
             self._idling_since_ts = time.time()
 
         self._loop_count += 1
@@ -188,17 +190,24 @@ async def initialize_minijob(job: MiniJobBase) -> bool:
 
     Raises:
         TypeError: The given job instance was not a mini job.
-        JobStateError: The given job has already been initialized.
+        JobInitializationError: The given job object has already been initialized.
     """
     if not isinstance(job, MiniJobBase):
         raise TypeError(
             "argument 'job' must be an instance of "
             f"MiniJobBase, not {job.__class__.__name__}"
         )
-    elif job._initialized:
-        raise JobStateError("the given job has already been initialized")
+    elif job._bools & JF.INITIALIZED:
+        raise JobInitializationError(
+            "The given job object has already been initialized"
+        )
 
-    return await job._INITIALIZE_EXTERNAL()
+    try:
+        return await job._INITIALIZE_EXTERNAL()
+    except Exception as e:
+        raise JobInitializationError(
+            "job initialization failed due to an error: " f"{e.__class__.__name__}: {e}"
+        ) from e
 
 
 def start_minijob(job: MiniJobBase) -> bool:
@@ -212,15 +221,15 @@ def start_minijob(job: MiniJobBase) -> bool:
 
     Raises:
         TypeError: The given job instance was not a mini job.
-        JobStateError: The given job was not initialized.
+        JobInitializationError: The given job object was not initialized.
     """
     if not isinstance(job, MiniJobBase):
         raise TypeError(
             "argument 'job' must be an instance of "
             f"MiniJobBase, not {job.__class__.__name__}"
         )
-    elif not job._initialized:
-        raise JobStateError("The given mini job was not initialized.")
+    elif not job._bools & JF.INITIALIZED:
+        raise JobInitializationError("The given mini job was not initialized.")
 
     return job._START_EXTERNAL()
 

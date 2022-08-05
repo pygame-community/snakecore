@@ -15,11 +15,11 @@ from snakecore.constants import UNSET
 _EVENT_CLASS_MAP = {}
 
 
-def get_event_class_from_runtime_identifier(
-    class_runtime_identifier: str, default: Any = UNSET, /, closest_match: bool = False
+def get_event_class_from_runtime_id(
+    class_runtime_id: str, default: Any = UNSET, /, closest_match: bool = False
 ) -> "BaseEvent":
 
-    name, timestamp_str = class_runtime_identifier.split("-")
+    name, timestamp_str = class_runtime_id.split("-")
 
     if name in _EVENT_CLASS_MAP:
         if timestamp_str in _EVENT_CLASS_MAP[name]:
@@ -31,18 +31,18 @@ def get_event_class_from_runtime_identifier(
     if default is UNSET:
         raise LookupError(
             "cannot find event class with an identifier of "
-            f"'{class_runtime_identifier}' in the event class registry"
+            f"'{class_runtime_id}' in the event class registry"
         )
     return default
 
 
-def get_event_class_runtime_identifier(
+def get_event_class_runtime_id(
     cls: Type["BaseEvent"],
     default: Any = UNSET,
     /,
 ) -> Union[str, Any]:
-    """Get a event class by its runtime identifier string. This is the safe way
-    of looking up event class runtime identifiers.
+    """Get a event class by its runtime id string. This is the safe way
+    of looking up event class runtime ids.
 
     Args:
         cls (Type[BaseEvent]): The event class whose identifier should be fetched.
@@ -66,7 +66,7 @@ def get_event_class_runtime_identifier(
         return default
 
     try:
-        class_runtime_identifier = cls._RUNTIME_IDENTIFIER
+        class_runtime_id = cls._RUNTIME_ID
     except AttributeError:
         if default is UNSET:
             raise TypeError(
@@ -75,7 +75,7 @@ def get_event_class_runtime_identifier(
         return default
 
     try:
-        name, timestamp_str = class_runtime_identifier.split("-")
+        name, timestamp_str = class_runtime_id.split("-")
     except (ValueError, AttributeError):
         if default is UNSET:
             raise ValueError(
@@ -86,7 +86,7 @@ def get_event_class_runtime_identifier(
     if name in _EVENT_CLASS_MAP:
         if timestamp_str in _EVENT_CLASS_MAP[name]:
             if _EVENT_CLASS_MAP[name][timestamp_str]["class"] is cls:
-                return class_runtime_identifier
+                return class_runtime_id
             else:
                 if default is UNSET:
                     raise ValueError(
@@ -121,9 +121,9 @@ class BaseEvent:
     """The base class for all events."""
 
     _CREATED_AT = datetime.datetime.now(datetime.timezone.utc)
-    _RUNTIME_IDENTIFIER = f"BaseEvent-{int(_CREATED_AT.timestamp()*1_000_000_000)}"
+    _RUNTIME_ID = f"BaseEvent-{int(_CREATED_AT.timestamp()*1_000_000_000)}"
 
-    __slots__ = ("_dispatcher", "_event_created_at_ts", "_runtime_identifier")
+    __slots__ = ("_dispatcher", "_event_created_at_ts", "_runtime_id")
 
     __base_slots__ = __slots__
     # helper class attribute for faster copying by skipping initialization when
@@ -136,7 +136,7 @@ class BaseEvent:
         name = cls.__name__
         timestamp = f"{int(cls._CREATED_AT.timestamp()*1_000_000_000)}"
 
-        cls._RUNTIME_IDENTIFIER = f"{name}-{timestamp}"
+        cls._RUNTIME_ID = f"{name}-{timestamp}"
 
         if name not in _EVENT_CLASS_MAP:
             _EVENT_CLASS_MAP[name] = {}
@@ -151,29 +151,27 @@ class BaseEvent:
         else:
             self._event_created_at_ts = event_created_at.timestamp()
 
-        self._runtime_identifier = (
-            f"{id(self)}-{int(self._event_created_at_ts*1_000_000_000)}"
-        )
+        self._runtime_id = f"{id(self)}-{int(self._event_created_at_ts*1_000_000_000)}"
         self._dispatcher = None
 
     @classmethod
-    def get_class_runtime_identifier(cls) -> str:
-        """Get the runtime identifier of this event class.
+    def get_class_runtime_id(cls) -> str:
+        """Get the runtime id of this event class.
 
         Returns:
-            str: The runtime identifier.
+            str: The runtime id.
         """
-        return cls._RUNTIME_IDENTIFIER
+        return cls._RUNTIME_ID
 
     @property
-    def runtime_identifier(self) -> str:
-        """The runtime identifier of this event object.
+    def runtime_id(self) -> str:
+        """The runtime id of this event object.
 
         Returns:
-            str: The runtime identifier.
+            str: The runtime id.
         """
 
-        return self._runtime_identifier
+        return self._runtime_id
 
     @property
     def event_created_at(self) -> datetime.datetime:

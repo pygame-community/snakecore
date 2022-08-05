@@ -21,13 +21,9 @@ from snakecore.utils import embed_utils, serializers
 class MessageSend(
     jobs.ManagedJobBase,
     class_uuid="87b81031-d606-4a95-b86a-2eb72b7eb7b1",
-    permission_level=JobPermissionLevels.LOWEST,
 ):
     """A job class for sending a message into a
     discord text channel.
-
-    Permission Level:
-        JobPermissionLevels.LOWEST
 
     Output Fields:
         message: The message that was sent.
@@ -186,12 +182,9 @@ class MessageSend(
             self.COMPLETE()
 
 
-class _MessageModify(jobs.ManagedJobBase, permission_level=JobPermissionLevels.LOWEST):
+class _MessageModify(jobs.ManagedJobBase):
     """A intermediary job class for modifying a message in a
     Discord text channel. Does not do anything on its own.
-
-    Permission Level:
-        JobPermissionLevels.LOWEST
     """
 
     DEFAULT_COUNT = 1
@@ -262,9 +255,6 @@ class MessageEdit(
 ):
     """A job class for editing a message in a
     Discord text channel.
-
-    Permission Level:
-        JobPermissionLevels.LOWEST
     """
 
     def __init__(
@@ -334,9 +324,6 @@ class MessageEdit(
 class MessageDelete(_MessageModify, class_uuid="860055c6-4971-4046-925c-7cafae67d72b"):
     """A job class for deleting a message in a
     Discord text channel.
-
-    Permission Level:
-        JobPermissionLevels.LOWEST
     """
 
     def __init__(
@@ -373,11 +360,7 @@ class MessageDelete(_MessageModify, class_uuid="860055c6-4971-4046-925c-7cafae67
 
 
 class ReactionAdd(_MessageModify, class_uuid="151cf1a5-73c8-4542-ad17-9b9956d0ebbe"):
-    """Adds a given reaction to a message.
-
-    Permission Level:
-        JobPermissionLevels.LOWEST
-    """
+    """Adds a given reaction to a message."""
 
     def __init__(
         self,
@@ -441,11 +424,7 @@ class ReactionAdd(_MessageModify, class_uuid="151cf1a5-73c8-4542-ad17-9b9956d0eb
 
 
 class ReactionsAdd(_MessageModify, class_uuid="f26bdcb2-8d04-4bf5-82f8-778c7a8af834"):
-    """Adds a sequence of reactions to a message.
-
-    Permission Level:
-        JobPermissionLevels.LOWEST
-    """
+    """Adds a sequence of reactions to a message."""
 
     def __init__(
         self,
@@ -536,11 +515,7 @@ class ReactionsAdd(_MessageModify, class_uuid="f26bdcb2-8d04-4bf5-82f8-778c7a8af
 
 
 class ReactionRemove(_MessageModify, class_uuid="e1c474dd-1c56-43b9-91f4-7b74a1ddf1a0"):
-    """Removes a given reaction from a message.
-
-    Permission Level:
-        JobPermissionLevels.LOWEST
-    """
+    """Removes a given reaction from a message."""
 
     def __init__(
         self,
@@ -618,11 +593,7 @@ class ReactionRemove(_MessageModify, class_uuid="e1c474dd-1c56-43b9-91f4-7b74a1d
 class ReactionClearEmoji(
     _MessageModify, class_uuid="59cf5461-ca9a-45c7-9010-2e5a97e26879"
 ):
-    """Clears a set of reactions from a message.
-
-    Permission Level:
-        JobPermissionLevels.LOWEST
-    """
+    """Clears a set of reactions from a message."""
 
     def __init__(
         self,
@@ -687,11 +658,7 @@ class ReactionClearEmoji(
 
 
 class ReactionClear(_MessageModify, class_uuid="1637b978-64c1-420c-a12f-09f81fc613ac"):
-    """Clears all reactions from a message.
-
-    Permission Level:
-        JobPermissionLevels.LOWEST
-    """
+    """Clears all reactions from a message."""
 
     async def on_run(self):
         await self.data.message.clear_reactions()

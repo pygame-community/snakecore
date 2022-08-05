@@ -18,7 +18,7 @@ class DeserializationError(SnakeCoreException):
 
 
 # jobs/
-class JobException(Exception):
+class JobException(SnakeCoreException):
     """Generic job object exception."""
 
 
@@ -30,8 +30,46 @@ class JobStateError(JobException):
     """An invalid job object state is preventing an operation."""
 
 
+class JobIsGuarded(JobException):
+    """Job object is (already) being guarded."""
+
+
+class JobNotAlive(JobStateError):
+    """Job is not alive."""
+
+    pass
+
+
+class JobIsDone(JobNotAlive):
+    """Job is not alive because it is already done."""
+
+    pass
+
+
+class JobNotRunning(JobStateError):
+    """Job is not running."""
+
+    pass
+
+
+class JobAlreadyRegistered(JobStateError):
+    """Exception class for job registration errors."""
+
+    pass
+
+
+class JobOutputError(JobStateError):
+    """Exception class for job output related errors."""
+
+    pass
+
+
 class JobInitializationError(JobException):
-    """Initialization of a job object failed."""
+    """Initialization of a job object failed, either due to it already being initialized or
+    having an internal error.
+
+    This is meant to be raised from the exception of the error if one is available as a cause.
+    """
 
 
 class JobWarning(Warning):

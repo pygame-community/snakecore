@@ -7,8 +7,9 @@ which are used by job objects.
 """
 
 import asyncio
+from contextvars import ContextVar
 import datetime
-from typing import Any
+from typing import Any, Optional, Sequence, Union
 
 import discord
 from discord.ext import tasks
@@ -16,15 +17,28 @@ from discord.backoff import ExponentialBackoff
 
 from snakecore.constants import DEFAULT_JOB_EXCEPTION_WHITELIST
 
+_current_job = ContextVar("current_job")
 
-class CustomLoop(tasks.Loop):
-    """A small subclass of `discord.ext.tasks.LoTaop`
+
+class JobLoop(tasks.Loop):
+    """A small subclass of `discord.ext.tasks.Loop`
     for getting more control over the Task cancelling process among other
-    things.
+    things. This is meant for exclusive use by job objects.
     """
 
-    def __init__(self, coro, seconds, hours, minutes, time, count, reconnect):
+    def __init__(
+        self,
+        coro,
+        job,
+        seconds: float = discord.utils.MISSING,
+        minutes: float = discord.utils.MISSING,
+        hours: float = discord.utils.MISSING,
+        time: Union[datetime.time, Sequence[datetime.time]] = discord.utils.MISSING,
+        count: Optional[int] = None,
+        reconnect: bool = True,
+    ):
         super().__init__(coro, seconds, hours, minutes, time, count, reconnect)
+        self.job = job
         self.clear_exception_types()
         self.add_exception_type(*DEFAULT_JOB_EXCEPTION_WHITELIST)
 
@@ -58,6 +72,7 @@ class CustomLoop(tasks.Loop):
             self._task.cancel(msg="CANCEL_BY_TASK_LOOP")
 
     async def _loop(self, *args: Any, **kwargs: Any) -> None:
+        _current_job.set(self.job)
         backoff = None
         await self._call_loop_function("before_loop")
         self._last_iteration_failed = False

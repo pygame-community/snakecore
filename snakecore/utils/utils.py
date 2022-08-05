@@ -6,14 +6,27 @@ Copyright (c) 2022-present pygame-community
 This file defines some important utility functions for the library.
 """
 
-from collections import ChainMap, defaultdict
+import asyncio
+from collections import ChainMap, defaultdict, deque
+import collections
 import datetime
+import itertools
 import os
 import platform
 import re
 import sys
 import traceback
-from typing import Any, Callable, Iterable, Optional, Sequence, Union
+from typing import (
+    Any,
+    Callable,
+    Generic,
+    Iterable,
+    MutableSequence,
+    Optional,
+    Sequence,
+    TypeVar,
+    Union,
+)
 
 import discord
 
@@ -653,29 +666,46 @@ def recursive_dict_delete(
     return old_dict
 
 
-def chainmap_getitem(map: ChainMap, key: Any):
-    """A better approach to looking up from
-    ChainMap objects, by treating inner
-    defaultdict maps as a rare special case.
-    Args:
-        map (ChainMap): The ChainMap.
-        key (Any): The key.
-    Returns:
-        object: The lookup result.
-    Raises:
-        KeyError: key not found.
+class FastChainMap(collections.ChainMap):
+    """A drop-in replacement for ChainMap with
+    optimized versions of some of its superclass's methods.
     """
-    for mapping in map.maps:
-        if not isinstance(mapping, defaultdict):
-            if key in mapping:
-                return mapping[key]
-            continue
 
-        try:
-            return mapping[key]  # can't use 'key in mapping' with defaultdict
-        except KeyError:
-            pass
-    return map.__missing__(key)
+    def __init__(self, *maps, ignore_defaultdicts: bool = False):
+        """Initialize a FastChainMap by setting *maps* to the given mappings.
+        If no mappings are provided, a single empty dictionary is used.
+        *ignore_defaultdicts* can be used to speed up lookups by ignoring
+        defaultdict objects during key lookup.
+
+        """
+        self.maps = list(maps) or [{}]  # always at least one map
+        self.ignore_defaultdicts = ignore_defaultdicts
+
+    def __getitem__(self, key):
+        if self.ignore_defaultdicts:
+            for mapping in self.maps:
+                if key in mapping:
+                    return mapping[key]
+
+        else:
+            for mapping in self.maps:
+                if not isinstance(mapping, defaultdict):
+                    if key in mapping:
+                        return mapping[key]
+                    continue
+
+                try:
+                    return mapping[key]  # can't use 'key in mapping' with defaultdict
+                except KeyError:
+                    pass
+
+        return self.__missing__(key)  # support subclasses that define __missing__
+
+    def get(self, key, default=None):
+        return self[key] if any(key in m for m in self.maps) else default
+
+    def __iter__(self):
+        return iter({k: None for k in itertools.chain(*self.maps)})
 
 
 def class_getattr_unique(
@@ -755,3 +785,113 @@ def class_getattr(
         ) from None
 
     return default
+
+
+_T = TypeVar("_T")
+
+
+class DequeProxy(MutableSequence[_T], Generic[_T]):
+    __slots__ = "__deque"
+
+    def __init__(self, deque_obj: deque[_T]):
+        self.__deque = deque_obj
+
+    @property
+    def maxlen(self):
+        return self.__deque.maxlen
+
+    def __copy__(self):
+        return self.__class__(self.__deque)
+
+    copy = __copy__
+
+    def count(self, __x: Any):
+        return self.__deque.count(__x)
+
+    def index(self, __x: Any, **kwargs) -> int:
+        return self.__deque.index(__x, **kwargs)
+
+    def __len__(self):
+        return self.__deque.__len__()
+
+    def __lt__(self, __other: deque, /):
+        return self.__deque.__lt__(__other)
+
+    def __le__(self, __other: deque, /):
+        return self.__deque.__le__(__other)
+
+    def __gt__(self, __other: deque, /):
+        return self.__deque.__lt__(__other)
+
+    def __ge__(self, __other: deque, /):
+        return self.__deque.__ge__(__other)
+
+    def __eq__(self, __o: object, /) -> bool:
+        return self.__deque.__eq__(__o)
+
+    def __ne__(self, __o: object, /) -> bool:
+        return self.__deque.__ne__(__o)
+
+    def __bool__(self):
+        return self.__deque.__bool__()
+
+    def __contains__(self, __o: object):
+        return self.__deque.__contains__(__o)
+
+    def __getitem__(self, __index: int, /):
+        return self.__deque.__getitem__(__index)
+
+    def __hash__(self) -> int:
+        return self.__deque.__hash__()
+
+    def __iter__(self):
+        return self.__deque.__iter__()
+
+    def __reversed__(self):
+        return self.__deque.__reversed__()
+
+    def __add__(self, __other: deque, /):
+        return self.__deque.__add__(__other)
+
+    def __mul__(self, __other: int, /):
+        return self.__deque.__mul__(__other)
+
+    def __rmul__(self, __other: int, /):
+        return self.__deque.__rmul__(__other)
+
+    def __add__(self, __other: deque, /):
+        return self.__deque.__add__(__other)
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.__deque!r})"
+
+    def __str__(self) -> str:
+        return f"{self.__class__.__name__}({self.__deque!s})"
+
+
+_global_task_set: set[
+    asyncio.Task
+] = set()  # prevents asyncio.Task objects from disappearing due
+# to reference loss, not to be modified manually
+
+
+def hold_task(task: asyncio.Task):
+    """Store an `asyncio.Task` object in a container to place a protective reference
+    on it in order to prevent its loss at runtime. The given task will be given a
+    callback that automatically removes it from the container when it is done.
+
+    Args:
+        task (asyncio.Task): The task.
+    """
+    if task in _global_task_set:
+        return
+
+    _global_task_set.add(task)
+    task.add_done_callback(_global_task_set_remove_callback)
+
+
+def _global_task_set_remove_callback(task: asyncio.Task):
+    if task in _global_task_set:
+        _global_task_set.remove(task)
+
+    task.remove_done_callback(_global_task_set_remove_callback)
