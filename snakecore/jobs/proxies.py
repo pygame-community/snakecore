@@ -1090,6 +1090,7 @@ class _JobManagerProxy:  # hidden implementation to trick type-checker engines
             *event_types,
             check=check,
             timeout=timeout,
+            _iv=self.__j,
         )
 
     def dispatch_event(self, event: events.BaseEvent):

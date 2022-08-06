@@ -92,7 +92,17 @@ class JobManager:
             str, tuple[jobs.ManagedJobBase, JobPermissionLevels]
         ] = {}
         self._manager_job = None
-        self._event_waiting_queues = {}
+        self._event_waiting_queues: dict[
+            str,
+            list[
+                tuple[
+                    jobs.ManagedJobBase,
+                    tuple[Type[events.BaseEvent], ...],
+                    Optional[Callable[[events.BaseEvent], bool]],
+                    asyncio.Future[events.BaseEvent],
+                ]
+            ],
+        ] = {}
         self._initialized = False
         self._is_running = False
 
@@ -1555,6 +1565,8 @@ class JobManager:
 
         event_class_identifier = event.__class__._RUNTIME_ID
 
+        event_job_waiters: Optional[set[jobs.EventJobMixin]] = None
+
         if event_class_identifier in self._event_waiting_queues:
             target_event_waiting_queue = self._event_waiting_queues[
                 event_class_identifier
@@ -1563,12 +1575,17 @@ class JobManager:
 
             for i, waiting_list in enumerate(target_event_waiting_queue):
                 if (
-                    isinstance(event, waiting_list[0])
-                    and waiting_list[1] is not None
-                    and waiting_list[1](event)
+                    isinstance(event, waiting_list[1])
+                    and waiting_list[2] is not None
+                    and waiting_list[2](event)
                 ):
-                    if not waiting_list[2].cancelled():
-                        waiting_list[2].set_result(event.copy())
+                    if not waiting_list[3].cancelled():
+                        waiting_list[3].set_result(event.copy())
+                        if isinstance(waiting_list[0], jobs.EventJobMixin):
+                            # add event job to potential double dispatching targets
+                            (event_job_waiters := event_job_waiters or set()).add(
+                                waiting_list[0]
+                            )
                     deletion_queue_indices.append(i)
 
             for idx in reversed(deletion_queue_indices):
@@ -1579,6 +1596,14 @@ class JobManager:
 
             for identifier in jobs_identifiers:
                 event_job = self._job_id_map[identifier][0]
+                if (
+                    event_job in (event_job_waiters or ())
+                    and not event_job._bools & JF.ALLOW_DOUBLE_DISPATCH
+                ):
+                    # event jobs that don't allow double dispatching of the same event
+                    # to them, in case they have already received this event through
+                    # requesting it from `wait_for_event`
+                    continue
                 event_copy = event.copy()
                 if event_job.event_check(event_copy):
                     event_job._add_event(event_copy)
@@ -1588,8 +1613,9 @@ class JobManager:
         *event_types: Type[events.BaseEvent],
         check: Optional[Callable[[events.BaseEvent], bool]] = None,
         timeout: Optional[float] = None,
+        _iv: Optional[jobs.ManagedJobBase] = None,
     ) -> Coroutine[Any, Any, events.BaseEvent]:
-        """Wait for specific type of event to be dispatched
+        """Wait for a specific type of event to be dispatched
         and return it as an event object using the given coroutine.
 
         Args:
@@ -1610,6 +1636,11 @@ class JobManager:
         """
 
         self._check_init_and_running()
+
+        if not isinstance(_iv, jobs.ManagedJobBase):
+            self._check_manager_misuse()
+            _iv = self._manager_job
+
         future = self._loop.create_future()
 
         if not all(
@@ -1619,7 +1650,7 @@ class JobManager:
                 "argument 'event_types' must contain only subclasses of 'BaseEvent'"
             ) from None
 
-        wait_list = [event_types, check, future]
+        wait_list = (_iv, event_types, check, future)
 
         for event_type in event_types:
             if event_type._RUNTIME_ID not in self._event_waiting_queues:

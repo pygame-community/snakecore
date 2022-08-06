@@ -1084,7 +1084,7 @@ class _JobBase:
         if not self.is_running():
             raise JobNotRunning("this job object is running.")
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
 
         fut = loop.create_future()
 
@@ -1964,9 +1964,7 @@ class JobBase(_JobBase):
         elif self.done():
             raise JobIsDone("this job object is already done.")
 
-        loop = self._manager._loop
-
-        fut = loop.create_future()
+        fut = self._manager._loop.create_future()
 
         if self._stop_futures is None:
             self._stop_futures = []
@@ -1996,9 +1994,7 @@ class JobBase(_JobBase):
         if self.done():
             raise JobIsDone("this job object is already done.")
 
-        loop = self._manager._loop
-
-        fut = loop.create_future()
+        fut = self._manager._loop.create_future()
 
         if self._done_futures is None:
             self._done_futures = []
@@ -2035,8 +2031,7 @@ class JobBase(_JobBase):
         elif not self._guardian is not None:
             raise JobStateError("this job object is not being guarded by a job")
 
-        loop = self._manager._loop
-        fut = loop.create_future()
+        fut = self._manager._loop.create_future()
 
         if self._unguard_futures is None:
             self._unguard_futures = []
@@ -2498,9 +2493,7 @@ class JobBase(_JobBase):
         if self.done():
             raise JobIsDone("this job object is already done.")
 
-        loop = self._manager._loop
-
-        fut = loop.create_future()
+        fut = self._manager._loop.create_future()
 
         if field_name not in self._output_field_futures:
             self._output_field_futures[field_name] = []
@@ -2559,8 +2552,7 @@ class JobBase(_JobBase):
         if queue_name not in self._output_queue_futures:
             self._output_queue_futures[queue_name] = []
 
-        loop = self._manager._loop
-        fut = loop.create_future()
+        fut = self._manager._loop.create_future()
         self._output_queue_futures[queue_name].append((fut, cancel_if_cleared))
 
         return asyncio.wait_for(fut, timeout=timeout)
@@ -2908,6 +2900,8 @@ class EventJobMixin(JobBase):
     DEFAULT_BLOCK_EVENTS_WHILE_STOPPED: bool = True
     DEFAULT_CLEAR_EVENTS_AT_STARTUP: bool = True
 
+    DEFAULT_ALLOW_DOUBLE_DISPATCH: bool = False
+
     __slots__ = (
         "_event_queue",
         "_max_event_queue_size",
@@ -2941,6 +2935,10 @@ class EventJobMixin(JobBase):
         )  # True/False
         self._bools |= JF.CLEAR_EVENTS_AT_STARTUP * int(
             self.DEFAULT_CLEAR_EVENTS_AT_STARTUP
+        )  # True/False
+
+        self._bools |= JF.ALLOW_DOUBLE_DISPATCH * int(
+            self.DEFAULT_ALLOW_DOUBLE_DISPATCH
         )  # True/False
 
         if self._bools & (
