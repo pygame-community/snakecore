@@ -10,6 +10,7 @@ from abc import ABC
 import asyncio
 from collections import ChainMap, deque
 from contextlib import contextmanager
+from contextvars import ContextVar
 import datetime
 import itertools
 import inspect
@@ -54,7 +55,7 @@ from snakecore.constants import (
     NoneType,
 )
 from snakecore.jobs.loops import JobLoop
-from snakecore.utils.utils import FastChainMap
+from snakecore.utils import DequeProxy, FastChainMap
 
 _JOB_CLASS_MAP = {}
 # A dictionary of all Job subclasses that were created.
@@ -2881,7 +2882,6 @@ class EventJobMixin(JobBase):
     """A mixin class for managed jobs that want to receive events
     passed to them by their job manager object. This should
     be inherited using multiple inheritance alongside `ManagedJobBase`.
-
     Attributes:
         EVENTS: A tuple denoting the set of `BaseEvent` classes whose
           instances should be received after their corresponding event is
@@ -2988,7 +2988,6 @@ class EventJobMixin(JobBase):
         """A method for subclasses that can be overloaded to perform validations on a `BaseEvent`
         instance that was dispatched to them. Must return a boolean value indicating the
         validaiton result. If not overloaded, this method will always return `True`.
-
         Args:
             event (events.BaseEvent): The event object to run checks upon.
         """
@@ -3001,6 +3000,357 @@ class EventJobMixin(JobBase):
             await fut  # wait till an event is dispatched
 
         return self._event_queue.pop()
+
+    async def wait_for_dispatch(self) -> bool:
+        if not self._event_queue:
+            fut = self._manager._loop.create_future()
+            self._event_queue_futures.append(fut)
+            return await fut  # wait till an event is dispatched
+
+        return True
+
+    @contextmanager
+    def blocked_event_queue(self):
+        """A method to be used as a context manager for
+        temporarily blocking the event queue of this event job
+        while running an operation, thereby disabling event dispatch to it.
+        """
+        try:
+            self._bools &= ~JF.ALLOW_DISPATCH  # False
+            yield
+        finally:
+            self._bools |= JF.ALLOW_DISPATCH  # True
+
+    def event_queue_is_blocked(self) -> bool:
+        """Whether event dispatching to this event job's event queue
+        is disabled and its event queue is blocked.
+        Returns:
+            bool: True/False
+        """
+        return not self._bools & JF.ALLOW_DISPATCH
+
+    def block_queue(self):
+        """Block the event queue of this event job, thereby disabling
+        event dispatch to it.
+        """
+        self._bools &= ~JF.ALLOW_DISPATCH  # False
+
+    def unblock_queue(self):
+        """Unblock the event queue of this event job, thereby enabling
+        event dispatch to it.
+        """
+        self._bools |= JF.ALLOW_DISPATCH  # True
+
+
+class EventSession:
+    __slots__ = (
+        "_event",
+        "_task",
+        "_data",
+        "_timestamp",
+    )
+
+    def __init__(
+        self,
+        event: events.BaseEvent,
+        task: asyncio.Task,
+        data: JobNamespace,
+        timestamp: Optional[datetime.datetime] = None,
+    ):
+        self._event: events.BaseEvent = event
+        self._task: asyncio.Task = task
+        self._data: JobNamespace = data
+        self._timestamp = timestamp or datetime.datetime.now(datetime.timezone.utc)
+
+    @property
+    def event(self) -> events.BaseEvent:
+        return self._event
+
+    @property
+    def task(self) -> asyncio.Task:
+        return self._task
+
+    @property
+    def data(self) -> JobNamespace:
+        return self._data
+
+    @property
+    def timestamp(self) -> datetime.datetime:
+        return self._timestamp
+
+
+class EventJobMixin(JobBase):
+    """A mixin class for managed jobs that want to receive events
+    passed to them by their job manager object. This should
+    be inherited using multiple inheritance, and ordered before
+    `ManagedJobBase`.
+    """
+
+    EVENTS: tuple[events.BaseEvent] = (events.BaseEvent,)
+    """A tuple denoting the set of `BaseEvent` classes whose
+    instances should be received after their corresponding event is
+    registered by the job manager of an instance of this class. By
+    default, all instances of `BaseEvent` will be propagated.
+    """
+
+    DEFAULT_MAX_EVENT_QUEUE_SIZE: Optional[int] = None
+
+    DEFAULT_ALLOW_EVENT_QUEUE_OVERFLOW: bool = False
+
+    DEFAULT_BLOCK_EVENTS_ON_STOP: bool = True
+    DEFAULT_START_ON_DISPATCH: bool = False
+    DEFAULT_BLOCK_EVENTS_WHILE_STOPPED: bool = True
+
+    DEFAULT_CLEAR_EVENTS_AT_STARTUP: bool = False
+    """Whether to clear the event queue when a job starts.
+    Defaults to False.
+    """
+
+    DEFAULT_ALLOW_DOUBLE_DISPATCH: bool = False
+
+    DEFAULT_OE_ENDED_SESSIONS_QUEUE_LIMIT: Optional[int] = None
+    """The maximum amount of finished event sessions that
+    can be held in the finished session queue. If this
+    maximum is reached or surpassed, dispatching to
+    `on_event()` sessions will be blocked until the queue
+    size falls below the maximum. 
+    """
+
+    DEFAULT_OE_MAX_CONCURRENCY: int = 2
+    """Max. amount of `on_event()`
+    sessions that are allowed to run concurrently.
+    Defaults to 2.
+    """
+
+    OE_DATA_NAMESPACE_CLASS = JobNamespace
+
+    DEFAULT_OE_MAX_DISPATCHES: Optional[int] = None
+    """Max. amount of events to pass to `on_event()`
+    sessions in one job loop iteration. Note that if the maximum
+    is not reached and no more events are available, `on_event()`
+    won't be called anymore (for that iteration). If set to
+    `None`, the total amount passed will depend on other default variables
+    as well as the amount of events initially present in the event queue.
+    The maximum amount is limited by the amount set for
+    `DEFAULT_OE_MAX_CONCURRENCY`
+    Defaults to None.
+    """
+
+    DEFAULT_OE_DISPATCH_ONLY_INITIAL: bool = False
+    """Whether to only dispatch the events present in the event
+    queue at the start of a job loop iteration to `on_event()` sessions.
+    Defaults to False.
+    """
+
+    DEFAULT_OE_AWAIT_DISPATCH: bool = False
+    """Whether to await the arrival of an event before passing it to
+    an `on_event()` session, if the event queue is empty. Awaiting like
+    this will mark a job as idling. If there are one or more events in 
+    the queue, awaiting will be skipped and those will be successively
+    passed to `on_event()`. If set to `True`, awaiting will only occur if
+    `DEFAULT_ONLY_INITIAL_EVENTS` is set to `False`. To prevent indefinite
+    awaiting, `DEFAULT_MAX_OE_DISPATCHES` can be used to limit the total
+    amounts to dispatch.
+    Defaults to False.
+    """
+
+    DEFAULT_OE_DISPATCH_TIMEOUT: Union[float, datetime.timedelta, None] = None
+    """The timeout period for awaiting another event, before ending the loop iteration.
+    Defaults to None.
+    """
+
+    DEFAULT_OE_STOP_AFTER_DISPATCH_TIMEOUT: bool = False
+    """Whether to stop a job if the timeout period for awaiting another event was reached.
+    Defaults to False.
+    """
+
+    DEFAULT_OE_STOP_IF_NO_EVENTS: bool = False
+    """Whether to stop if a loop iteration begins with an empty event queue.
+    Defaults to False.
+    """
+
+    __slots__ = (
+        "_active_event_sessions",
+        "_event_queue",
+        "_ended_sessions_queue",
+        "_max_event_queue_size",
+        "_event_queue_futures",
+        "_oe_ended_sessions_queue_limit",
+        "_oe_max_concurrency",
+        "_oe_max_dispatches",
+        "_oe_dispatch_timeout_secs",
+        "_oe_data",
+        "_within_oe_task",
+    )
+
+    def __init__(self):
+        super().__init__()
+
+        max_event_queue_size = self.DEFAULT_MAX_EVENT_QUEUE_SIZE
+
+        if isinstance(max_event_queue_size, (int, float)):
+            self._max_event_queue_size = int(max_event_queue_size)
+            if self._max_event_queue_size <= 0:
+                self._max_event_queue_size = None
+        else:
+            self._max_event_queue_size = None
+
+        oe_ended_sessions_queue_limit = self.DEFAULT_OE_ENDED_SESSIONS_QUEUE_LIMIT
+
+        if isinstance(oe_ended_sessions_queue_limit, (int, float)):
+            self._oe_ended_sessions_queue_limit = int(oe_ended_sessions_queue_limit)
+            if self._oe_ended_sessions_queue_limit <= 0:
+                self._oe_ended_sessions_queue_limit = None
+        else:
+            self._oe_ended_sessions_queue_limit = None
+
+        self._bools |= JF.ALLOW_EVENT_QUEUE_OVERFLOW * int(
+            self.DEFAULT_ALLOW_EVENT_QUEUE_OVERFLOW
+        )  # True/False
+
+        self._bools |= JF.BLOCK_EVENTS_ON_STOP * int(
+            self.DEFAULT_BLOCK_EVENTS_ON_STOP
+        )  # True/False
+
+        self._bools |= JF.START_ON_DISPATCH * int(
+            self.DEFAULT_START_ON_DISPATCH
+        )  # True/False
+        self._bools |= JF.BLOCK_EVENTS_WHILE_STOPPED * int(
+            self.DEFAULT_BLOCK_EVENTS_WHILE_STOPPED
+        )  # True/False
+        self._bools |= JF.CLEAR_EVENTS_AT_STARTUP * int(
+            self.DEFAULT_CLEAR_EVENTS_AT_STARTUP
+        )  # True/False
+
+        self._bools |= JF.ALLOW_DOUBLE_DISPATCH * int(
+            self.DEFAULT_ALLOW_DOUBLE_DISPATCH
+        )  # True/False
+
+        self._active_event_sessions: dict[events.BaseEvent, EventSession] = {}
+        self._oe_max_concurrency = max(int(self.DEFAULT_OE_MAX_CONCURRENCY), 1)
+
+        oe_max_dispatches = self.DEFAULT_OE_MAX_DISPATCHES
+
+        if isinstance(oe_max_dispatches, (int, float)):
+            self._oe_max_dispatches = int(oe_max_dispatches)
+            if self._oe_max_dispatches < 0:
+                self._oe_max_dispatches = None
+        else:
+            self._oe_max_dispatches = None
+
+        self._bools |= JF.OE_DISPATCH_ONLY_INITIAL * int(
+            self.DEFAULT_OE_DISPATCH_ONLY_INITIAL
+        )  # True/False
+
+        self._bools |= JF.OE_AWAIT_DISPATCH * int(
+            self.DEFAULT_OE_AWAIT_DISPATCH
+        )  # True/False
+
+        oe_dispatch_timeout = (
+            self.DEFAULT_OE_DISPATCH_TIMEOUT
+            if oe_dispatch_timeout is UNSET
+            else oe_dispatch_timeout
+        )
+
+        if isinstance(oe_dispatch_timeout, datetime.timedelta):
+            self._oe_dispatch_timeout_secs = oe_dispatch_timeout.total_seconds()
+        elif isinstance(oe_dispatch_timeout, (float, int)):
+            self._oe_dispatch_timeout_secs = float(oe_dispatch_timeout)
+        else:
+            self._oe_dispatch_timeout_secs = None
+
+        self._bools |= JF.OE_STOP_AFTER_DISPATCH_TIMEOUT * int(
+            self.DEFAULT_OE_STOP_AFTER_DISPATCH_TIMEOUT
+        )  # True/False
+
+        self._bools |= JF.OE_STOP_IF_NO_EVENTS * int(
+            self.DEFAULT_OE_STOP_IF_NO_EVENTS
+        )  # True/False
+
+        if self._bools & (
+            JF.BLOCK_EVENTS_WHILE_STOPPED | JF.CLEAR_EVENTS_AT_STARTUP
+        ):  # any
+            self._bools &= ~JF.START_ON_DISPATCH  # False
+
+        self._bools |= JF.ALLOW_DISPATCH  # True
+
+        if (
+            self._oe_max_dispatches is not None
+            and self._oe_max_dispatches > 1
+            or self._bools & JF.OE_DISPATCH_ONLY_INITIAL
+        ):
+            self._bools &= ~JF.OE_AWAIT_DISPATCH  # False
+
+        self._event_queue = deque(maxlen=self._max_event_queue_size)
+        self._event_queue_futures: list[asyncio.Future[True]] = []
+        self._ended_sessions_queue: deque[EventSession] = deque()
+        # used for idlling while no events are available
+
+        self._bools &= ~(
+            JF.STOPPING_BY_EMPTY_QUEUE | JF.STOPPING_BY_EVENT_TIMEOUT
+        )  # False
+
+        self._oe_data = ContextVar[JobNamespace] = ContextVar("oe_data")
+        self._within_oe_task = ContextVar[bool] = ContextVar("within_oe_task")
+
+    @property
+    def oe_data(self) -> JobNamespace:
+        if (ns := self._oe_data.get(None)) is not None:
+            return ns
+
+        raise AttributeError(
+            "this attribute is only available during the execution of `on_event`"
+        )
+
+    @property
+    def event_queue(self):
+        return self._event_queue
+
+    def _add_event(self, event: events.BaseEvent):
+        is_running = self._job_loop.is_running() and not self._bools & JF.STOPPED
+        if (
+            not self._bools & JF.ALLOW_DISPATCH
+            or (
+                self._bools & (TRUE := JF.BLOCK_EVENTS_ON_STOP | JF.IS_STOPPING) == TRUE
+            )  # all
+            or (self._bools & JF.BLOCK_EVENTS_WHILE_STOPPED and not is_running)
+        ):
+            return
+
+        elif (
+            len(self._event_queue) == self._max_event_queue_size
+            and not self._bools & JF.ALLOW_EVENT_QUEUE_OVERFLOW
+        ):
+            return
+
+        self._event_queue.append(event)
+
+        if not is_running and self._bools & JF.START_ON_DISPATCH:
+            self._job_loop.start()
+
+        elif self._event_queue_futures:
+            for fut in self._event_queue_futures:
+                if not fut.done():
+                    fut.set_result(True)
+            self._event_queue_futures.clear()
+
+    def event_check(self, event: events.BaseEvent) -> bool:
+        """A method for subclasses that can be overloaded to perform validations on a `BaseEvent`
+        instance that was dispatched to them. Must return a boolean value indicating the
+        validaiton result. If not overloaded, this method will always return `True`.
+
+        Args:
+            event (events.BaseEvent): The event object to run checks upon.
+        """
+        return True
+
+    async def next_event(self) -> events.BaseEvent:
+        if not self._event_queue:
+            fut = self._manager._loop.create_future()
+            self._event_queue_futures.append(fut)
+            await fut  # wait till an event is dispatched
+
+        return self._event_queue.popleft()
 
     async def wait_for_dispatch(self) -> bool:
         if not self._event_queue:
@@ -3042,6 +3392,133 @@ class EventJobMixin(JobBase):
         event dispatch to it.
         """
         self._bools |= JF.ALLOW_DISPATCH  # True
+
+    async def _await_next_event_with_timeout(self):
+        event = None
+        if self._event_queue:
+            event = self._event_queue.pop()
+        else:
+            try:
+                self._bools |= JF.IS_IDLING  # True
+                self._idling_since_ts = time.time()
+                event = await asyncio.wait_for(
+                    self.next_event(), timeout=self._oe_dispatch_timeout_secs
+                )
+                self._bools &= ~JF.IS_IDLING  # False
+                self._idling_since_ts = None
+            except asyncio.TimeoutError:
+                if self._bools & JF.OE_STOP_AFTER_DISPATCH_TIMEOUT:
+                    self._bools |= JF.STOPPING_BY_EVENT_TIMEOUT  # True
+                    self.STOP()
+
+        return event
+
+    async def _on_start(self):
+        if self._bools & JF.CLEAR_EVENTS_AT_STARTUP:
+            self._event_queue.clear()
+
+        await super()._on_start()
+
+    async def _on_event(self, event: events.BaseEvent, task: asyncio.Task):
+        def end_session(tsk):
+            tsk.remove_done_callback(end_session)
+            self._ended_sessions_queue.append()
+
+        task.add_done_callback()
+
+    async def on_event(self, event: events.BaseEvent):
+        """DO NOT CALL THIS METHOD MANUALLY, EXCEPT WHEN USING `super()` WITHIN
+        OVERLOADED VERSIONS OF THIS METHOD TO ACCESS A SUPERCLASS METHOD.
+
+        The code to run in reaction to an event popped from the event queue.
+        """
+        pass
+
+    on_event.__dict__["overridden"] = False
+
+    async def handle_event_sessions(self):
+        if not self._event_queue and self._bools & JF.OE_STOP_IF_NO_EVENTS:
+            self._bools |= JF.STOPPING_BY_EMPTY_QUEUE  # True
+            self.STOP()
+            return
+
+        max_dispatches = self._oe_max_dispatches
+
+        if max_dispatches is None:
+            if self._bools & JF.OE_DISPATCH_ONLY_INITIAL:
+                max_dispatches = len(self._event_queue)
+
+            elif self._bools & JF.OE_AWAIT_DISPATCH:
+                while len(self._active_event_sessions) <= self._oe_max_concurrency:
+                    if (event := await self._await_next_event_with_timeout()) is None:
+                        return
+
+                    session = EventSession(event)
+            else:
+                while self._event_queue:
+                    await self.on_event(self._event_queue.pop())
+                return
+
+        max_dispatches = min(len(self._event_queue), max_dispatches)
+
+        if self._bools & JF.OE_AWAIT_DISPATCH:
+            for _ in range(max_dispatches):
+                if (event := await self._await_next_event_with_timeout()) is None:
+                    return
+                await self.on_event(event)
+        else:
+            for _ in range(max_dispatches):
+                await self.on_event(self._event_queue.pop())
+                if not self._event_queue:
+                    break
+
+    def _stop_cleanup(
+        self,
+        reason: Optional[
+            Union[JobStopReasons.Internal, JobStopReasons.External]
+        ] = None,
+    ):
+        super()._stop_cleanup(reason=reason)
+
+        self._bools &= ~(
+            JF.STOPPING_BY_EVENT_TIMEOUT | JF.STOPPING_BY_EMPTY_QUEUE
+        )  # False
+
+    def get_stopping_reason(
+        self,
+    ) -> Optional[Union[JobStopReasons.Internal, JobStopReasons.External]]:
+        if not self._bools & JF.IS_STOPPING:
+            return
+        elif (
+            self._on_start_exception
+            or self._on_run_exception
+            or self._on_stop_exception
+        ):
+            return JobStopReasons.Internal.ERROR
+        elif self._bools & JF.STOPPING_BY_EMPTY_QUEUE:
+            return JobStopReasons.Internal.EMPTY_EVENT_QUEUE
+
+        elif self._bools & JF.STOPPING_BY_EVENT_TIMEOUT:
+            return JobStopReasons.Internal.EVENT_TIMEOUT
+
+        elif self._job_loop.current_loop == self._count:
+            return JobStopReasons.Internal.EXECUTION_COUNT_LIMIT
+        elif self._bools & JF.TOLD_TO_STOP_BY_SELF:
+            if self._bools & JF.TOLD_TO_RESTART:
+                return JobStopReasons.Internal.RESTART
+            elif self._bools & JF.TOLD_TO_COMPLETE:
+                return JobStopReasons.Internal.COMPLETION
+            elif self._bools & JF.TOLD_TO_BE_KILLED:
+                return JobStopReasons.Internal.KILLING
+            else:
+                return JobStopReasons.Internal.UNSPECIFIC
+        else:
+            if self._bools & JF.TOLD_TO_RESTART:
+                return JobStopReasons.External.RESTART
+            elif self._bools & JF.TOLD_TO_BE_KILLED:
+                return JobStopReasons.External.KILLING
+            else:
+                return JobStopReasons.External.UNKNOWN
 
 
 @singletonjob
