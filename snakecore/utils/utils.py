@@ -7,7 +7,7 @@ This file defines some important utility functions for the library.
 """
 
 import asyncio
-from collections import ChainMap, defaultdict, deque
+from collections import defaultdict, deque
 import collections
 import datetime
 import itertools

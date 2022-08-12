@@ -13,7 +13,7 @@ from typing import Optional, Sequence, Union
 import discord
 from snakecore.constants import UNSET, _UnsetType, NoneType
 from snakecore.constants.enums import JobBoolFlags as JF
-from snakecore.exceptions import JobInitializationError, JobStateError
+from snakecore.exceptions import JobInitializationError
 
 from snakecore.jobs.jobs import _JobCore
 from snakecore.jobs.loops import JobLoop

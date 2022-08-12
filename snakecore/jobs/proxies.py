@@ -9,16 +9,14 @@ for extra features and encapsulation.
 from asyncio import AbstractEventLoop
 from collections import deque
 import datetime
-import functools
 import itertools
 from types import FunctionType
-import types
 from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Type, Union
 
 from snakecore import events
-from snakecore.constants import UNSET, _UnsetType, JobPermissionLevels, JobOps
+from snakecore.constants import UNSET, _UnsetType, JobPermissionLevels
 from snakecore.constants.enums import JobBoolFlags as JF
-from snakecore.exceptions import JobIsDone, JobStateError
+from snakecore.exceptions import JobIsDone
 
 from . import jobs, manager
 

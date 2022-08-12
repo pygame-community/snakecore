@@ -13,15 +13,13 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 import datetime
 import time
-from typing import Optional, Sequence, Union
+from typing import Optional, Union
 
 from snakecore.constants import (
-    UNSET,
-    _UnsetType,
     JobBoolFlags as JF,
     JobStopReasons,
-    NoneType,
 )
+
 from snakecore.utils.utils import DequeProxy
 from . import jobs
 from .jobs import JobMixin
