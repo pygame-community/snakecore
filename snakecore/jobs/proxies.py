@@ -6,6 +6,7 @@ This file implements proxy objects used by job and job managers
 for extra features and encapsulation. 
 """
 
+from asyncio import AbstractEventLoop
 from collections import deque
 import datetime
 import functools
@@ -745,7 +746,7 @@ class JobManagerProxy:
     is_running = manager.JobManager.is_running
 
     @property
-    def _loop(self):
+    def _loop(self) -> AbstractEventLoop:
         ...
 
     @property
@@ -870,7 +871,7 @@ class _JobManagerProxy:  # hidden implementation to trick type-checker engines
         return self.__mgr._manager_job._proxy
 
     @property
-    def _loop(self):
+    def _loop(self) -> AbstractEventLoop:
         return self.__mgr._loop
 
     def get_job_stop_timeout(self):

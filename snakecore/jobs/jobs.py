@@ -12,6 +12,7 @@ from collections import ChainMap, deque
 from contextlib import contextmanager
 from contextvars import ContextVar
 import datetime
+import functools
 import itertools
 import inspect
 from multiprocessing import managers
@@ -32,7 +33,7 @@ from typing import (
 
 import discord.utils
 from snakecore.constants import (
-    DEFAULT_JOB_EXCEPTION_WHITELIST,
+    DEFAULT_JOB_EXCEPTION_ALLOWLIST,
     JobPermissionLevels,
     JobStatus,
     JobStopReasons,
@@ -310,7 +311,7 @@ def publicjobmethod(
             )
             return func
 
-        raise TypeError("first decorator function argument must be a function")
+        raise TypeError("The first decorator function argument must be a function")
 
     if func is not None:
         return inner_deco(func)
@@ -318,7 +319,7 @@ def publicjobmethod(
     return inner_deco
 
 
-class _JobBase:
+class _JobCore:
 
     __slots__ = (
         "_bools",
@@ -345,11 +346,11 @@ class _JobBase:
     _UUID: Optional[str] = None
     _RUNTIME_ID = f"JobBase-{int(_CREATED_AT.timestamp()*1_000_000_000)}"
 
-    DATA_NAMESPACE_CLASS = JobNamespace
+    Namespace = JobNamespace
 
     def __init_subclass__(cls, class_uuid: Optional[str] = None) -> None:
         if getattr(cls, f"{cls.__qualname__}_INIT", False):
-            raise RuntimeError("This job class was already initialized.")
+            raise RuntimeError("This job class was already initialized")
 
         cls._CREATED_AT = datetime.datetime.now(datetime.timezone.utc)
 
@@ -383,7 +384,7 @@ class _JobBase:
 
     def __init__(self) -> None:
         self._created_at_ts = time.time()
-        self._data = self.DATA_NAMESPACE_CLASS()
+        self._data = self.Namespace()
 
         self._runtime_id: str = (
             f"{self.__class__._RUNTIME_ID}:{int(self._created_at_ts*1_000_000_000)}"
@@ -443,7 +444,7 @@ class _JobBase:
         )
 
     @property
-    def data(self):
+    def data(self) -> Namespace:
         """The `JobNamespace` instance bound to this job object for storage."""
         return self._data
 
@@ -597,7 +598,7 @@ class _JobBase:
             exc (Exception): The exception that occured.
         """
         print(
-            f"An Exception occured in 'on_start' method of job " f"'{self!r}':\n\n",
+            f"An exception occured in 'on_start' method of job " f"'{self!r}':\n\n",
             utils.format_code_exception(exc),
             file=sys.stderr,
         )
@@ -617,7 +618,7 @@ class _JobBase:
             exc (Exception): The exception that occured.
         """
         print(
-            f"An Exception occured in 'on_run' method of job " f"'{self!r}':\n\n",
+            f"An exception occured in 'on_run' method of job " f"'{self!r}':\n\n",
             utils.format_code_exception(exc),
             file=sys.stderr,
         )
@@ -633,7 +634,7 @@ class _JobBase:
             exc (Exception): The exception that occured.
         """
         print(
-            f"An Exception occured in 'on_stop' method of job " f"'{self!r}':\n\n",
+            f"An exception occured in 'on_stop' method of job " f"'{self!r}':\n\n",
             utils.format_code_exception(exc),
             file=sys.stderr,
         )
@@ -750,7 +751,7 @@ class _JobBase:
         """
         self._job_loop.clear_exception_types()
         if keep_default:
-            self._job_loop.add_exception_type(*DEFAULT_JOB_EXCEPTION_WHITELIST)
+            self._job_loop.add_exception_type(*DEFAULT_JOB_EXCEPTION_ALLOWLIST)
 
     def get_last_stopping_reason(
         self,
@@ -1083,7 +1084,7 @@ class _JobBase:
         """
 
         if not self.is_running():
-            raise JobNotRunning("this job object is running.")
+            raise JobNotRunning("This job object is running")
 
         loop = asyncio.get_running_loop()
 
@@ -1140,9 +1141,10 @@ class _JobBase:
         return output_str
 
 
-class JobBase(_JobBase):
-    """The base class of all job objects that run in a job manager,
-    which implements base functionality for its subclasses."""
+class JobCore(_JobCore):
+    """The base class of all job-related interfaces,
+    which implements core functionality for its
+    subclasses."""
 
     __slots__ = (
         "_manager",
@@ -1174,8 +1176,6 @@ class JobBase(_JobBase):
 
     PUBLIC_METHODS_MAP: Optional[dict[str, Callable[..., Any]]] = None
     PUBLIC_METHODS_CHAINMAP: Optional[FastChainMap[str, Callable[..., Any]]] = None
-
-    DATA_NAMESPACE_CLASS = JobNamespace
 
     def __init_subclass__(
         cls,
@@ -1275,7 +1275,7 @@ class JobBase(_JobBase):
         self._schedule_identifier: Optional[str] = None
 
         self._done_futures: Optional[list[asyncio.Future]] = None
-        self._done_callbacks: dict[int, Callable[["_JobBase"], Any]] = None
+        self._done_callbacks: dict[int, Callable[["_JobCore"], Any]] = None
 
         self._output_fields: Optional[dict[str, Any]] = None
         self._output_field_futures: Optional[dict[str, asyncio.Future[Any]]] = None
@@ -1370,33 +1370,6 @@ class JobBase(_JobBase):
         this job object, if that was the case.
         """
         return self._schedule_identifier
-
-    def add_done_callback(self, fn: Callable[["_JobBase"], Any]) -> None:
-        """Add a callback to be run when this job becomes done.
-
-        The callback is called with a single argument - this job object.
-        This will fail if this job is already done when this method is
-        called.
-        """
-        if self.done():
-            raise JobIsDone("this job object is already done.")
-        elif callable(fn):
-            if self._done_callbacks is None:
-                self._done_callbacks = {}
-
-            self._done_callbacks[id(fn)] = fn
-            return
-
-        raise TypeError("argument 'fn' must be a callable object")
-
-    def remove_done_callback(self, fn: Callable[["_JobBase"], Any]) -> None:
-        """remove an added callback to be run when this job becomes done."""
-        if callable(fn):
-            if self._done_callbacks is not None and id(fn) in self._done_callbacks:
-                del self._done_callbacks[id(fn)]
-            return
-
-        raise TypeError("argument 'fn' must be a callable object")
 
     async def _on_start(self):
         self._on_start_exception = None
@@ -1542,12 +1515,6 @@ class JobBase(_JobBase):
             self._bools &= ~JF.STOPPED  # False
             self._stopped_since_ts = None
 
-            if self._done_callbacks is not None:
-                for fn in self._done_callbacks.values():
-                    fn(self)
-
-                self._done_callbacks.clear()
-
             if self._stop_futures is not None:
                 for fut in self._stop_futures:
                     if not fut.done():
@@ -1646,6 +1613,16 @@ class JobBase(_JobBase):
                 return JobStopReasons.External.KILLING
             else:
                 return JobStopReasons.External.UNKNOWN
+
+    def _START(self) -> bool:
+        if self.done():
+            raise JobIsDone("This job object is already done.")
+
+        elif not self.is_running():
+            self._job_loop.start()
+            return True
+
+        return False
 
     async def _INITIALIZE_EXTERNAL(self) -> bool:
         """DO NOT CALL THIS METHOD MANUALLY.
@@ -1961,9 +1938,9 @@ class JobBase(_JobBase):
         """
 
         if not self.is_running():
-            raise JobNotRunning("this job object is not running.")
+            raise JobNotRunning("This job object is not running")
         elif self.done():
-            raise JobIsDone("this job object is already done.")
+            raise JobIsDone("This job object is already done")
 
         fut = self._manager._loop.create_future()
 
@@ -1993,7 +1970,7 @@ class JobBase(_JobBase):
             asyncio.CancelledError: The job was killed.
         """
         if self.done():
-            raise JobIsDone("this job object is already done.")
+            raise JobIsDone("This job object is already done")
 
         fut = self._manager._loop.create_future()
 
@@ -2492,7 +2469,7 @@ class JobBase(_JobBase):
         self.verify_output_field_support(field_name, raise_exceptions=True)
 
         if self.done():
-            raise JobIsDone("this job object is already done.")
+            raise JobIsDone("This job object is already done")
 
         fut = self._manager._loop.create_future()
 
@@ -2548,7 +2525,7 @@ class JobBase(_JobBase):
         self.verify_output_queue_support(queue_name, raise_exceptions=True)
 
         if self.done():
-            raise JobIsDone("this job object is already done.")
+            raise JobIsDone("This job object is already done")
 
         if queue_name not in self._output_queue_futures:
             self._output_queue_futures[queue_name] = []
@@ -2731,6 +2708,403 @@ class JobBase(_JobBase):
         return output_str
 
 
+class JobMixin(JobCore):
+    """A base class for job mixins, which implement
+    additional functionality for jobs. These may involve
+    additional class variables, instance variables and
+    methods.
+
+    Subclasses of this class can be integrated into
+    job classes using multiple inheritance, where
+    all mixin classes to integrate are specified
+    as the first parameters for inheritance in the
+    class definition, followed by a JobBase subclass
+    at the end.
+    """
+
+    __slots__ = ()
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    async def mixin_routine(self):
+        """A function to overload for running job mixin
+        functionality.
+        """
+        raise NotImplementedError()
+
+
+class JobBase(JobCore):
+    __slots__ = ("_mixin_task_dict", "_mixin_future_dict")
+
+    JOB_MIXIN_CLASSES: frozenset[Type[JobMixin]] = frozenset()
+
+    def __init_subclass__(cls, class_uuid: Optional[str] = None):
+        super().__init_subclass__(class_uuid)
+
+        mixin_classes: list[Type[JobMixin]] = []
+        mro_mixin_supercls_of: set[Type[JobMixin]] = {}
+
+        if not issubclass(cls.__bases__[-1], JobBase):
+            raise TypeError(
+                "Subclasses of JobBase must specify a 'JobBase' superclass as "
+                "the last parameter for inheritance in their class definition"
+            )
+
+        for supercls in cls.__bases__:
+            if issubclass(supercls, JobMixin):
+                if not asyncio.iscoroutinefunction(supercls.mixin_routine):
+                    raise TypeError(
+                        f"JobMixin subclasses to inherit must define a "
+                        "'mixin_routine' coroutine function' that takes "
+                        "in a job instance as an argument"
+                    )
+                elif supercls in cls.JOB_MIXIN_CLASSES:
+                    raise TypeError(
+                        f"Job mixin class {supercls.__qualname__} has already been inherited"
+                    )
+
+                mixin_classes.append(supercls)
+
+        if mixin_classes:
+            all_mixin_classes = (*cls.JOB_MIXIN_CLASSES, *mixin_classes)
+
+            if len(all_mixin_classes) > 1:
+                for mixin_class in all_mixin_classes:
+                    for superclass in mixin_class.__mro__:
+                        if (
+                            issubclass(superclass, JobMixin)
+                            and superclass is not JobMixin
+                        ):
+                            if superclass in mro_mixin_supercls_of:
+                                raise TypeError(
+                                    f"Invalid job mixin class inheritance tree: "
+                                    f"Job mixin class '{mixin_class.__qualname__}' "
+                                    f"inherits '{superclass.__qualname__}' which is "
+                                    f"already inherited by "
+                                    f"'{mro_mixin_supercls_of[superclass].__qualname__}'"
+                                )
+
+                            mro_mixin_supercls_of[superclass] = mixin_class
+
+            cls.JOB_MIXIN_CLASSES = cls.JOB_MIXIN_CLASSES | frozenset(
+                mixin_classes
+            )  # add variable to current class dict
+
+    def __init__(self):
+        super().__init__()
+        self._mixin_task_dict: dict[Type[JobMixin], asyncio.Task] = {}
+        self._mixin_future_dict: dict[Type[JobMixin], list[asyncio.Future]] = {}
+
+    def handle_mixin_routines(self, *mixin_classes: Type[JobMixin]):
+        """Handle the mixin routines of the specified mixin classes
+        by scheduling them to run once. If the tasks through which
+        the mixin routines were previously scheduled are done, they
+        will be replaced with new ones to reschedule the mixin routines.
+        If they weren't done, `JobStateError` will be raised.
+
+        Args:
+            *mixin_classes (Type[JobMixin]): The mixin classes.
+
+        Raises:
+            JobIsDone: This job object is already done.
+            JobNotRunning: This job object is not running.
+            TypeError: Invalid mixin classes given as input.
+            JobStateError: The given mixin classes are already
+              being handled.
+        """
+
+        if self.done():
+            raise JobIsDone("This job object is already done")
+        elif not self.is_running():
+            raise JobNotRunning("This job object is not running")
+
+        mixin_classes = tuple(frozenset(mixin_classes))
+
+        if mixin_classes and not all(
+            mixin_cls in self.JOB_MIXIN_CLASSES for mixin_cls in mixin_classes
+        ):
+            raise TypeError(
+                f"Some classes passed given as arguments are not supported mixin "
+                f"classes of '{self.__class__.__qualname__}'"
+            )
+        elif any(
+            mixin_cls in self._mixin_task_dict
+            and not self._mixin_task_dict[mixin_cls].done()
+            for mixin_cls in mixin_classes
+        ):
+            raise JobStateError(
+                "This job object is already handling some of the given job mixin classes"
+            )
+
+        self._handle_mixin_routines(*mixin_classes)
+
+    def handle_all_mixin_routines(self):
+        """Handle the routines of all the inherited mixin classes,
+        by scheduling them to run once. If the tasks through which
+        the mixin routines were previously scheduled are done,
+        they will be replaced with new ones to reschedule the
+        mixin routines. If they weren't done, `JobStateError`
+        will be raised.
+
+        Raises:
+            JobIsDone: This job object is already done.
+            JobNotRunning: This job object is not running.
+            TypeError: Invalid mixin classes given as input.
+            JobStateError: The given mixin classes are already
+              being handled.
+        """
+
+        if self.done():
+            raise JobIsDone("This job object is already done")
+        elif not self.is_running():
+            raise JobNotRunning("This job object is not running")
+
+        if any(not tsk.done() for tsk in self._mixin_task_dict.values()):
+            raise JobStateError("This job object is already handling job mixins")
+
+        self._handle_mixin_routines(*self.JOB_MIXIN_CLASSES)
+
+    def _handle_mixin_routines(self, *mixin_classes: Type[JobMixin]):
+        for mixin_cls in mixin_classes:
+            if mixin_cls in self._mixin_task_dict:
+                del self._mixin_task_dict[mixin_cls]
+
+        task_mixin_cls_dict = {}
+
+        def _complete_mixin_task(task: asyncio.Task):
+            mixin_cls = task_mixin_cls_dict[task]
+
+            for fut in self._mixin_future_dict[mixin_cls]:
+                if not fut.done():
+                    fut.set_result({mixin_cls: task})
+
+            self._mixin_future_dict[mixin_cls].clear()
+
+        for mixin_cls in mixin_classes:
+            tsk = asyncio.create_task(self._call_mixin_routine(mixin_cls))
+            tsk.add_done_callback(_complete_mixin_task)
+            self._mixin_task_dict[mixin_cls] = tsk
+            task_mixin_cls_dict[tsk] = mixin_cls
+
+    async def _call_mixin_routine(self, mixin_cls: Type[JobMixin]):
+        try:
+            await mixin_cls.mixin_routine(self)
+        except Exception as e:
+            await self.on_mixin_routine_error(e, mixin_cls)
+            raise
+
+    def mixin_routine_is_running(self, mixin_cls: Type[JobMixin]) -> bool:
+        """Whether the mixin routine of the given mixin class is currently
+        running.
+
+        Args:
+            mixin_cls (Type[JobMixin]): The mixin class.
+
+        Returns:
+            bool: True/False
+        """
+        return (
+            mixin_cls in self._mixin_task_dict
+            and not self._mixin_task_dict[mixin_cls].done()
+        )
+
+    def wait_for_mixin_routines(
+        self,
+        *mixin_classes: Type[JobMixin],
+        timeout: Optional[float] = None,
+        skip_not_running: bool = True,
+    ):
+        """Wait for the mixin routines of the specified mixin classes
+        to finish running using the returned coroutine.
+
+        Args:
+            *mixin_classes (Type[JobMixin]): The mixin classes.
+            timeout (Optional[float], optional): The waiting timeout. Defaults to None.
+            skip_not_running (bool, optional): Whether to ignore the mixin classes which
+              don't have their routines scheduled to run. If set to `False`,
+              `JobStateError` will be raised. Defaults to True.
+
+        Returns:
+            Coroutine: A coroutine which returns a dictionary that maps the speficied
+              mixin classes to the `asyncio.Task` objects used to run their routine
+              functions.
+
+        Raises:
+            TypeError: Invalid mixin class(es).
+            JobStateError: Some or none of the given mixin classes have their
+              routines scheduled to run.
+        """
+
+        futs = []
+
+        for mixin_cls in mixin_classes:
+
+            if not mixin_cls in self.JOB_MIXIN_CLASSES:
+                raise TypeError(
+                    f"Class  {mixin_cls.__qualname__} given as an argument is not a valid "
+                    f"mixin class of '{self.__class__.__qualname__}'"
+                )
+            elif (
+                mixin_cls not in self._mixin_task_dict
+                or self._mixin_task_dict[mixin_cls].done()
+            ) and not skip_not_running:
+                raise JobStateError(
+                    f"Some mixin classes given as arguments don't have running routines to wait for"
+                )
+
+            elif (
+                mixin_cls in self._mixin_task_dict
+                and not self._mixin_task_dict[mixin_cls].done()
+            ):  # mixin tasks are currently running
+                fut = self._manager._loop.create_future()
+
+                if mixin_cls not in self._mixin_future_dict:
+                    self._mixin_future_dict[mixin_cls] = []
+
+                self._mixin_future_dict[mixin_cls].append(fut)
+
+                futs.append(fut)
+
+        if len(futs) > 1:
+            return asyncio.wait_for(
+                self._wait_for_mixin_routine_futures(*futs), timeout=timeout
+            )
+
+        elif len(futs) == 1:
+            return asyncio.wait_for(futs[0], timeout=timeout)
+
+        raise JobStateError("No mixins are currently running to be awaited")
+
+    async def _wait_for_mixin_routine_futures(self, *futures: asyncio.Future):
+        results = await asyncio.gather(*futures, return_exceptions=True)
+
+        result_dict: dict[Type[JobMixin], asyncio.Task] = {}
+        for result in results:
+            if isinstance(result, dict):
+                result_dict.update(result)
+
+        return result_dict
+
+    def _cancel_all_mixin_routines(self, msg: str):
+        for task in self._mixin_task_dict.values():
+            if not task.done():
+                task.cancel(msg)
+
+    async def run_mixin_routines(self, *mixin_classes: Type[JobMixin]):
+        """Handle the routines of the given mixin classes and block until
+        they finish running. This method is a combination of
+        `handle_mixin_routines` and `wait_for_mixin_routines`.
+
+        Args:
+            *mixin_classes (Type[JobMixin]): The mixin classes.
+
+        Returns:
+            Coroutine: A coroutine which returns a dictionary that maps the speficied
+              mixin classes to the `asyncio.Task` objects used to run their routine
+              functions.
+
+        Raises:
+            TypeError: Invalid mixin class(es).
+            JobStateError: Some or none of the given mixin classes have their
+              routines scheduled to run/Some are already being handled.
+        """
+
+        self.handle_mixin_routines(*mixin_classes)
+        return await self.wait_for_mixin_routines(*mixin_classes)
+
+    async def run_all_mixin_routines(self):
+        """Handle the routines of all the inherited mixin classes and block until
+        they finish running. This method is a combination of `handle_mixin_routines`
+        and `wait_for_mixin_routines`.
+
+        Returns:
+            Coroutine: A coroutine which returns a dictionary that maps the speficied
+              mixin classes to the `asyncio.Task` objects used to run their routine
+              functions.
+
+        Raises:
+            TypeError: Invalid mixin class(es).
+            JobStateError: Some or none of the given mixin classes have their
+              routines scheduled to run/Some are already being handled.
+        """
+        self.handle_all_mixin_routines()
+        return await self.wait_for_mixin_routines(*self.JOB_MIXIN_CLASSES)
+
+    def cancel_mixin_routines(self, *mixin_classes: Type[JobMixin]):
+        """Cancel the routines of the given mixin classes, if they are
+        running.
+
+        Args:
+            *mixin_classes (Type[JobMixin]): The mixin classes.
+
+        Raises:
+            TypeError: Invalid mixin class(es).
+        """
+
+        for mixin_cls in mixin_classes:
+            if not mixin_cls in self.JOB_MIXIN_CLASSES:
+                raise TypeError(
+                    f"Class  {mixin_cls.__qualname__} given as an argument is not a valid "
+                    f"mixin class of '{self.__class__.__qualname__}'"
+                )
+            elif (
+                mixin_cls in self._mixin_task_dict
+                and not self._mixin_task_dict[mixin_cls].done()
+            ):
+                self._mixin_task_dict[mixin_cls].cancel(
+                    f"Job {self!r} has requested mixin routine cancellation."
+                )
+
+    def cancel_all_mixin_routines(self):
+        """Cancel the routines of all given mixin classes, if they are
+        running.
+        """
+        self._cancel_all_mixin_routines(
+            f"Job {self!r} has requested mixin routine cancellation."
+        )
+
+    def get_mixin_routine_tasks(self):
+        """Get a dictionary that maps all supported mixin classes to the `asyncio.Task` objects
+        used to run their routine functions. If some of the tasks are not done, JobStatError is
+        raised.
+
+        Raises:
+            JobStateError: Some mixin routine tasks are not done.
+
+        Returns:
+            dict[Type[JobMixin], asyncio.Task]: The dictionary.
+        """
+        if self._mixin_task_dict and not all(
+            task.done() for task in self._mixin_task_dict.values()
+        ):
+            raise JobStateError(
+                "Cannot return all mixin routine tasks while some are running"
+            )
+
+        return self._mixin_task_dict.copy()
+
+    async def on_mixin_routine_error(self, exc: Exception, mixin_cls: Type[JobMixin]):
+        """A listener for reacting to failed mixin routines.
+
+        Args:
+            exc (Exception): The exception.
+            mixin_cls (Type[JobMixin]): The mixin class.
+        """
+        print(
+            f"A job mixin exception occured in '{mixin_cls.__qualname__}.mixin_run()' "
+            "for job "
+            f"'{self!r}':\n\n",
+            utils.format_code_exception(exc),
+            file=sys.stderr,
+        )
+
+    async def _on_stop(self):
+        self._bools |= JF.IS_STOPPING  # True
+        self._cancel_all_mixin_routines(f"Job '{self!r}' is stopping")
+        await super()._on_stop()
+
+
 class ManagedJobBase(JobBase):
     """Base class for interval based managed jobs.
     Subclasses are expected to overload the `on_run()` method.
@@ -2748,6 +3122,8 @@ class ManagedJobBase(JobBase):
 
     DEFAULT_COUNT: Optional[int] = None
     DEFAULT_RECONNECT = True
+
+    __slots__ = ()
 
     def __init__(
         self,
@@ -2878,649 +3254,6 @@ class ManagedJobBase(JobBase):
         pass
 
 
-class EventJobMixin(JobBase):
-    """A mixin class for managed jobs that want to receive events
-    passed to them by their job manager object. This should
-    be inherited using multiple inheritance alongside `ManagedJobBase`.
-    Attributes:
-        EVENTS: A tuple denoting the set of `BaseEvent` classes whose
-          instances should be received after their corresponding event is
-          registered by the job manager of an instance of this class. By
-          default, all instances of `BaseEvent` will be propagated.
-    """
-
-    EVENTS: tuple[events.BaseEvent] = (events.BaseEvent,)
-
-    DEFAULT_MAX_EVENT_QUEUE_SIZE: Optional[int] = None
-
-    DEFAULT_ALLOW_EVENT_QUEUE_OVERFLOW: bool = False
-
-    DEFAULT_BLOCK_EVENTS_ON_STOP: bool = True
-    DEFAULT_START_ON_DISPATCH: bool = False
-    DEFAULT_BLOCK_EVENTS_WHILE_STOPPED: bool = True
-    DEFAULT_CLEAR_EVENTS_AT_STARTUP: bool = True
-
-    DEFAULT_ALLOW_DOUBLE_DISPATCH: bool = False
-
-    __slots__ = (
-        "_event_queue",
-        "_max_event_queue_size",
-        "_event_queue_futures",
-    )
-
-    def __init__(self):
-        super().__init__()
-        max_event_queue_size = self.DEFAULT_MAX_EVENT_QUEUE_SIZE
-
-        if isinstance(max_event_queue_size, (int, float)):
-            self._max_event_queue_size = int(max_event_queue_size)
-            if self._max_event_queue_size <= 0:
-                self._max_event_queue_size = None
-        else:
-            self._max_event_queue_size = None
-
-        self._bools |= JF.ALLOW_EVENT_QUEUE_OVERFLOW * int(
-            self.DEFAULT_ALLOW_EVENT_QUEUE_OVERFLOW
-        )  # True/False
-
-        self._bools |= JF.BLOCK_EVENTS_ON_STOP * int(
-            self.DEFAULT_BLOCK_EVENTS_ON_STOP
-        )  # True/False
-
-        self._bools |= JF.START_ON_DISPATCH * int(
-            self.DEFAULT_START_ON_DISPATCH
-        )  # True/False
-        self._bools |= JF.BLOCK_EVENTS_WHILE_STOPPED * int(
-            self.DEFAULT_BLOCK_EVENTS_WHILE_STOPPED
-        )  # True/False
-        self._bools |= JF.CLEAR_EVENTS_AT_STARTUP * int(
-            self.DEFAULT_CLEAR_EVENTS_AT_STARTUP
-        )  # True/False
-
-        self._bools |= JF.ALLOW_DOUBLE_DISPATCH * int(
-            self.DEFAULT_ALLOW_DOUBLE_DISPATCH
-        )  # True/False
-
-        if self._bools & (
-            JF.BLOCK_EVENTS_WHILE_STOPPED | JF.CLEAR_EVENTS_AT_STARTUP
-        ):  # any
-            self._bools &= ~JF.START_ON_DISPATCH  # False
-
-        self._bools |= JF.ALLOW_DISPATCH  # True
-
-        self._event_queue_futures: list[asyncio.Future[True]] = []
-        # used for idlling while no events are available
-        self._event_queue = deque(maxlen=self._max_event_queue_size)
-
-    @property
-    def event_queue(self):
-        return self._event_queue
-
-    def _add_event(self, event: events.BaseEvent):
-        is_running = self._job_loop.is_running() and not self._bools & JF.STOPPED
-        if (
-            not self._bools & JF.ALLOW_DISPATCH
-            or (
-                self._bools & (TRUE := JF.BLOCK_EVENTS_ON_STOP | JF.IS_STOPPING) == TRUE
-            )  # all
-            or (self._bools & JF.BLOCK_EVENTS_WHILE_STOPPED and not is_running)
-        ):
-            return
-
-        elif (
-            len(self._event_queue) == self._max_event_queue_size
-            and not self._bools & JF.ALLOW_EVENT_QUEUE_OVERFLOW
-        ):
-            return
-
-        self._event_queue.appendleft(event)
-
-        if not is_running and self._bools & JF.START_ON_DISPATCH:
-            self._job_loop.start()
-
-        elif self._event_queue_futures:
-            for fut in self._event_queue_futures:
-                if not fut.done():
-                    fut.set_result(True)
-            self._event_queue_futures.clear()
-
-    def event_check(self, event: events.BaseEvent) -> bool:
-        """A method for subclasses that can be overloaded to perform validations on a `BaseEvent`
-        instance that was dispatched to them. Must return a boolean value indicating the
-        validaiton result. If not overloaded, this method will always return `True`.
-        Args:
-            event (events.BaseEvent): The event object to run checks upon.
-        """
-        return True
-
-    async def next_event(self) -> events.BaseEvent:
-        if not self._event_queue:
-            fut = self._manager._loop.create_future()
-            self._event_queue_futures.append(fut)
-            await fut  # wait till an event is dispatched
-
-        return self._event_queue.pop()
-
-    async def wait_for_dispatch(self) -> bool:
-        if not self._event_queue:
-            fut = self._manager._loop.create_future()
-            self._event_queue_futures.append(fut)
-            return await fut  # wait till an event is dispatched
-
-        return True
-
-    @contextmanager
-    def blocked_event_queue(self):
-        """A method to be used as a context manager for
-        temporarily blocking the event queue of this event job
-        while running an operation, thereby disabling event dispatch to it.
-        """
-        try:
-            self._bools &= ~JF.ALLOW_DISPATCH  # False
-            yield
-        finally:
-            self._bools |= JF.ALLOW_DISPATCH  # True
-
-    def event_queue_is_blocked(self) -> bool:
-        """Whether event dispatching to this event job's event queue
-        is disabled and its event queue is blocked.
-        Returns:
-            bool: True/False
-        """
-        return not self._bools & JF.ALLOW_DISPATCH
-
-    def block_queue(self):
-        """Block the event queue of this event job, thereby disabling
-        event dispatch to it.
-        """
-        self._bools &= ~JF.ALLOW_DISPATCH  # False
-
-    def unblock_queue(self):
-        """Unblock the event queue of this event job, thereby enabling
-        event dispatch to it.
-        """
-        self._bools |= JF.ALLOW_DISPATCH  # True
-
-
-class EventSession:
-    __slots__ = (
-        "_event",
-        "_task",
-        "_data",
-        "_timestamp",
-    )
-
-    def __init__(
-        self,
-        event: events.BaseEvent,
-        task: asyncio.Task,
-        data: JobNamespace,
-        timestamp: Optional[datetime.datetime] = None,
-    ):
-        self._event: events.BaseEvent = event
-        self._task: asyncio.Task = task
-        self._data: JobNamespace = data
-        self._timestamp = timestamp or datetime.datetime.now(datetime.timezone.utc)
-
-    @property
-    def event(self) -> events.BaseEvent:
-        return self._event
-
-    @property
-    def task(self) -> asyncio.Task:
-        return self._task
-
-    @property
-    def data(self) -> JobNamespace:
-        return self._data
-
-    @property
-    def timestamp(self) -> datetime.datetime:
-        return self._timestamp
-
-
-class EventJobMixin(JobBase):
-    """A mixin class for managed jobs that want to receive events
-    passed to them by their job manager object. This should
-    be inherited using multiple inheritance, and ordered before
-    `ManagedJobBase`.
-    """
-
-    EVENTS: tuple[events.BaseEvent] = (events.BaseEvent,)
-    """A tuple denoting the set of `BaseEvent` classes whose
-    instances should be received after their corresponding event is
-    registered by the job manager of an instance of this class. By
-    default, all instances of `BaseEvent` will be propagated.
-    """
-
-    DEFAULT_MAX_EVENT_QUEUE_SIZE: Optional[int] = None
-
-    DEFAULT_ALLOW_EVENT_QUEUE_OVERFLOW: bool = False
-
-    DEFAULT_BLOCK_EVENTS_ON_STOP: bool = True
-    DEFAULT_START_ON_DISPATCH: bool = False
-    DEFAULT_BLOCK_EVENTS_WHILE_STOPPED: bool = True
-
-    DEFAULT_CLEAR_EVENTS_AT_STARTUP: bool = False
-    """Whether to clear the event queue when a job starts.
-    Defaults to False.
-    """
-
-    DEFAULT_ALLOW_DOUBLE_DISPATCH: bool = False
-
-    DEFAULT_OE_ENDED_SESSIONS_QUEUE_LIMIT: Optional[int] = None
-    """The maximum amount of finished event sessions that
-    can be held in the finished session queue. If this
-    maximum is reached or surpassed, dispatching to
-    `on_event()` sessions will be blocked until the queue
-    size falls below the maximum. 
-    """
-
-    DEFAULT_OE_MAX_CONCURRENCY: int = 2
-    """Max. amount of `on_event()`
-    sessions that are allowed to run concurrently.
-    Defaults to 2.
-    """
-
-    OE_DATA_NAMESPACE_CLASS = JobNamespace
-
-    DEFAULT_OE_MAX_DISPATCHES: Optional[int] = None
-    """Max. amount of events to pass to `on_event()`
-    sessions in one job loop iteration. Note that if the maximum
-    is not reached and no more events are available, `on_event()`
-    won't be called anymore (for that iteration). If set to
-    `None`, the total amount passed will depend on other default variables
-    as well as the amount of events initially present in the event queue.
-    The maximum amount is limited by the amount set for
-    `DEFAULT_OE_MAX_CONCURRENCY`
-    Defaults to None.
-    """
-
-    DEFAULT_OE_DISPATCH_ONLY_INITIAL: bool = False
-    """Whether to only dispatch the events present in the event
-    queue at the start of a job loop iteration to `on_event()` sessions.
-    Defaults to False.
-    """
-
-    DEFAULT_OE_AWAIT_DISPATCH: bool = False
-    """Whether to await the arrival of an event before passing it to
-    an `on_event()` session, if the event queue is empty. Awaiting like
-    this will mark a job as idling. If there are one or more events in 
-    the queue, awaiting will be skipped and those will be successively
-    passed to `on_event()`. If set to `True`, awaiting will only occur if
-    `DEFAULT_ONLY_INITIAL_EVENTS` is set to `False`. To prevent indefinite
-    awaiting, `DEFAULT_MAX_OE_DISPATCHES` can be used to limit the total
-    amounts to dispatch.
-    Defaults to False.
-    """
-
-    DEFAULT_OE_DISPATCH_TIMEOUT: Union[float, datetime.timedelta, None] = None
-    """The timeout period for awaiting another event, before ending the loop iteration.
-    Defaults to None.
-    """
-
-    DEFAULT_OE_STOP_AFTER_DISPATCH_TIMEOUT: bool = False
-    """Whether to stop a job if the timeout period for awaiting another event was reached.
-    Defaults to False.
-    """
-
-    DEFAULT_OE_STOP_IF_NO_EVENTS: bool = False
-    """Whether to stop if a loop iteration begins with an empty event queue.
-    Defaults to False.
-    """
-
-    __slots__ = (
-        "_active_event_sessions",
-        "_event_queue",
-        "_ended_sessions_queue",
-        "_max_event_queue_size",
-        "_event_queue_futures",
-        "_oe_ended_sessions_queue_limit",
-        "_oe_max_concurrency",
-        "_oe_max_dispatches",
-        "_oe_dispatch_timeout_secs",
-        "_oe_data",
-        "_within_oe_task",
-    )
-
-    def __init__(self):
-        super().__init__()
-
-        max_event_queue_size = self.DEFAULT_MAX_EVENT_QUEUE_SIZE
-
-        if isinstance(max_event_queue_size, (int, float)):
-            self._max_event_queue_size = int(max_event_queue_size)
-            if self._max_event_queue_size <= 0:
-                self._max_event_queue_size = None
-        else:
-            self._max_event_queue_size = None
-
-        oe_ended_sessions_queue_limit = self.DEFAULT_OE_ENDED_SESSIONS_QUEUE_LIMIT
-
-        if isinstance(oe_ended_sessions_queue_limit, (int, float)):
-            self._oe_ended_sessions_queue_limit = int(oe_ended_sessions_queue_limit)
-            if self._oe_ended_sessions_queue_limit <= 0:
-                self._oe_ended_sessions_queue_limit = None
-        else:
-            self._oe_ended_sessions_queue_limit = None
-
-        self._bools |= JF.ALLOW_EVENT_QUEUE_OVERFLOW * int(
-            self.DEFAULT_ALLOW_EVENT_QUEUE_OVERFLOW
-        )  # True/False
-
-        self._bools |= JF.BLOCK_EVENTS_ON_STOP * int(
-            self.DEFAULT_BLOCK_EVENTS_ON_STOP
-        )  # True/False
-
-        self._bools |= JF.START_ON_DISPATCH * int(
-            self.DEFAULT_START_ON_DISPATCH
-        )  # True/False
-        self._bools |= JF.BLOCK_EVENTS_WHILE_STOPPED * int(
-            self.DEFAULT_BLOCK_EVENTS_WHILE_STOPPED
-        )  # True/False
-        self._bools |= JF.CLEAR_EVENTS_AT_STARTUP * int(
-            self.DEFAULT_CLEAR_EVENTS_AT_STARTUP
-        )  # True/False
-
-        self._bools |= JF.ALLOW_DOUBLE_DISPATCH * int(
-            self.DEFAULT_ALLOW_DOUBLE_DISPATCH
-        )  # True/False
-
-        self._active_event_sessions: dict[events.BaseEvent, EventSession] = {}
-        self._oe_max_concurrency = max(int(self.DEFAULT_OE_MAX_CONCURRENCY), 1)
-
-        oe_max_dispatches = self.DEFAULT_OE_MAX_DISPATCHES
-
-        if isinstance(oe_max_dispatches, (int, float)):
-            self._oe_max_dispatches = int(oe_max_dispatches)
-            if self._oe_max_dispatches < 0:
-                self._oe_max_dispatches = None
-        else:
-            self._oe_max_dispatches = None
-
-        self._bools |= JF.OE_DISPATCH_ONLY_INITIAL * int(
-            self.DEFAULT_OE_DISPATCH_ONLY_INITIAL
-        )  # True/False
-
-        self._bools |= JF.OE_AWAIT_DISPATCH * int(
-            self.DEFAULT_OE_AWAIT_DISPATCH
-        )  # True/False
-
-        oe_dispatch_timeout = (
-            self.DEFAULT_OE_DISPATCH_TIMEOUT
-            if oe_dispatch_timeout is UNSET
-            else oe_dispatch_timeout
-        )
-
-        if isinstance(oe_dispatch_timeout, datetime.timedelta):
-            self._oe_dispatch_timeout_secs = oe_dispatch_timeout.total_seconds()
-        elif isinstance(oe_dispatch_timeout, (float, int)):
-            self._oe_dispatch_timeout_secs = float(oe_dispatch_timeout)
-        else:
-            self._oe_dispatch_timeout_secs = None
-
-        self._bools |= JF.OE_STOP_AFTER_DISPATCH_TIMEOUT * int(
-            self.DEFAULT_OE_STOP_AFTER_DISPATCH_TIMEOUT
-        )  # True/False
-
-        self._bools |= JF.OE_STOP_IF_NO_EVENTS * int(
-            self.DEFAULT_OE_STOP_IF_NO_EVENTS
-        )  # True/False
-
-        if self._bools & (
-            JF.BLOCK_EVENTS_WHILE_STOPPED | JF.CLEAR_EVENTS_AT_STARTUP
-        ):  # any
-            self._bools &= ~JF.START_ON_DISPATCH  # False
-
-        self._bools |= JF.ALLOW_DISPATCH  # True
-
-        if (
-            self._oe_max_dispatches is not None
-            and self._oe_max_dispatches > 1
-            or self._bools & JF.OE_DISPATCH_ONLY_INITIAL
-        ):
-            self._bools &= ~JF.OE_AWAIT_DISPATCH  # False
-
-        self._event_queue = deque(maxlen=self._max_event_queue_size)
-        self._event_queue_futures: list[asyncio.Future[True]] = []
-        self._ended_sessions_queue: deque[EventSession] = deque()
-        # used for idlling while no events are available
-
-        self._bools &= ~(
-            JF.STOPPING_BY_EMPTY_QUEUE | JF.STOPPING_BY_EVENT_TIMEOUT
-        )  # False
-
-        self._oe_data = ContextVar[JobNamespace] = ContextVar("oe_data")
-        self._within_oe_task = ContextVar[bool] = ContextVar("within_oe_task")
-
-    @property
-    def oe_data(self) -> JobNamespace:
-        if (ns := self._oe_data.get(None)) is not None:
-            return ns
-
-        raise AttributeError(
-            "this attribute is only available during the execution of `on_event`"
-        )
-
-    @property
-    def event_queue(self):
-        return self._event_queue
-
-    def _add_event(self, event: events.BaseEvent):
-        is_running = self._job_loop.is_running() and not self._bools & JF.STOPPED
-        if (
-            not self._bools & JF.ALLOW_DISPATCH
-            or (
-                self._bools & (TRUE := JF.BLOCK_EVENTS_ON_STOP | JF.IS_STOPPING) == TRUE
-            )  # all
-            or (self._bools & JF.BLOCK_EVENTS_WHILE_STOPPED and not is_running)
-        ):
-            return
-
-        elif (
-            len(self._event_queue) == self._max_event_queue_size
-            and not self._bools & JF.ALLOW_EVENT_QUEUE_OVERFLOW
-        ):
-            return
-
-        self._event_queue.append(event)
-
-        if not is_running and self._bools & JF.START_ON_DISPATCH:
-            self._job_loop.start()
-
-        elif self._event_queue_futures:
-            for fut in self._event_queue_futures:
-                if not fut.done():
-                    fut.set_result(True)
-            self._event_queue_futures.clear()
-
-    def event_check(self, event: events.BaseEvent) -> bool:
-        """A method for subclasses that can be overloaded to perform validations on a `BaseEvent`
-        instance that was dispatched to them. Must return a boolean value indicating the
-        validaiton result. If not overloaded, this method will always return `True`.
-
-        Args:
-            event (events.BaseEvent): The event object to run checks upon.
-        """
-        return True
-
-    async def next_event(self) -> events.BaseEvent:
-        if not self._event_queue:
-            fut = self._manager._loop.create_future()
-            self._event_queue_futures.append(fut)
-            await fut  # wait till an event is dispatched
-
-        return self._event_queue.popleft()
-
-    async def wait_for_dispatch(self) -> bool:
-        if not self._event_queue:
-            fut = self._manager._loop.create_future()
-            self._event_queue_futures.append(fut)
-            return await fut  # wait till an event is dispatched
-
-        return True
-
-    @contextmanager
-    def blocked_event_queue(self):
-        """A method to be used as a context manager for
-        temporarily blocking the event queue of this event job
-        while running an operation, thereby disabling event dispatch to it.
-        """
-        try:
-            self._bools &= ~JF.ALLOW_DISPATCH  # False
-            yield
-        finally:
-            self._bools |= JF.ALLOW_DISPATCH  # True
-
-    def event_queue_is_blocked(self) -> bool:
-        """Whether event dispatching to this event job's event queue
-        is disabled and its event queue is blocked.
-
-        Returns:
-            bool: True/False
-        """
-        return not self._bools & JF.ALLOW_DISPATCH
-
-    def block_queue(self):
-        """Block the event queue of this event job, thereby disabling
-        event dispatch to it.
-        """
-        self._bools &= ~JF.ALLOW_DISPATCH  # False
-
-    def unblock_queue(self):
-        """Unblock the event queue of this event job, thereby enabling
-        event dispatch to it.
-        """
-        self._bools |= JF.ALLOW_DISPATCH  # True
-
-    async def _await_next_event_with_timeout(self):
-        event = None
-        if self._event_queue:
-            event = self._event_queue.pop()
-        else:
-            try:
-                self._bools |= JF.IS_IDLING  # True
-                self._idling_since_ts = time.time()
-                event = await asyncio.wait_for(
-                    self.next_event(), timeout=self._oe_dispatch_timeout_secs
-                )
-                self._bools &= ~JF.IS_IDLING  # False
-                self._idling_since_ts = None
-            except asyncio.TimeoutError:
-                if self._bools & JF.OE_STOP_AFTER_DISPATCH_TIMEOUT:
-                    self._bools |= JF.STOPPING_BY_EVENT_TIMEOUT  # True
-                    self.STOP()
-
-        return event
-
-    async def _on_start(self):
-        if self._bools & JF.CLEAR_EVENTS_AT_STARTUP:
-            self._event_queue.clear()
-
-        await super()._on_start()
-
-    async def _on_event(self, event: events.BaseEvent, task: asyncio.Task):
-        def end_session(tsk):
-            tsk.remove_done_callback(end_session)
-            self._ended_sessions_queue.append()
-
-        task.add_done_callback()
-
-    async def on_event(self, event: events.BaseEvent):
-        """DO NOT CALL THIS METHOD MANUALLY, EXCEPT WHEN USING `super()` WITHIN
-        OVERLOADED VERSIONS OF THIS METHOD TO ACCESS A SUPERCLASS METHOD.
-
-        The code to run in reaction to an event popped from the event queue.
-        """
-        pass
-
-    on_event.__dict__["overridden"] = False
-
-    async def handle_event_sessions(self):
-        if not self._event_queue and self._bools & JF.OE_STOP_IF_NO_EVENTS:
-            self._bools |= JF.STOPPING_BY_EMPTY_QUEUE  # True
-            self.STOP()
-            return
-
-        max_dispatches = self._oe_max_dispatches
-
-        if max_dispatches is None:
-            if self._bools & JF.OE_DISPATCH_ONLY_INITIAL:
-                max_dispatches = len(self._event_queue)
-
-            elif self._bools & JF.OE_AWAIT_DISPATCH:
-                while len(self._active_event_sessions) <= self._oe_max_concurrency:
-                    if (event := await self._await_next_event_with_timeout()) is None:
-                        return
-
-                    session = EventSession(event)
-            else:
-                while self._event_queue:
-                    await self.on_event(self._event_queue.pop())
-                return
-
-        max_dispatches = min(len(self._event_queue), max_dispatches)
-
-        if self._bools & JF.OE_AWAIT_DISPATCH:
-            for _ in range(max_dispatches):
-                if (event := await self._await_next_event_with_timeout()) is None:
-                    return
-                await self.on_event(event)
-        else:
-            for _ in range(max_dispatches):
-                await self.on_event(self._event_queue.pop())
-                if not self._event_queue:
-                    break
-
-    def _stop_cleanup(
-        self,
-        reason: Optional[
-            Union[JobStopReasons.Internal, JobStopReasons.External]
-        ] = None,
-    ):
-        super()._stop_cleanup(reason=reason)
-
-        self._bools &= ~(
-            JF.STOPPING_BY_EVENT_TIMEOUT | JF.STOPPING_BY_EMPTY_QUEUE
-        )  # False
-
-    def get_stopping_reason(
-        self,
-    ) -> Optional[Union[JobStopReasons.Internal, JobStopReasons.External]]:
-        if not self._bools & JF.IS_STOPPING:
-            return
-        elif (
-            self._on_start_exception
-            or self._on_run_exception
-            or self._on_stop_exception
-        ):
-            return JobStopReasons.Internal.ERROR
-        elif self._bools & JF.STOPPING_BY_EMPTY_QUEUE:
-            return JobStopReasons.Internal.EMPTY_EVENT_QUEUE
-
-        elif self._bools & JF.STOPPING_BY_EVENT_TIMEOUT:
-            return JobStopReasons.Internal.EVENT_TIMEOUT
-
-        elif self._job_loop.current_loop == self._count:
-            return JobStopReasons.Internal.EXECUTION_COUNT_LIMIT
-        elif self._bools & JF.TOLD_TO_STOP_BY_SELF:
-            if self._bools & JF.TOLD_TO_RESTART:
-                return JobStopReasons.Internal.RESTART
-            elif self._bools & JF.TOLD_TO_COMPLETE:
-                return JobStopReasons.Internal.COMPLETION
-            elif self._bools & JF.TOLD_TO_BE_KILLED:
-                return JobStopReasons.Internal.KILLING
-            else:
-                return JobStopReasons.Internal.UNSPECIFIC
-        else:
-            if self._bools & JF.TOLD_TO_RESTART:
-                return JobStopReasons.External.RESTART
-            elif self._bools & JF.TOLD_TO_BE_KILLED:
-                return JobStopReasons.External.KILLING
-            else:
-                return JobStopReasons.External.UNKNOWN
-
-
 @singletonjob
 class JobManagerJob(ManagedJobBase):
     """A singleton managed job that represents the job manager. Its very high permission
@@ -3538,4 +3271,4 @@ class JobManagerJob(ManagedJobBase):
         await self.await_done()
 
 
-from . import proxies, groupings  # allow these modules to finish initialization
+from . import proxies, groupings, mixins  # allow these modules to finish initialization
