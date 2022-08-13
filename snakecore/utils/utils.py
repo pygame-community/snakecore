@@ -224,7 +224,7 @@ def format_byte(
     range from bytes to gigabytes.
 
     Args:
-        size (int): The storage size in bytes.
+        size (int): The size in bytes.
         decimal_places (Optional[int], optional): The exact decimal places to display in the
           formatting output. If omitted, the Python `float` class's string version
           will be used to automatically choose the needed decimal places.

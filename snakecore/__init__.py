@@ -11,7 +11,7 @@ from typing import Optional
 import discord
 
 from . import (
-    command_handler,
+    commands,
     config,
     constants,
     storage,
@@ -101,7 +101,7 @@ def init_sync(
     success_failure_list = [0, 0]
 
     for module in (
-        command_handler,
+        commands,
         events,
         jobs,
         utils,
@@ -196,7 +196,7 @@ def quit_sync():
     """
 
     for module in (
-        command_handler,
+        commands,
         events,
         jobs,
         utils,

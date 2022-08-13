@@ -33,8 +33,7 @@ jobs:
 
     - name: Build package and install
       run: |
-        python -m pip wheel . --wheel-dir dist
-        python setup.py install
+        python -m pip install .
     
     - name: Run tests
       # no color on CI

@@ -24,7 +24,7 @@ class AbstractStorage(ABC, Generic[_T]):
     This is a typing generic class, to help typecheckers and editors.
     Also exposes a contextmanager API.
     'obj' is a property which gives safe access to the actual object stored in
-    the Storage
+    the storage implementation.
     """
 
     name: str
@@ -44,8 +44,8 @@ class AbstractStorage(ABC, Generic[_T]):
         """
         The implementation of this method is responsible for doing any initial
         setups needed before access to data. Based on the implementation, this
-        can hold locks, initialise data or connect to an external storage
-        server
+        can hold locks, initialise data or connect to an external location for
+        hosting the data.
         """
 
     @abstractmethod
@@ -53,7 +53,8 @@ class AbstractStorage(ABC, Generic[_T]):
         """
         The implementation of this method is responsible for doing cleanups
         after the data has been used and modified. Based on the implementation,
-        this can release locks, finalise data or flush data to an external Storage.
+        this can release locks, finalise data or flush data to an external data
+        host.
         """
 
     @property
@@ -61,7 +62,7 @@ class AbstractStorage(ABC, Generic[_T]):
     def is_init(self) -> bool:
         """
         The implementation of this property should return a bool that indicates
-        whether the backend used by the database is initialised. Return True if
+        whether the backend used by the storage is initialised. Return True if
         the backend does not need init mechanisms
         """
 
@@ -69,8 +70,8 @@ class AbstractStorage(ABC, Generic[_T]):
     @abstractmethod
     def obj(self) -> _T:
         """
-        The implementation of this property should return the object stored in
-        the database.
+        The implementation of this property should return the object contained in
+        the storage.
         """
 
     @obj.setter
@@ -86,5 +87,5 @@ class AbstractStorage(ABC, Generic[_T]):
     def obj(self):
         """
         The implementation of this property should delete the object from the
-        database
+        storage system
         """
