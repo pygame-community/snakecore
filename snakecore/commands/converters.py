@@ -79,7 +79,7 @@ class QuotedString(commands.Converter):
         - `'abc' -> str('abc')`
     """
 
-    async def convert(self, ctx: commands.Context, argument: str) -> range:
+    async def convert(self, ctx: commands.Context, argument: str) -> str:
         passed = False
         if argument.startswith('"'):
             if argument.endswith('"'):
