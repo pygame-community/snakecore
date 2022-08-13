@@ -7,7 +7,7 @@ This file defines some important utility functions for the library.
 """
 
 import asyncio
-from collections import ChainMap, defaultdict, deque
+from collections import defaultdict, deque
 import collections
 import datetime
 import itertools
@@ -713,9 +713,10 @@ def class_getattr_unique(
     name: str,
     filter_func: Callable[[Any], bool] = lambda obj: True,
     check_dicts_only: bool = False,
+    return_as_dict: bool = False,
     _id_set=None,
-) -> list[Any]:
-    values = []
+) -> Union[list[Any], dict[type, Any]]:
+    values = [] if return_as_dict else {}
     value_obj = UNSET
 
     if _id_set is None:
@@ -733,19 +734,36 @@ def class_getattr_unique(
         and id(value_obj) not in _id_set
         and filter_func(value_obj)
     ):
-        values.append(value_obj)
+        if return_as_dict:
+            values[cls] = value_obj
+        else:
+            values.append(value_obj)
         _id_set.add(id(value_obj))
 
     for base_cls in cls.__mro__[1:]:
-        values.extend(
-            class_getattr_unique(
-                base_cls,
-                name,
-                filter_func=filter_func,
-                check_dicts_only=check_dicts_only,
-                _id_set=_id_set,
+        if return_as_dict:
+            values.extend(
+                class_getattr_unique(
+                    base_cls,
+                    name,
+                    filter_func=filter_func,
+                    check_dicts_only=check_dicts_only,
+                    return_as_dict=return_as_dict,
+                    _id_set=_id_set,
+                )
             )
-        )
+        else:
+            values.update(
+                class_getattr_unique(
+                    base_cls,
+                    name,
+                    filter_func=filter_func,
+                    check_dicts_only=check_dicts_only,
+                    return_as_dict=return_as_dict,
+                    _id_set=_id_set,
+                )
+            )
+
     return values
 
 

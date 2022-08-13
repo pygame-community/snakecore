@@ -13,13 +13,13 @@ from typing import Optional, Sequence, Union
 import discord
 from snakecore.constants import UNSET, _UnsetType, NoneType
 from snakecore.constants.enums import JobBoolFlags as JF
-from snakecore.exceptions import JobInitializationError, JobStateError
+from snakecore.exceptions import JobInitializationError
 
-from snakecore.jobs.jobs import _JobBase
+from snakecore.jobs.jobs import _JobCore
 from snakecore.jobs.loops import JobLoop
 
 
-class MiniJobBase(_JobBase):
+class MiniJobBase(_JobCore):
     """Base class for interval based mini jobs.
 
     A mini job is a stripped-down version of a job that doesn't run in a job manager.
@@ -84,7 +84,7 @@ class MiniJobBase(_JobBase):
             reconnect=reconnect,
         )
 
-        self._external_data = self.DATA_NAMESPACE_CLASS()
+        self._external_data = self.Namespace()
 
         self._job_loop.before_loop(self._on_start)
         self._job_loop.after_loop(self._on_stop)

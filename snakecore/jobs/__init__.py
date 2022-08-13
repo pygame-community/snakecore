@@ -17,9 +17,9 @@ from .jobs import (
     publicjobmethod,
     JobBase,
     ManagedJobBase,
-    EventJobMixin,
     JobManagerJob,
 )
+
 
 from .minijobs import (
     MiniJobBase,
@@ -29,7 +29,7 @@ from .minijobs import (
     restart_minijob,
 )
 
-from . import manager, minijobs
+from . import manager, mixins, minijobs
 from .manager import JobManager
 from .proxies import JobProxy, JobOutputQueueProxy, JobManagerProxy
 from .groupings import JobGroup

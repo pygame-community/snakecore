@@ -13,7 +13,6 @@ import discord
 
 from snakecore import config, jobs
 from snakecore.constants import NoneType
-from snakecore.constants.enums import JobPermissionLevels
 from snakecore.jobs import groupings
 from snakecore.utils import embed_utils, serializers
 

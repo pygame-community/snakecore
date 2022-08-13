@@ -7,12 +7,8 @@ at runtime.
 """
 
 import asyncio
-from collections import ChainMap
-from concurrent.futures import ProcessPoolExecutor
-from contextlib import asynccontextmanager, contextmanager
-from ctypes.wintypes import tagRECT
+from contextlib import contextmanager
 import datetime
-import pickle
 import random
 import time
 from typing import (
@@ -25,7 +21,6 @@ from typing import (
     Union,
 )
 
-import discord
 from snakecore.constants import UNSET, _UnsetType, JobBoolFlags as JF
 
 from snakecore.constants.enums import (
@@ -38,13 +33,12 @@ from snakecore.exceptions import (
     JobInitializationError,
     JobIsDone,
     JobIsGuarded,
-    JobNotAlive,
     JobPermissionError,
     JobStateError,
 )
 from snakecore.utils import FastChainMap
 from snakecore import events
-from . import jobs, loops
+from . import jobs, loops, mixins
 
 
 class JobManager:
@@ -729,7 +723,7 @@ class JobManager:
                 "the given job is already present in this manager"
             ) from None
 
-        if isinstance(job, jobs.EventJobMixin):
+        if isinstance(job, mixins.BaseEventJobMixin):
             for ev_type in job.EVENTS:
                 if ev_type._RUNTIME_ID not in self._event_job_ids:
                     self._event_job_ids[ev_type._RUNTIME_ID] = set()
@@ -776,7 +770,7 @@ class JobManager:
                 f", not {job.__class__.__qualname__}"
             ) from None
 
-        if isinstance(job, jobs.EventJobMixin):
+        if isinstance(job, mixins.BaseEventJobMixin):
             for ev_type in job.EVENTS:
                 if (
                     ev_type._RUNTIME_ID in self._event_job_ids
@@ -1565,7 +1559,7 @@ class JobManager:
 
         event_class_identifier = event.__class__._RUNTIME_ID
 
-        event_job_waiters: Optional[set[jobs.EventJobMixin]] = None
+        event_job_waiters: Optional[set[mixins.BaseEventJobMixin]] = None
 
         if event_class_identifier in self._event_waiting_queues:
             target_event_waiting_queue = self._event_waiting_queues[
@@ -1581,7 +1575,7 @@ class JobManager:
                 ):
                     if not waiting_list[3].cancelled():
                         waiting_list[3].set_result(event.copy())
-                        if isinstance(waiting_list[0], jobs.EventJobMixin):
+                        if isinstance(waiting_list[0], mixins.BaseEventJobMixin):
                             # add event job to potential double dispatching targets
                             (event_job_waiters := event_job_waiters or set()).add(
                                 waiting_list[0]
@@ -1598,7 +1592,7 @@ class JobManager:
                 event_job = self._job_id_map[identifier][0]
                 if (
                     event_job in (event_job_waiters or ())
-                    and not event_job._bools & JF.ALLOW_DOUBLE_DISPATCH
+                    and not event_job._bools & JF.ALLOW_DOUBLE_EVENT_DISPATCH
                 ):
                     # event jobs that don't allow double dispatching of the same event
                     # to them, in case they have already received this event through
@@ -1685,7 +1679,7 @@ class JobManager:
                 stop_awaitables.append(job.await_stop())
             job._STOP_EXTERNAL(force=force)
 
-        return asyncio.gather(*stop_awaitables)
+        return asyncio.gather(*stop_awaitables, return_exceptions=True)
 
     def kill_all_jobs(self, awaken: bool = True):
         """Kill all job objects that are in this job manager.
@@ -1714,7 +1708,7 @@ class JobManager:
         self._job_id_map[self._manager_job._runtime_id] = manager_job_data
         self._manager_job._STOP_EXTERNAL(force=True)
 
-        return asyncio.gather(*done_awaitables)
+        return asyncio.gather(*done_awaitables, return_exceptions=True)
 
     def resume(self):
         """Resume the execution of this job manager.
@@ -1744,6 +1738,10 @@ class JobManager:
               Killing will always be done by starting up jobs and killing them immediately.
               Stopping will always be done by force. For more control, use the standalone
               functions for modifiying jobs.
+
+        Returns:
+              An awaitable object that can be used to wait until
+              the stopping process is completed.
 
         Raises:
             TypeError: Invalid job operation argument.

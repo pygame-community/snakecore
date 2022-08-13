@@ -6,7 +6,7 @@ Copyright (c) 2022-present pygame-community
 A set of core APIs to facilitate the creation of feature-rich Discord bots.
 """
 
-from typing import Optional, Union
+from typing import Optional
 
 import discord
 

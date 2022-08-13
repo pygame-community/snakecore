@@ -72,8 +72,7 @@ UNSET: Any = _UnsetType()
 DEFAULT_FILESIZE_LIMIT = 8_000_000  # bytes
 
 # jobs
-_SYSTEM_JOB_RUNTIME_IDS = {"JobManagerJob": "JobManagerJob-0:0"}
-DEFAULT_JOB_EXCEPTION_WHITELIST = (
+DEFAULT_JOB_EXCEPTION_ALLOWLIST = (
     OSError,
     discord.GatewayNotFound,
     discord.ConnectionClosed,

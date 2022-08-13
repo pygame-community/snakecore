@@ -159,12 +159,14 @@ class JobStopReasons:
         """Job is stopping due to killing itself internally.
         """
 
-        EVENT_TIMEOUT = auto()
+        # EventJobMixin, MultiEventJobMixin
+
+        EVENT_DISPATCH_TIMEOUT = auto()
         """Job is stopping after reaching a timeout for receiving an event.
         """
 
         EMPTY_EVENT_QUEUE = auto()
-        """Job is stopping due to an empty internal queue of received events.
+        """Job is stopping due to an empty internal event queue.
         """
 
     class External(Enum):
@@ -294,7 +296,7 @@ class JobBoolFlags:
     TRUE = 1
     FALSE = 0
 
-    # _JobBase
+    # _JobCore
     INITIALIZED = 1 << 0
     IS_INITIALIZING = 1 << 1
 
@@ -320,22 +322,25 @@ class JobBoolFlags:
     INTERNAL_STARTUP_KILL = 1 << 15
     EXTERNAL_STARTUP_KILL = 1 << 16
 
-    # EventJobMixin
+    # BaseEventJobMixin
     CLEAR_EVENTS_AT_STARTUP = 1 << 17
     ALLOW_EVENT_QUEUE_OVERFLOW = 1 << 18
     BLOCK_EVENTS_ON_STOP = 1 << 19
-    START_ON_DISPATCH = 1 << 20
+    START_ON_EVENT_DISPATCH = 1 << 20
     BLOCK_EVENTS_WHILE_STOPPED = 1 << 21
-    ALLOW_DOUBLE_DISPATCH = 1 << 22
-    ALLOW_DISPATCH = 1 << 23
+    ALLOW_DOUBLE_EVENT_DISPATCH = 1 << 22
+    EVENT_DISPATCH_ENABLED = 1 << 23
+    STOP_ON_EMPTY_EVENT_QUEUE = 1 << 24
 
-    # EventJobBase
-    OE_DISPATCH_ONLY_INITIAL = 1 << 24
-    OE_AWAIT_DISPATCH = 1 << 25
+    # EventJobMixin
+    OE_HANDLE_ONLY_INITIAL_EVENTS = 1 << 25
+    AWAIT_EVENT_DISPATCH = 1 << 26
+    STOP_ON_EVENT_DISPATCH_TIMEOUT = 1 << 27
 
-    OE_STOP_AFTER_DISPATCH_TIMEOUT = 1 << 26
-    OE_STOP_IF_NO_EVENTS = 1 << 27
-    STOPPING_BY_EVENT_TIMEOUT = 1 << 28
-    STOPPING_BY_EMPTY_QUEUE = 1 << 29
+    STOPPING_BY_EVENT_DISPATCH_TIMEOUT = 1 << 28
+    STOPPING_BY_EMPTY_EVENT_QUEUE = 1 << 29
 
-    LAST_FLAG_OFFSET = 29
+    # MultiEventJobMixin
+    ALLOW_EVENT_SESSION_QUEUE_OVERFLOW = 1 << 30
+
+    LAST_FLAG_OFFSET = 31
