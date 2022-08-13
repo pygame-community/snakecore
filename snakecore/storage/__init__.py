@@ -3,7 +3,7 @@ This file is a part of the source code for snakecore.
 This project has been licensed under the MIT license.
 Copyright (c) 2022-present pygame-community
 
-This file exports the Database Interface API
+This file exports the Storage Interface API
 """
 
 from typing import Optional
@@ -13,8 +13,12 @@ import discord
 from snakecore import config
 
 # API to be exported is imported like 'import ... as ...'
-from .discorddb import DiscordDB as DiscordDB, init_discord_db, quit_discord_db
-from .localdb import LocalDB as LocalDB
+from .discord_storage import (
+    DiscordStorage as DiscordStorage,
+    init_discord_storage,
+    quit_discord_storage,
+)
+from .local_storage import LocalStorage as LocalStorage
 
 
 async def init(global_client: Optional[discord.Client] = None):
@@ -29,15 +33,15 @@ async def init(global_client: Optional[discord.Client] = None):
         config.conf.global_client = global_client
 
     if not is_init():
-        await init_discord_db()
-        config.conf.init_mods[config.ModuleName.DB] = True
+        await init_discord_storage()
+        config.conf.init_mods[config.ModuleName.STORAGE] = True
 
 
 async def quit():
     """Quit this module."""
     if is_init():
-        await quit_discord_db()
-        config.conf.init_mods[config.ModuleName.DB] = False
+        await quit_discord_storage()
+        config.conf.init_mods[config.ModuleName.STORAGE] = False
 
 
 def is_init():
@@ -46,4 +50,4 @@ def is_init():
     Returns:
         bool: True/False
     """
-    return config.conf.init_mods.get(config.ModuleName.DB, False)
+    return config.conf.init_mods.get(config.ModuleName.STORAGE, False)

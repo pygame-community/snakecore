@@ -76,6 +76,6 @@ class JobWarning(Warning):
     """Base class for job related warnings."""
 
 
-# db/
-class DBException(SnakeCoreException):
-    """Exceptions raised during DB handling"""
+# storage/
+class StorageException(SnakeCoreException):
+    """Exceptions raised during Storage API handling"""

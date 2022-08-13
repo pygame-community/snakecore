@@ -3,10 +3,11 @@ This file is a part of the source code for snakecore.
 This project has been licensed under the MIT license.
 Copyright (c) 2022-present pygame-community
 
-This file implements a 'LocalDB' which implements a safe API for storing
+This file implements a 'LocalStorage' which implements a safe API for storing
 global data with asyncio locking.
 Some pros of this implemenation are:
-1) Database is fast because of data stored in memory
+Some pros of this implemenation are:
+1) Storing data is fast because of in memory data caching
 2) No dependence on external SQL API or any database server
 Some cons:
 1) May have a large memory footprint for large data
@@ -17,13 +18,13 @@ import pickle
 from types import GenericAlias
 from typing import Type, TypeVar
 
-from snakecore.exceptions import DBException
-from .abc import AbstractDB
+from snakecore.exceptions import StorageException
+from .abc import AbstractStorage
 
 
-class _DBLockedRecord(asyncio.Lock):
+class _StorageLockedRecord(asyncio.Lock):
     """
-    A _DBLockedRecord is an internal structure used to store a record. For data
+    A _StorageLockedRecord is an internal structure used to store a record. For data
     safety, this needs an async lock held during access to data. This inherits
     the asyncio Lock primitive and defines three attributes.
 
@@ -51,17 +52,17 @@ class _DBLockedRecord(asyncio.Lock):
 _T = TypeVar("_T")
 
 
-class LocalDB(AbstractDB[_T]):
+class LocalStorage(AbstractStorage[_T]):
     """
-    LocalDB is an implemenation of the AbstractDB interface for storing data
+    LocalStorage is an implemenation of the AbstractStorage interface for storing data
     in memory in a async-safe manner.
     """
 
-    _db_records: dict[str, _DBLockedRecord] = {}
+    _storage_records: dict[str, _StorageLockedRecord] = {}
 
     def __init__(self, name: str, obj_type: Type[_T] = dict):
         """
-        Initialise a DiscordDB object.
+        Initialise a DiscordStorage object.
         'name' is the key of the record.
         'obj_type' is the type of the record. This type object is also used for
         constructing the default value of 'obj'
@@ -74,30 +75,32 @@ class LocalDB(AbstractDB[_T]):
         # init temp object with the constructor
         self._temp_obj: _T = obj_type()
 
-        if name not in self._db_records:
+        if name not in self._storage_records:
             # create new record and store in record dict
-            self._db_records[name] = _DBLockedRecord(pickle.dumps(self._temp_obj))
+            self._storage_records[name] = _StorageLockedRecord(
+                pickle.dumps(self._temp_obj)
+            )
 
     @property
     def is_init(self) -> bool:
         """
-        Indicates whether the backend used by the database is init.
+        Indicates whether the backend used by the storage is init.
         """
         return True
 
     @property
     def _record(self):
         """
-        Get a reference to the record of the current database
+        Get a reference to the record of the current storage
         """
-        return self._db_records[self.name]
+        return self._storage_records[self.name]
 
     def _check_active(self):
         """
         Raise error on operation on a locked record
         """
         if not self._record.locked() or not self.is_init:
-            raise DBException("Operation on unlocked data object")
+            raise StorageException("Operation on unlocked data object")
 
     async def __aenter__(self):
         # wait for a maximum of 10 seconds for init to happen if it has not
@@ -106,7 +109,7 @@ class LocalDB(AbstractDB[_T]):
                 break
             await asyncio.sleep(0.01)
         else:
-            raise DBException("db module was not init")
+            raise StorageException("storage module was not init")
 
         await self._record.acquire()
 

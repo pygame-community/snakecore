@@ -3,9 +3,9 @@ This file is a part of the source code for snakecore.
 This project has been licensed under the MIT license.
 Copyright (c) 2022-present pygame-community
 
-This file defines an abstract Database interface.
-Implementations and backends of different database may vary, but they must
-inherit 'AbstractDB' and implement API.
+This file defines an abstract Storage interface.
+Implementations and backends of different storages may vary, but they must
+inherit 'AbstractStorage' and implement API.
 """
 
 from abc import ABC, abstractmethod
@@ -15,16 +15,16 @@ from typing import Generic, Type, TypeVar
 _T = TypeVar("_T")
 
 
-class AbstractDB(ABC, Generic[_T]):
+class AbstractStorage(ABC, Generic[_T]):
     """
-    An Abstract Base Class for concrete classes that implement a DB Interface
+    An Abstract Base Class for concrete classes that implement a Storage Interface
     API. The goals of this abstract class is to facilitate common API for
-    numerous different DB API backends, while exposing an easy to use, pythonic
+    numerous different Storage API backends, while exposing an easy to use, pythonic
     API
     This is a typing generic class, to help typecheckers and editors.
     Also exposes a contextmanager API.
     'obj' is a property which gives safe access to the actual object stored in
-    the DB
+    the Storage
     """
 
     name: str
@@ -44,7 +44,7 @@ class AbstractDB(ABC, Generic[_T]):
         """
         The implementation of this method is responsible for doing any initial
         setups needed before access to data. Based on the implementation, this
-        can hold locks, initialise data or connect to an external database
+        can hold locks, initialise data or connect to an external storage
         server
         """
 
@@ -53,7 +53,7 @@ class AbstractDB(ABC, Generic[_T]):
         """
         The implementation of this method is responsible for doing cleanups
         after the data has been used and modified. Based on the implementation,
-        this can release locks, finalise data or flush data to an external DB.
+        this can release locks, finalise data or flush data to an external Storage.
         """
 
     @property

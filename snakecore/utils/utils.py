@@ -219,12 +219,12 @@ def format_byte(
     full_unit_names: bool = False,
     base_2_units: bool = False,
 ):
-    """Format the given storage size in bytes into a string denoting
-    the storage size with an equal or larger size unit. The units
+    """Format the given size in bytes into a string denoting
+    the size with an equal or larger size unit. The units
     range from bytes to gigabytes.
 
     Args:
-        size (int): THe storage size in bytes.
+        size (int): The storage size in bytes.
         decimal_places (Optional[int], optional): The exact decimal places to display in the
           formatting output. If omitted, the Python `float` class's string version
           will be used to automatically choose the needed decimal places.
@@ -235,7 +235,7 @@ def format_byte(
           Defaults to False.
 
     Returns:
-        str: The formatted storage size string.
+        str: The formatted size string.
     """
 
     name_idx = 1 if full_unit_names else 0
