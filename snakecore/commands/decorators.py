@@ -12,7 +12,7 @@ from typing import Any, Callable, Coroutine, Optional
 
 import discord
 from discord.ext import commands
-from snakecore.command_handler.parser import parse_command_str
+from snakecore.commands.parser import parse_command_str
 
 
 def kwarg_command(

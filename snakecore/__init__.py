@@ -11,10 +11,10 @@ from typing import Optional
 import discord
 
 from . import (
-    command_handler,
+    commands,
     config,
     constants,
-    db,
+    storage,
     events,
     exceptions,
     jobs,
@@ -101,7 +101,7 @@ def init_sync(
     success_failure_list = [0, 0]
 
     for module in (
-        command_handler,
+        commands,
         events,
         jobs,
         utils,
@@ -153,10 +153,10 @@ async def init_async(
 
     success_failure_list = [0, 0]
 
-    if not db.is_init():
+    if not storage.is_init():
 
         try:
-            await db.init()
+            await storage.init()
         except Exception:
             if raise_module_exceptions:
                 raise
@@ -196,7 +196,7 @@ def quit_sync():
     """
 
     for module in (
-        command_handler,
+        commands,
         events,
         jobs,
         utils,
@@ -217,8 +217,8 @@ async def quit_async():
     modules that are still initialized and can be called multiple times.
     """
 
-    if db.is_init():
-        await db.quit()
+    if storage.is_init():
+        await storage.quit()
     config.conf.init_mods[config.ModuleName.SNAKECORE_ASYNC] = False
 
 

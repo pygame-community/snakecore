@@ -2686,13 +2686,13 @@ class JobCore(_JobCore):
     def __str__(self):
         output_str = (
             f"<{self.__class__.__qualname__} "
-            + f"(id={self._runtime_id} ctd={self.created_at} "
+            + f"(id={self._runtime_id} ctd_at={self.created_at} "
             + (
-                f"perm={self._permission_level.name} "
+                f"perm_lvl={self._permission_level.name} "
                 if self._permission_level is not None
                 else ""
             )
-            + f"stat={self.status().name})>"
+            + f"status={self.status().name})>"
         )
 
         return output_str
