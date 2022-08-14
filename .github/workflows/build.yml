@@ -19,10 +19,10 @@ jobs:
         python-version: ["3.9", "3.10"]
 
     steps:
-    - uses: actions/checkout@v2
-  
+    - uses: actions/checkout@v3
+
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v3
       with:
         python-version: ${{ matrix.python-version }}
 
@@ -34,15 +34,15 @@ jobs:
     - name: Build package and install
       run: |
         python -m pip wheel . --wheel-dir dist
-        python setup.py install
-    
+        python -m pip install dist/snakecore*
+
     - name: Run tests
       # no color on CI
       run: pytest -v --color=no
       working-directory: tests
 
     - name: Upload files to Github Artifacts
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: snakecore-builds
         path: dist/snakecore*
