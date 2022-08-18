@@ -8,6 +8,7 @@ This file defines some important utility functions for the library.
 
 import asyncio
 from collections import defaultdict, deque
+from collections.abc import Mapping, MutableMapping
 import collections
 import datetime
 import itertools
@@ -24,6 +25,7 @@ from typing import (
     MutableSequence,
     Optional,
     Sequence,
+    Type,
     TypeVar,
     Union,
 )
@@ -536,17 +538,17 @@ def create_markdown_timestamp(
     return f"<t:{int(dt)}:{tformat}>"
 
 
-def recursive_dict_compare(
-    source_dict: dict,
-    target_dict: dict,
+def recursive_mapping_compare(
+    source_mapping: Mapping,
+    target_mapping: Mapping,
     compare_func: Optional[Callable[[Any, Any], bool]] = None,
     ignore_keys_missing_in_source: bool = False,
     ignore_keys_missing_in_target: bool = False,
     _final_bool: bool = True,
 ):
     """
-    Compare the key and values of one dictionary with those of another,
-    But recursively do the same for dictionary values that are dictionaries as well.
+    Compare the key and values of one mapping with those of another,
+    But recursively do the same for mapping values that are mappings as well.
     based on the answers in
     https://stackoverflow.com/questions/3232943/update-value-of-a-nested-dictionary-of-varying-depth
     """
@@ -554,13 +556,15 @@ def recursive_dict_compare(
     if compare_func is None:
         compare_func = lambda d1, d2: d1 == d2
 
-    if not ignore_keys_missing_in_source and (target_dict.keys() >= source_dict.keys()):
+    if not ignore_keys_missing_in_source and (
+        target_mapping.keys() >= source_mapping.keys()
+    ):
         return False
 
-    for k, v in source_dict.items():
-        if isinstance(v, dict) and isinstance(target_dict.get(k, None), dict):
-            _final_bool = recursive_dict_compare(
-                target_dict[k],
+    for k, v in source_mapping.items():
+        if isinstance(v, Mapping) and isinstance(target_mapping.get(k, None), Mapping):
+            _final_bool = recursive_mapping_compare(
+                target_mapping[k],
                 v,
                 compare_func=compare_func,
                 ignore_keys_missing_in_source=ignore_keys_missing_in_source,
@@ -570,100 +574,169 @@ def recursive_dict_compare(
             if not _final_bool:
                 return False
         else:
-            if k not in target_dict:
+            if k not in target_mapping:
                 if ignore_keys_missing_in_target:
                     continue
                 _final_bool = False
             else:
-                _final_bool = compare_func(v, target_dict[k])
+                _final_bool = compare_func(v, target_mapping[k])
                 if not _final_bool:
                     return False
 
     return _final_bool
 
 
-def recursive_dict_update(
-    old_dict: dict,
-    update_dict: dict,
+def recursive_mapping_update(
+    old_mapping: MutableMapping,
+    update_mapping: Mapping,
     add_new_keys: bool = True,
     skip_value: Union[str, _UnsetType] = UNSET,
 ):
     """
-    Update one dictionary with another, similar to dict.update(),
-    But recursively update dictionary values that are dictionaries as well.
+    Update one mapping with another, similar to `dict.update()`,
+    But recursively update mapping values that are mappings as well.
     based on the answers in
     https://stackoverflow.com/questions/3232943/update-value-of-a-nested-dictionary-of-varying-depth
     """
-    for k, v in update_dict.items():
+    for k, v in update_mapping.items():
         if isinstance(v, dict):
-            new_value = recursive_dict_update(
-                old_dict.get(k, {}), v, add_new_keys=add_new_keys, skip_value=skip_value
+            new_value = recursive_mapping_update(
+                old_mapping.get(k, old_mapping.__class__()),
+                v,
+                add_new_keys=add_new_keys,
+                skip_value=skip_value,
             )
             if new_value != skip_value:
-                if k not in old_dict:
+                if k not in old_mapping:
                     if not add_new_keys:
                         continue
-                old_dict[k] = new_value
+                old_mapping[k] = new_value
 
         elif v != skip_value:
-            if k not in old_dict:
+            if k not in old_mapping:
                 if not add_new_keys:
                     continue
-            old_dict[k] = v
+            old_mapping[k] = v
 
-    return old_dict
+    return old_mapping
 
 
-def recursive_dict_delete(
-    old_dict: dict,
-    update_dict: dict,
+def recursive_mapping_delete(
+    old_mapping: MutableMapping,
+    update_mapping: Mapping,
     skip_value: Union[str, _UnsetType] = UNSET,
     inverse: bool = False,
 ):
     """
-    Delete dictionary attributes present in another,
-    But recursively do the same dictionary values that are dictionaries as well.
+    Delete mapping entries present in another,
+    But recursively do the same for mapping values that are mappings as well.
     based on the answers in
     https://stackoverflow.com/questions/3232943/update-value-of-a-nested-dictionary-of-varying-depth
     """
     if inverse:
-        for k, v in tuple(old_dict.items()):
-            if isinstance(v, dict):
+        for k, v in tuple(old_mapping.items()):
+            if isinstance(v, MutableMapping):
                 lower_update_dict = None
-                if isinstance(update_dict, dict):
-                    lower_update_dict = update_dict.get(k, {})
+                if isinstance(update_mapping, MutableMapping):
+                    lower_update_dict = update_mapping.get(
+                        k, update_mapping.__class__()
+                    )
 
-                new_value = recursive_dict_delete(
+                new_value = recursive_mapping_delete(
                     v, lower_update_dict, skip_value=skip_value, inverse=inverse
                 )
                 if (
                     new_value != skip_value
-                    and isinstance(update_dict, dict)
-                    and k not in update_dict
+                    and isinstance(update_mapping, MutableMapping)
+                    and k not in update_mapping
                 ):
-                    old_dict[k] = new_value
+                    old_mapping[k] = new_value
                     if not new_value:
-                        del old_dict[k]
+                        del old_mapping[k]
             elif (
                 v != skip_value
-                and isinstance(update_dict, dict)
-                and k not in update_dict
+                and isinstance(update_mapping, MutableMapping)
+                and k not in update_mapping
             ):
-                del old_dict[k]
+                del old_mapping[k]
     else:
-        for k, v in update_dict.items():
-            if isinstance(v, dict):
-                new_value = recursive_dict_delete(
-                    old_dict.get(k, {}), v, skip_value=skip_value
+        for k, v in update_mapping.items():
+            if isinstance(v, MutableMapping):
+                new_value = recursive_mapping_delete(
+                    old_mapping.get(k, old_mapping.__class__()),
+                    v,
+                    skip_value=skip_value,
                 )
-                if new_value != skip_value and k in old_dict:
-                    old_dict[k] = new_value
+                if new_value != skip_value and k in old_mapping:
+                    old_mapping[k] = new_value
                     if not new_value:
-                        del old_dict[k]
+                        del old_mapping[k]
 
-            elif v != skip_value and k in old_dict:
-                del old_dict[k]
-    return old_dict
+            elif v != skip_value and k in old_mapping:
+                del old_mapping[k]
+    return old_mapping
+
+
+def recursive_mapping_cast(
+    old_mapping: MutableMapping,
+    cast_to: Type[Mapping],
+    cast_from: Optional[
+        Union[Type[MutableMapping], tuple[Type[MutableMapping], ...]]
+    ] = None,
+):
+    """Recursively cast the `MutableMapping` given as input to the `Mapping` type specified in `cast_to`,
+    whilst doing the same for its `MutableMapping` object values. This function is in-place, but returns
+    a casted version of the mapping given as input. To prevent an original mapping from being modified,
+    a deep-copied version of the mapping should be passed to this function.
+
+    Args:
+        old_mapping (MutableMapping): The input mapping.
+        cast_to (Type[Mapping]): The mapping type to cast to.
+        cast_from (Optional[Union[Type[MutableMapping], tuple[Type[MutableMapping], ...]]], optional):
+          The mapping type whose found instances should be casted. Defaults to None.
+
+    Raises:
+        TypeError: `old_mapping`, `cast_from` or `cast_to` were of an invalid type.
+
+    Returns:
+        Mapping: The casted version of a mapping given as input.
+    """
+
+    if not isinstance(old_mapping, MutableMapping):
+        raise TypeError(
+            f"'old_mapping' must be a MutableMapping, not {cast_from.__name__}"
+        )
+    if cast_from is None:
+        cast_from = old_mapping.__class__
+
+    elif isinstance(cast_from, tuple) and not all(
+        isinstance(c, type) for c in cast_from
+    ):
+        raise TypeError(
+            f"'cast_from' must be a MutableMapping subclass or a tuple containing them, not {cast_from.__name__}"
+        )
+    elif not isinstance(cast_from, tuple):
+        if not isinstance(cast_from, type) or not issubclass(cast_from, MutableMapping):
+            raise TypeError(
+                f"'cast_from' must be a MutableMapping subclass or a tuple containing them, not {cast_from.__name__}"
+            )
+    elif not isinstance(cast_to, Mapping):
+        raise TypeError(
+            f"'cast_to' must be a Mapping subclass, not {cast_from.__name__}"
+        )
+
+    return _recursive_mapping_cast(old_mapping, cast_to, cast_from)
+
+
+def _recursive_mapping_cast(
+    old_mapping: MutableMapping,
+    cast_to: Type[Mapping],
+    cast_from: Union[Type[MutableMapping], tuple[Type[MutableMapping], ...]],
+):
+    for k in old_mapping:
+        if isinstance(old_mapping[k], cast_from):
+            old_mapping[k] = _recursive_mapping_cast(old_mapping[k], cast_to, cast_from)
+    return cast_to(old_mapping)
 
 
 class FastChainMap(collections.ChainMap):
@@ -705,7 +778,7 @@ class FastChainMap(collections.ChainMap):
         return self[key] if any(key in m for m in self.maps) else default
 
     def __iter__(self):
-        return iter({k: None for k in itertools.chain(*self.maps)})
+        return iter({k: None for k in itertools.chain(*reversed(self.maps))})
 
 
 def class_getattr_unique(

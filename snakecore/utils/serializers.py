@@ -14,7 +14,7 @@ import discord
 from snakecore import config
 from snakecore.constants import NoneType
 from snakecore.exceptions import DeserializationError
-from snakecore.utils import recursive_dict_compare
+from snakecore.utils import recursive_mapping_compare
 
 _DISCORD_MODEL_SERIAL_MAP = {}
 
@@ -47,7 +47,7 @@ class BaseSerializer:
     @classmethod
     def is_valid_data(cls, data: dict):
         if cls.DATA_FORMAT:
-            return recursive_dict_compare(
+            return recursive_mapping_compare(
                 data,
                 cls.DATA_FORMAT,
                 compare_func=lambda src, target: isinstance(src, target),

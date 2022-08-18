@@ -15,7 +15,7 @@ from typing import Literal, Optional, Sequence, TypedDict, Union
 import black
 import discord
 
-from .utils import recursive_dict_update
+from .utils import recursive_mapping_update
 
 
 EMBED_TOP_LEVEL_ATTRIBUTES_MASK_DICT = {
@@ -1355,7 +1355,7 @@ def edit_embed(
                     for i in range(len(update_embed_dict["fields"]))
                 }
 
-        recursive_dict_update(old_embed_dict, update_embed_dict, add_new_keys=True)
+        recursive_mapping_update(old_embed_dict, update_embed_dict, add_new_keys=True)
 
         if edit_inner_fields:
             if "fields" in old_embed_dict:
@@ -2035,7 +2035,7 @@ def edit_embed_dict_from_dict(
                 for i in range(len(update_embed_dict["fields"]))
             }
 
-    recursive_dict_update(
+    recursive_mapping_update(
         old_embed_dict, update_embed_dict, add_new_keys=add_attributes
     )
 

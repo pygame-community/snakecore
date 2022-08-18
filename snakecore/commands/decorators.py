@@ -8,11 +8,14 @@ their behavior.
 
 import functools
 import inspect
-from typing import Any, Callable, Coroutine, Optional
+from typing import Any, Callable, Coroutine, Optional, TypeVar, Union
 
 import discord
 from discord.ext import commands
+from discord import app_commands
+
 from snakecore.commands.parser import parse_command_str
+from ._types import AnyCommandType
 
 
 def kwarg_command(
@@ -153,7 +156,7 @@ def kwarg_command(
 
 def custom_parsing(
     *, inside_class: bool = False, inject_message_reference: bool = False
-):
+) -> Callable[[Callable[..., Coroutine[Any, Any, Any]]], Any]:
     """A decorator that registers a `discord.ext.commands` command function to
     use snakecore's custom argument parser. This returns a wrapper function that
     bypasses `discord.ext.commands` parsing system, parses the input string from
@@ -237,3 +240,18 @@ def custom_parsing(
         return cmd_func_wrapper
 
     return custom_parsing_inner_deco
+
+
+def with_extras(**extras: Any) -> AnyCommandType:
+    """A convenience decorator for adding data into the `extras`
+    attribute of a command object.
+
+    Args:
+        **extras: The extras.
+    """
+
+    def inner_with_extras(cmd: AnyCommandType) -> AnyCommandType:
+        cmd.extras.update(extras)
+        return cmd
+
+    return inner_with_extras
