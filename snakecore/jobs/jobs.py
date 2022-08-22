@@ -2916,7 +2916,7 @@ class JobBase(JobCore):
               `JobStateError` will be raised. Defaults to True.
 
         Returns:
-            Coroutine: A coroutine which returns a dictionary that maps the speficied
+            Coroutine: A coroutine which returns a dictionary that maps the specified
               mixin classes to the `asyncio.Task` objects used to run their routine
               functions.
 
@@ -2990,7 +2990,7 @@ class JobBase(JobCore):
             *mixin_classes (Type[JobMixin]): The mixin classes.
 
         Returns:
-            Coroutine: A coroutine which returns a dictionary that maps the speficied
+            Coroutine: A coroutine which returns a dictionary that maps the specified
               mixin classes to the `asyncio.Task` objects used to run their routine
               functions.
 
@@ -3009,7 +3009,7 @@ class JobBase(JobCore):
         and `wait_for_mixin_routines`.
 
         Returns:
-            Coroutine: A coroutine which returns a dictionary that maps the speficied
+            Coroutine: A coroutine which returns a dictionary that maps the specified
               mixin classes to the `asyncio.Task` objects used to run their routine
               functions.
 

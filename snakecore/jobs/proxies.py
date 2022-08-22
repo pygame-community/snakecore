@@ -531,7 +531,7 @@ class JobOutputQueueProxy:
     def config_output_queue(
         self, queue_name: str, use_rescue_buffer: Optional[bool] = None
     ):
-        """Configure settings for a speficied output queue.
+        """Configure settings for a specified output queue.
 
         Args:
             queue_name (str): The name of the output queue to set.
@@ -584,7 +584,7 @@ class JobOutputQueueProxy:
         self, queue_name: str, amount: Optional[int] = None, all_values: bool = False
     ):
         """Get the oldest or a list of the specified amount of oldest entries in the
-        speficied output queue.
+        specified output queue.
 
         Args:
             queue_name (str): The name of the target output queue.

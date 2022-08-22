@@ -252,7 +252,7 @@ class ConfigurationBase(SupportsField):
 
     def is_set(self, name: str):
         """
-        Whether the speficied variable name is set
+        Whether the specified variable name is set
 
         Args:
             name (str): The name of the target variable.
@@ -267,7 +267,7 @@ class ConfigurationBase(SupportsField):
 
     def is_read_only(self, name: str):
         """
-        Whether the speficied variable name is read-only.
+        Whether the specified variable name is read-only.
 
         Args:
             name (str): The name of the target variable.
@@ -282,7 +282,7 @@ class ConfigurationBase(SupportsField):
 
     def is_write_once(self, name: str):
         """
-        Whether the speficied variable name is write-once, which behaves like
+        Whether the specified variable name is write-once, which behaves like
         being read-only after one assignment has occured.
 
         Args:

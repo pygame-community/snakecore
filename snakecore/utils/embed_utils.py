@@ -213,7 +213,7 @@ def create_embed_mask_dict(
     allow_system_attributes: bool = False,
     fields_as_field_dict: bool = False,
 ) -> EMBED_MASK_DICT_HINT:
-    """Create an embed mask dictionary based on the attributes speficied in the given
+    """Create an embed mask dictionary based on the attributes specified in the given
     string. This is mostly used for internal purposes relating to comparing and
     modifying embed dictionaries. All embed attributes are set to `None` by default,
     which will be ignored by `discord.Embed`.
@@ -231,7 +231,7 @@ def create_embed_mask_dict(
         ValueError: Invalid embed attribute string.
 
     Returns:
-        dict: The generated embed with the speficied attributes set to None.
+        dict: The generated embed with the specified attributes set to None.
     """
 
     embed_top_level_attrib_dict = EMBED_TOP_LEVEL_ATTRIBUTES_MASK_DICT
@@ -1054,7 +1054,7 @@ def create_embed(
     footer_icon_url: Optional[str] = None,
     timestamp: Optional[Union[str, datetime.datetime]] = None,
 ) -> discord.Embed:
-    """Create an embed using the speficied arguments.
+    """Create an embed using the specified arguments.
 
     Args:
         author_name (Optional[str], optional): The value for `author.name`.
