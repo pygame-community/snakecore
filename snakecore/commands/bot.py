@@ -312,13 +312,13 @@ class ExtBotBase(commands.bot.BotBase):
         await self._call_module_finalizers(lib, name, variables)
 
 
-class ExtBot(commands.Bot, ExtBotBase):
+class ExtBot(ExtBotBase, commands.Bot):
     """A drop-in replacement for `discord.ext.commands.Bot` with more extension-loading features."""
 
     pass
 
 
-class ExtAutoShardedBot(commands.AutoShardedBot, ExtBotBase):
+class ExtAutoShardedBot(ExtBotBase, commands.AutoShardedBot):
     """A drop-in replacement for `discord.ext.commands.AutoShardedBot` with more extension-loading features."""
 
     pass
