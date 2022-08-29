@@ -14,6 +14,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 
+import snakecore.commands.bot as sc_bot
 from snakecore.commands.parser import parse_command_str
 from ._types import AnyCommandType
 
@@ -255,3 +256,25 @@ def with_extras(**extras: Any) -> AnyCommandType:
         return cmd
 
     return inner_with_extras
+
+
+def extension_config_setup_arguments(
+    setup: Callable[[Union[sc_bot.ExtBot, sc_bot.ExtAutoShardedBot], ...], None]  # type: ignore
+):
+    """A convenience decorator that allows extension `setup()` functions to support
+    receiving arguments from the `Ext(AutoSharded)Bot.get_extension_config(...)`
+    function's output mapping, if available.
+
+    Args:
+        func (Callable[[Union[sc_bot.ExtBot, sc_bot.ExtAutoShardedBot], ...], None]):
+        The `setup()` function.
+    """
+
+    async def setup_wrapper(bot: Union[sc_bot.ExtBot, sc_bot.ExtAutoShardedBot]):
+        if isinstance(bot, (sc_bot.ExtBot, sc_bot.ExtAutoShardedBot)):
+            config_mapping = bot.get_extension_config(setup.__module__, {})
+            return await setup(bot, **config_mapping)
+
+        return await setup(bot)
+
+    return setup_wrapper
