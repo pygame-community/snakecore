@@ -105,6 +105,16 @@ class ExtBotBase(commands.bot.BotBase):
 
         await self.load_extension(name, package=package)
 
+    async def teardown_hook(self) -> None:
+        """An analogue to `.setup_hook()` that is called only once, within `.close()`.
+        Useful for calling asynchronous teardown code.
+        """
+        pass
+
+    async def close(self) -> None:
+        await self.teardown_hook()
+        return await super().close()
+
 
 class ExtBot(ExtBotBase, commands.Bot):
     """A drop-in replacement for `discord.ext.commands.Bot` with more extension-loading features."""
