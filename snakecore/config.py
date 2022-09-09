@@ -324,7 +324,7 @@ class ModuleName(Enum):
     EVENTS = auto()
     JOBS = auto()
     STORAGE = auto()
-    COMMAND_HANDLER = auto()
+    COMMANDS = auto()
 
 
 class CoreConfig(ConfigurationBase):
