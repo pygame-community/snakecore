@@ -14,7 +14,7 @@ import discord
 from snakecore import config, jobs
 from snakecore.constants import NoneType
 from snakecore.jobs import groupings
-from snakecore.utils import embed_utils, serializers
+from snakecore.utils import embeds, serializers
 
 
 class MessageSend(
@@ -97,7 +97,7 @@ class MessageSend(
 
         if not isinstance(self.data.kwargs["embed"], (discord.Embed, NoneType)):
             if isinstance(self.data.kwargs["embed"], dict):
-                if embed_utils.validate_embed_dict(self.data.kwargs["embed"]):
+                if embeds.validate_embed_dict(self.data.kwargs["embed"]):
                     self.data.kwargs["embed"] = discord.Embed.from_dict(
                         self.data.kwargs["embed"]
                     )
@@ -292,7 +292,7 @@ class MessageEdit(
         await super().on_init()
         if not isinstance(self.data.kwargs["embed"], (discord.Embed, NoneType)):
             if isinstance(self.data.kwargs["embed"], dict):
-                if embed_utils.validate_embed_dict(self.data.kwargs["embed"]):
+                if embeds.validate_embed_dict(self.data.kwargs["embed"]):
                     self.data.kwargs["embed"] = discord.Embed.from_dict(
                         self.data.kwargs["embed"]
                     )

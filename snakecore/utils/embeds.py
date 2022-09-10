@@ -2,7 +2,7 @@
 This project has been licensed under the MIT license.
 Copyright (c) 2022-present pygame-community
 
-This file defines some important embed related utility functions.
+This file defines some utility functions for working with discord.py's Embed objects.
 """
 
 import datetime

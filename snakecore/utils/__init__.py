@@ -14,7 +14,9 @@ import discord
 from snakecore import config
 
 from .utils import *
-from . import embed_utils, pagination, serializers
+from . import embeds, pagination, serializers
+
+embed_utils = embeds
 
 
 def init(global_client: Optional[discord.Client] = None):

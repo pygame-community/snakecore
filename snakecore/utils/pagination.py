@@ -12,7 +12,7 @@ from typing import Optional, Sequence, Union
 import discord
 from snakecore import config
 
-from snakecore.utils import embed_utils
+from snakecore.utils import embeds
 
 
 class EmbedPaginator:
@@ -62,7 +62,7 @@ class EmbedPaginator:
         if inactivity_timeout:
             self.inactivity_timeout = int(inactivity_timeout)
 
-        self.paginator_info_embed = embed_utils.create_embed(
+        self.paginator_info_embed = embeds.create_embed(
             color=self.theme_color,
             footer_text=f"Page {self.current_page_index+1} of {len(self.pages)}.",
         )
@@ -151,7 +151,7 @@ class EmbedPaginator:
         """Toggle the information page visiblity."""
         self.show_tutorial = not self.show_tutorial
         if self.show_tutorial:
-            embed_utils.edit_embed(
+            embeds.edit_embed(
                 self.paginator_info_embed,
                 footer_text=f"Page {self.current_page_index+1} of {len(self.pages)}.",
             )
@@ -168,7 +168,7 @@ class EmbedPaginator:
 
     async def present_page(self):
         """Present the currently set page."""
-        embed_utils.edit_embed(
+        embeds.edit_embed(
             self.paginator_info_embed,
             footer_text=f"Page {self.current_page_index+1} of {len(self.pages)}.",
         )
