@@ -10,7 +10,7 @@ throughout the codebase.
 from abc import ABC, abstractmethod
 from enum import Enum, auto
 from types import GenericAlias
-from typing import Any, Callable, Generic, Optional, Protocol, TypeVar, overload
+from typing import Any, Callable, Generic, Optional, Protocol, TypeVar, Union, overload
 
 import discord
 
@@ -332,7 +332,9 @@ class CoreConfig(ConfigurationBase):
     Configuration variables used by snakecore itself
     """
 
-    global_client = Field(var_type=discord.Client, write_once=True)
+    global_client = Field(
+        var_type=Union[discord.Client, discord.AutoShardedClient], write_once=True
+    )
     init_mods = Field(init_constr=dict, var_type=dict[ModuleName, bool])
     storage_channel = Field(init_val=None, var_type=Optional[discord.abc.Messageable])
 
