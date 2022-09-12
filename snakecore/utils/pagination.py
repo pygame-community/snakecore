@@ -155,9 +155,9 @@ class EmbedPaginator:
                 self.paginator_info_embed,
                 footer_text=f"Page {self.current_page_index+1} of {len(self.pages)}.",
             )
-            embeds = self.message.embeds.copy()
-            embeds[9:] = [self.tutorial_embed, self.paginator_info_embed]
-            await self.message.edit(embeds=embeds)
+            msg_embeds = self.message.embeds.copy()
+            msg_embeds[9:] = [self.tutorial_embed, self.paginator_info_embed]
+            await self.message.edit(embeds=msg_embeds)
         else:
             await self.present_page()
 
@@ -172,9 +172,12 @@ class EmbedPaginator:
             self.paginator_info_embed,
             footer_text=f"Page {self.current_page_index+1} of {len(self.pages)}.",
         )
-        embeds = self.message.embeds.copy()
-        embeds[9:] = [self.pages[self.current_page_index], self.paginator_info_embed]
-        await self.message.edit(embeds=embeds)
+        msg_embeds = self.message.embeds.copy()
+        msg_embeds[9:] = [
+            self.pages[self.current_page_index],
+            self.paginator_info_embed,
+        ]
+        await self.message.edit(embeds=msg_embeds)
 
     async def _setup(self):
         if not self.pages:
