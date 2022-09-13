@@ -293,7 +293,10 @@ class EmbedPaginator:
 
         client = client or config.conf.global_client
 
-        if not await self._setup():
+        try:
+            if not await self._setup():
+                return
+        except (discord.HTTPException, asyncio.CancelledError):
             return
 
         self._stopped = False
@@ -325,4 +328,7 @@ class EmbedPaginator:
             except (discord.HTTPException, asyncio.CancelledError):
                 self._stopped = True
 
-        await self._message.clear_reactions()
+        try:
+            await self._message.clear_reactions()
+        except (discord.HTTPException, asyncio.CancelledError):
+            pass
