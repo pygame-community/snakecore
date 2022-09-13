@@ -26,7 +26,7 @@ class EmbedPaginator:
         self,
         message: discord.Message,
         *pages: discord.Embed,
-        caller: Optional[Union[discord.Member, Sequence[discord.Member]]] = None,
+        callers: Optional[Union[discord.Member, Sequence[discord.Member]]] = None,
         whitelisted_role_ids: Optional[Sequence[discord.Role]] = None,
         page_number: int = 1,
         inactivity_timeout: Optional[int] = None,
@@ -40,7 +40,7 @@ class EmbedPaginator:
         Args:
             message (discord.Message): The message to use for pagination.
             *pages (discord.Embed): The embed pages.
-            caller (Optional[discord.Member], optional): The user (or list of users)
+            callers (Optional[discord.Member], optional): The user (or list of users)
               that can control the embed. A value of `None` means that everyone can
               control it. Defaults to None.
             whitelisted_role_ids (Optional[Sequence[discord.Role]], optional): The
@@ -59,10 +59,7 @@ class EmbedPaginator:
         self._pages = list(pages)
         self._theme_color = min(max(0, int(theme_color)), 0xFFFFFF)
 
-        if start_page_number is None:
-            start_page_number = page_number
-
-        self._current_page_index = max(int(start_page_number) - 1, 0)
+        self._current_page_index = max(int(page_number) - 1, 0)
         self._inactivity_timeout = None
 
         if inactivity_timeout:
@@ -109,16 +106,44 @@ class EmbedPaginator:
         self._stopped = False
         self._callers = None
 
-        if isinstance(caller, discord.Member):
-            self._callers = (caller,)
-        elif isinstance(caller, Sequence):
-            self._callers = tuple(caller)
+        if isinstance(callers, discord.Member):
+            self._callers = (callers,)
+        elif isinstance(callers, Sequence):
+            self._callers = tuple(callers)
 
         self._whitelisted_role_ids = (
             {int(i) for i in whitelisted_role_ids}
             if whitelisted_role_ids is not None
             else None
         )
+
+    @property
+    def message(self):
+        return self._message
+
+    @property
+    def pages(self):
+        return self._pages
+
+    @property
+    def callers(self):
+        return self._callers
+
+    @property
+    def whitelisted_role_ids(self):
+        return self._whitelisted_role_ids
+
+    @property
+    def page_number(self):
+        return self._current_page_index + 1
+
+    @property
+    def inactivity_timeout(self):
+        return self._inactivity_timeout
+
+    @property
+    def theme_color(self):
+        return self._theme_color
 
     async def load_control_emojis(self):
         """Add the control reactions to the message."""
@@ -218,14 +243,14 @@ class EmbedPaginator:
     def update(
         self,
         *pages: discord.Embed,
-        caller: Optional[Union[discord.Member, Sequence[discord.Member]]] = UNSET,
+        callers: Optional[Union[discord.Member, Sequence[discord.Member]]] = UNSET,
         whitelisted_role_ids: Optional[Sequence[discord.Role]] = UNSET,
         page_number: int = UNSET,
         inactivity_timeout: Optional[int] = UNSET,
         theme_color: int = UNSET,
     ):
         """Update the paginator."""
-        self._pages = list(pages) if pages else self._pages
+        self._pages = tuple(pages) if pages else self._pages
         self._current_page_index = min(self._current_page_index, len(self._pages) - 1)
 
         if inactivity_timeout is not UNSET:
@@ -234,12 +259,12 @@ class EmbedPaginator:
             else:
                 self._inactivity_timeout = float(inactivity_timeout)
 
-        if caller is not UNSET:
-            if isinstance(caller, discord.Member):
-                self._callers = (caller,)
-            elif isinstance(caller, Sequence):
-                self._callers = tuple(caller)
-            elif caller is None:
+        if callers is not UNSET:
+            if isinstance(callers, discord.Member):
+                self._callers = (callers,)
+            elif isinstance(callers, Sequence):
+                self._callers = tuple(callers)
+            elif callers is None:
                 self._callers = None
 
         if whitelisted_role_ids is not UNSET:
