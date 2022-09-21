@@ -396,6 +396,7 @@ class Parens(commands.Converter[tuple]):
                 converter_index = 0
 
                 original_parameter = ctx.current_parameter
+                fake_parameter = commands.parameter()
 
                 is_variadic = self.converters[-1] is Ellipsis
 
@@ -435,9 +436,8 @@ class Parens(commands.Converter[tuple]):
 
                     converter_index += 1
 
-                    ctx.current_parameter = fake_parameter = commands.parameter(
-                        converter=converter
-                    )
+                    fake_parameter._annotation = converter
+                    ctx.current_parameter = fake_parameter
 
                     previous_previous = ctx.view.previous
                     previous_index = ctx.view.index
