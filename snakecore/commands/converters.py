@@ -58,7 +58,7 @@ class RangeObject(commands.Converter[range]):
 
     async def convert(self, ctx: commands.Context, argument: str) -> range:
         if not argument.startswith("[") or not argument.endswith("]"):
-            raise commands.BadArgument("ranges begin and end with square brackets")
+            raise commands.BadArgument("ranges must begin and end with square brackets")
 
         try:
             splits = [int(i.strip()) for i in argument[6:-1].split(":")]
@@ -541,8 +541,3 @@ class QuotedString(commands.Converter[str]):
             )
 
         return argument[1:-1]
-
-
-if TYPE_CHECKING:
-    DateTime = datetime.datetime
-    RangeObject = range
