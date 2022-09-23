@@ -57,6 +57,9 @@ ANNO_AND_ERROR = {
     "discord.Member": "an ID or mention of a Discord server member",
     "discord.User": "an ID or mention of a Discord user",
     "discord.TextChannel": "an ID or mention of a Discord server text channel",
+    "discord.VoiceChannel": "an ID or mention of a Discord server voice channel",
+    "discord.StageChannel": "an ID or mention of a Discord server stage channel",
+    "discord.ForumChannel": "an ID or mention of a Discord server forum channel",
     "discord.Thread": "an ID or mention of a Discord server thread",
     "discord.Guild": "an ID of a discord server (A.K.A. 'guild')",
     "discord.Message": (
@@ -75,6 +78,9 @@ ANNO_AND_ERROR["discord.object.Object"] = ANNO_AND_ERROR["discord.Object"]
 ANNO_AND_ERROR["discord.member.Member"] = ANNO_AND_ERROR["discord.Member"]
 ANNO_AND_ERROR["discord.user.User"] = ANNO_AND_ERROR["discord.User"]
 ANNO_AND_ERROR["discord.channel.TextChannel"] = ANNO_AND_ERROR["discord.TextChannel"]
+ANNO_AND_ERROR["discord.channel.VoiceChannel"] = ANNO_AND_ERROR["discord.VoiceChannel"]
+ANNO_AND_ERROR["discord.channel.StageChannel"] = ANNO_AND_ERROR["discord.StageChannel"]
+ANNO_AND_ERROR["discord.channel.ForumChannel"] = ANNO_AND_ERROR["discord.ForumChannel"]
 ANNO_AND_ERROR["discord.threads.Thread"] = ANNO_AND_ERROR["discord.Thread"]
 ANNO_AND_ERROR["discord.guild.Guild"] = ANNO_AND_ERROR["discord.Guild"]
 ANNO_AND_ERROR["discord.message.Message"] = ANNO_AND_ERROR["discord.Message"]
@@ -678,6 +684,12 @@ async def cast_basic_arg(ctx: commands.Context, anno: str, arg: Any) -> Any:
             "discord.abc.GuildChannel",
             "discord.TextChannel",
             "discord.channel.TextChannel",
+            "discord.VoiceChannel",
+            "discord.channel.VoiceChannel",
+            "discord.StageChannel",
+            "discord.channel.StageChannel",
+            "discord.ForumChannel",
+            "discord.channel.ForumChannel",
             "discord.Thread",
             "discord.threads.Thread",
         ):
