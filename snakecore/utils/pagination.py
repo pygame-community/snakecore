@@ -26,9 +26,9 @@ class EmbedPaginator:
         self,
         message: discord.Message,
         *pages: discord.Embed,
-        callers: Optional[Union[discord.Member, Sequence[discord.Member]]] = None,
+        caller: Optional[Union[discord.Member, Sequence[discord.Member]]] = None,
         whitelisted_role_ids: Optional[Sequence[discord.Role]] = None,
-        page_number: int = 1,
+        start_page_number: int = 1,
         inactivity_timeout: Optional[int] = None,
         theme_color: int = 0,
     ):
@@ -40,13 +40,13 @@ class EmbedPaginator:
         Args:
             message (discord.Message): The message to use for pagination.
             *pages (discord.Embed): The embed pages.
-            callers (Optional[discord.Member], optional): The user (or list of users)
-              that can control the embed. A value of `None` means that everyone can
-              control it. Defaults to None.
+            caller (Optional[Union[discord.Member, Sequence[discord.Member]]], optional):
+              The member(s) that can control the embed. A value of `None` means that
+              everyone can control it. Defaults to None.
             whitelisted_role_ids (Optional[Sequence[discord.Role]], optional): The
               IDs of the guild roles that are always granted control over this embed
               paginator.
-            page_number (int): The number of the page to start from (1-based).
+            start_page_number (int): The number of the page to start from (1-based).
               Defaults to 1.
             inactivity_timeout (Optional[int], optional): The maximum time period
               for this paginator to wait for a reaction to occur, before aborting.
@@ -59,7 +59,7 @@ class EmbedPaginator:
         self._pages = list(pages)
         self._theme_color = min(max(0, int(theme_color)), 0xFFFFFF)
 
-        self._current_page_index = max(int(page_number) - 1, 0)
+        self._current_page_index = max(int(start_page_number) - 1, 0)
         self._inactivity_timeout = None
 
         if inactivity_timeout:
@@ -106,10 +106,10 @@ class EmbedPaginator:
         self._stopped = False
         self._callers = None
 
-        if isinstance(callers, discord.Member):
-            self._callers = (callers,)
-        elif isinstance(callers, Sequence):
-            self._callers = tuple(callers)
+        if isinstance(caller, discord.Member):
+            self._callers = (caller,)
+        elif isinstance(caller, Sequence):
+            self._callers = tuple(caller)
 
         self._whitelisted_role_ids = (
             {int(i) for i in whitelisted_role_ids}
@@ -134,8 +134,12 @@ class EmbedPaginator:
         return self._whitelisted_role_ids
 
     @property
-    def page_number(self):
+    def current_page_number(self):
         return self._current_page_index + 1
+
+    @property
+    def current_page(self):
+        return self._pages[self._current_page_index]
 
     @property
     def inactivity_timeout(self):
