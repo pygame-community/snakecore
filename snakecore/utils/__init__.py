@@ -14,7 +14,7 @@ import discord
 from snakecore import config
 
 from .utils import *
-from . import embeds, pagination, serializers
+from . import embeds, pagination, regex_patterns, serializers
 
 embed_utils = embeds
 

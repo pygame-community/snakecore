@@ -14,6 +14,7 @@ import discord
 from discord.ext import commands
 
 import snakecore
+from snakecore.utils import regex_patterns
 
 T = TypeVar("T")
 
@@ -80,8 +81,8 @@ class CodeBlock:
     To get the raw code block text from an instance, convert it into a string.
     """
 
-    multiline_pattern = re.compile(r"```[^`\n]*\n((?!```).|\s|(?<=\\)```)+```")
-    inline_pattern = re.compile(r"`((?<=\\)`|[^`\n])+`")
+    multiline_pattern = re.compile(regex_patterns.CODE_BLOCK)
+    inline_pattern = re.compile(regex_patterns.INLINE_CODE_BLOCK)
 
     def __init__(self, code: str, language: Optional[str] = None, inline: bool = False):
         self.code = code
