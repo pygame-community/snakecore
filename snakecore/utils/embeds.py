@@ -15,7 +15,10 @@ from typing import Literal, Optional, Sequence, TypedDict, Union
 import black
 import discord
 
+import discord.types.embed
+
 from .utils import recursive_mapping_update
+from . import regex_patterns
 
 
 EMBED_TOP_LEVEL_ATTRIBUTES_MASK_DICT = {
@@ -134,16 +137,14 @@ EMBED_CHARACTER_LIMIT = 6000
 
 EMBED_FIELD_LIMIT = 25
 
-EMBED_ATTRIBUTE_CHARACTER_LIMIT_DICT = {
-    "author": {
-        "name": 256,
-    },
+EMBED_CHAR_LIMITS = {
+    "author.name": 256,
     "title": 256,
     "description": 4096,
-    "fields": [{"name": 256, "value": 1024}],
-    "footer": {
-        "text": 2048,
-    },
+    "fields": 25,
+    "field.name": 256,
+    "field.value": 1024,
+    "footer.text": 2048,
 }
 
 CONDENSED_EMBED_DATA_LIST_SYNTAX = """
@@ -200,12 +201,7 @@ EMBED_MASK_DICT_HINT = dict[
     ],
 ]
 
-EmbedDict = dict[
-    str,
-    Union[
-        str, int, dict[str, str], list[dict[str, Union[str, bool]]], datetime.datetime
-    ],
-]
+EmbedDict = discord.types.embed.Embed
 
 
 def create_embed_mask_dict(
@@ -441,11 +437,104 @@ def create_embed_mask_dict(
     return embed_mask_dict
 
 
+def split_embed_dict(
+    embed_dict: EmbedDict, in_place: bool = True, always_divide_code_blocks: bool = True
+):
+    embed_dicts = [embed_dict]
+    embed_dict = embed_dict if in_place else copy_embed_dict(embed_dict)
+    updated = True
+
+    while updated:
+        updated = False
+        for i in range(len(embed_dict)):
+            embed_dict = embed_dicts[i]
+            if "author" in embed_dict and "name" in embed_dict["author"]:
+                author_name = embed_dict["author"]["name"]
+                if len(author_name) > EMBED_CHAR_LIMITS["author.name"]:
+                    if "title" not in embed_dict:
+                        embed_dict["title"] = ""
+
+                    if (
+                        inline_code_matches := tuple(
+                            re.finditer(regex_patterns.INLINE_CODE_BLOCK, author_name)
+                        )
+                    ) and (
+                        inline_code_match := inline_code_matches[-1]
+                    ).end() > EMBED_CHAR_LIMITS[
+                        "author.name"
+                    ] - 1:  # shift entire code block down
+
+                        if always_divide_code_blocks:
+                            embed_dict["author"]["name"] = (
+                                author_name[: EMBED_CHAR_LIMITS["author.name"] - 1]
+                                + "`"
+                            )
+
+                            embed_dict["title"] = (
+                                "`"
+                                + author_name[EMBED_CHAR_LIMITS["author.name"] - 1 :]
+                                + embed_dict["title"]
+                            )
+                        elif (
+                            (match_span := inline_code_match.span())[1] - match_span[0]
+                        ) <= EMBED_CHAR_LIMITS["title"]:
+                            embed_dict["author"]["name"] = author_name[
+                                : inline_code_match.start()
+                            ]
+                            embed_dict["title"] = (
+                                author_name[inline_code_match.start() :]
+                                + embed_dict["title"]
+                            )
+
+                        else:
+                            embed_dict["author"]["name"] = author_name[
+                                : EMBED_CHAR_LIMITS["author.name"] - 1
+                            ]
+                            embed_dict["title"] = (
+                                author_name[EMBED_CHAR_LIMITS["author.name"] - 1 :]
+                                + embed_dict["title"]
+                            )
+
+                    elif (
+                        url_matches := tuple(
+                            re.finditer(regex_patterns.URL, author_name)
+                        )
+                    ) and (
+                        url_match := inline_code_matches[-1]
+                    ).end() > EMBED_CHAR_LIMITS[
+                        "author.name"
+                    ] - 1:
+                        if (
+                            (match_span := url_match.span())[1] - match_span[0]
+                        ) <= EMBED_CHAR_LIMITS[
+                            "title"
+                        ]:  # shift entire URL down
+                            embed_dict["author"]["name"] = author_name[
+                                : url_match.start()
+                            ]
+                            embed_dict["title"] = (
+                                author_name[url_match.start() :] + embed_dict["title"]
+                            )
+
+                        else:
+                            embed_dict["author"]["name"] = author_name[
+                                : EMBED_CHAR_LIMITS["author.name"] - 1
+                            ]
+                            embed_dict["title"] = (
+                                author_name[EMBED_CHAR_LIMITS["author.name"] - 1 :]
+                                + embed_dict["title"]
+                            )
+
+                    updated = True
+
+            # TODO: Add support for more attributes
+
+
 def check_embed_dict_char_count(embed_dict: EmbedDict) -> int:
     """Count the number of characters in the text fields of an embed dictionary.
 
     Args:
-        embed_dict (EmbedDict): The target embed dictionary.
+        embed_dict (dict): The target embed dictionary.
 
     Returns:
         int: The character count.
@@ -486,18 +575,18 @@ def validate_embed_dict_char_count(embed_dict: EmbedDict) -> bool:
     author = embed_dict.get("author")
     if author is not None:
         author_name_count = len(author.get("name", ""))
-        if author_name_count > EMBED_ATTRIBUTE_CHARACTER_LIMIT_DICT["author"]["name"]:
+        if author_name_count > EMBED_CHAR_LIMITS["author.name"]:
             return False
         count += author_name_count
 
     title_count = len(embed_dict.get("title", ""))
-    if title_count > EMBED_ATTRIBUTE_CHARACTER_LIMIT_DICT["title"]:
+    if title_count > EMBED_CHAR_LIMITS["title"]:
         return False
 
     count += title_count
 
     description_count = len(embed_dict.get("description", ""))
-    if description_count > EMBED_ATTRIBUTE_CHARACTER_LIMIT_DICT["description"]:
+    if description_count > EMBED_CHAR_LIMITS["description"]:
         return False
 
     count += description_count
@@ -512,9 +601,8 @@ def validate_embed_dict_char_count(embed_dict: EmbedDict) -> bool:
         field_value_count = len(field.get("value", ""))
 
         if (
-            field_name_count > EMBED_ATTRIBUTE_CHARACTER_LIMIT_DICT["fields"][0]["name"]
-            or field_value_count
-            > EMBED_ATTRIBUTE_CHARACTER_LIMIT_DICT["fields"][0]["value"]
+            field_name_count > EMBED_CHAR_LIMITS["field.name"]
+            or field_value_count > EMBED_CHAR_LIMITS["field.value"]
         ):
             return False
 
@@ -524,7 +612,7 @@ def validate_embed_dict_char_count(embed_dict: EmbedDict) -> bool:
     if footer is not None:
         footer_text_count = len(footer.get("text", ""))
 
-        if footer_text_count > EMBED_ATTRIBUTE_CHARACTER_LIMIT_DICT["footer"]["text"]:
+        if footer_text_count > EMBED_CHAR_LIMITS["footer.text"]:
             return False
 
         count += footer_text_count
