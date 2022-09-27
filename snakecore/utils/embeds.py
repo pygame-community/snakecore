@@ -75,7 +75,7 @@ EMBED_SYSTEM_ATTRIBUTES_MASK_DICT = {
     },
 }
 
-EMBED_SYSTEM_ATTRIBUTES_SET = {
+EMBED_SYSTEM_ATTRIBUTES = {
     "provider",
     "proxy_url",
     "proxy_icon_url",
@@ -84,7 +84,7 @@ EMBED_SYSTEM_ATTRIBUTES_SET = {
     "type",
 }
 
-EMBED_NON_SYSTEM_ATTRIBUTES_SET = {
+EMBED_NON_SYSTEM_ATTRIBUTES = {
     "name",
     "value",
     "inline",
@@ -133,9 +133,9 @@ EMBED_ATTRIBUTES_WITH_SUB_ATTRIBUTES_SET = {
     "provider",
 }  # 'fields' is a special case
 
-EMBED_CHARACTER_LIMIT = 6000
+EMBED_TOTAL_CHAR_LIMIT = 6000
 
-EMBED_FIELD_LIMIT = 25
+EMBED_FIELDS_LIMIT = 25
 
 EMBED_CHAR_LIMITS = {
     "author.name": 256,
@@ -242,7 +242,7 @@ def create_embed_mask_dict(
         for k, v in system_attribs_dict.items()
     }
 
-    all_system_attribs_set = EMBED_SYSTEM_ATTRIBUTES_SET
+    all_system_attribs_set = EMBED_SYSTEM_ATTRIBUTES
 
     embed_mask_dict = {}
 
@@ -437,16 +437,28 @@ def create_embed_mask_dict(
     return embed_mask_dict
 
 
-def split_embed_dict(
-    embed_dict: EmbedDict, in_place: bool = True, always_divide_code_blocks: bool = True
-):
+def split_embed_dict(embed_dict: EmbedDict, divide_code_blocks: bool = True):
+    """Split an embed dictionary into multiple valid embed dictionaries based on embed text
+    attribute character limits and the total character limit of a single embed in a single
+    message. This function will not correct invalid embed attributes or add any missing
+    required ones.
+
+    Args:
+        embed_dict (dict): The target embed.
+        divide_code_blocks (bool, optional): Whether to divide code blocks into two
+           valid ones, if they contain a division point of an embed text attribute.
+          Defaults to True.
+
+    Returns:
+        list[dict]: A list of newly generated embed dictionaries.
+    """
+    embed_dict = copy_embed_dict(embed_dict)
     embed_dicts = [embed_dict]
-    embed_dict = embed_dict if in_place else copy_embed_dict(embed_dict)
     updated = True
 
     while updated:
         updated = False
-        for i in range(len(embed_dict)):
+        for i in range(len(embed_dicts)):
             embed_dict = embed_dicts[i]
             if "author" in embed_dict and "name" in embed_dict["author"]:
                 author_name = embed_dict["author"]["name"]
@@ -454,58 +466,20 @@ def split_embed_dict(
                     if "title" not in embed_dict:
                         embed_dict["title"] = ""
 
+                    normal_split = True
+
                     if (
-                        inline_code_matches := tuple(
-                            re.finditer(regex_patterns.INLINE_CODE_BLOCK, author_name)
+                        (
+                            url_matches := tuple(
+                                re.finditer(regex_patterns.URL, author_name)
+                            )
                         )
-                    ) and (
-                        inline_code_match := inline_code_matches[-1]
-                    ).end() > EMBED_CHAR_LIMITS[
-                        "author.name"
-                    ] - 1:  # shift entire code block down
-
-                        if always_divide_code_blocks:
-                            embed_dict["author"]["name"] = (
-                                author_name[: EMBED_CHAR_LIMITS["author.name"] - 1]
-                                + "`"
-                            )
-
-                            embed_dict["title"] = (
-                                "`"
-                                + author_name[EMBED_CHAR_LIMITS["author.name"] - 1 :]
-                                + embed_dict["title"]
-                            )
-                        elif (
-                            (match_span := inline_code_match.span())[1] - match_span[0]
-                        ) <= EMBED_CHAR_LIMITS["title"]:
-                            embed_dict["author"]["name"] = author_name[
-                                : inline_code_match.start()
-                            ]
-                            embed_dict["title"] = (
-                                author_name[inline_code_match.start() :]
-                                + embed_dict["title"]
-                            )
-
-                        else:
-                            embed_dict["author"]["name"] = author_name[
-                                : EMBED_CHAR_LIMITS["author.name"] - 1
-                            ]
-                            embed_dict["title"] = (
-                                author_name[EMBED_CHAR_LIMITS["author.name"] - 1 :]
-                                + embed_dict["title"]
-                            )
-
-                    elif (
-                        url_matches := tuple(
-                            re.finditer(regex_patterns.URL, author_name)
-                        )
-                    ) and (
-                        url_match := inline_code_matches[-1]
-                    ).end() > EMBED_CHAR_LIMITS[
-                        "author.name"
-                    ] - 1:
+                        and (url_match := url_matches[-1]).start()
+                        < EMBED_CHAR_LIMITS["author.name"] - 1
+                        and url_match.end() > EMBED_CHAR_LIMITS["author.name"]
+                    ):
                         if (
-                            (match_span := url_match.span())[1] - match_span[0]
+                            ((match_span := url_match.span())[1] - match_span[0] + 1)
                         ) <= EMBED_CHAR_LIMITS[
                             "title"
                         ]:  # shift entire URL down
@@ -513,21 +487,587 @@ def split_embed_dict(
                                 : url_match.start()
                             ]
                             embed_dict["title"] = (
-                                author_name[url_match.start() :] + embed_dict["title"]
-                            )
+                                author_name[url_match.start() :]
+                                + f' {embed_dict["title"]}'
+                            ).strip()
 
-                        else:
-                            embed_dict["author"]["name"] = author_name[
-                                : EMBED_CHAR_LIMITS["author.name"] - 1
-                            ]
-                            embed_dict["title"] = (
-                                author_name[EMBED_CHAR_LIMITS["author.name"] - 1 :]
-                                + embed_dict["title"]
-                            )
+                            normal_split = False
+
+                    if normal_split:
+                        embed_dict["author"]["name"] = author_name[
+                            : EMBED_CHAR_LIMITS["author.name"] - 1
+                        ]
+                        embed_dict["title"] = (
+                            author_name[EMBED_CHAR_LIMITS["author.name"] - 1 :]
+                            + f' {embed_dict["title"]}'
+                        ).strip()
+
+                    if not embed_dict["title"]:
+                        del embed_dict["title"]
 
                     updated = True
 
-            # TODO: Add support for more attributes
+            if "title" in embed_dict:
+                title = embed_dict["title"]
+                if len(title) > EMBED_CHAR_LIMITS["title"]:
+                    if "description" not in embed_dict:
+                        embed_dict["description"] = ""
+
+                    normal_split = True
+
+                    if (
+                        (
+                            inline_code_matches := tuple(
+                                re.finditer(regex_patterns.INLINE_CODE_BLOCK, title)
+                            )
+                        )
+                        and (inline_code_match := inline_code_matches[-1]).start()
+                        < EMBED_CHAR_LIMITS["title"] - 1
+                        and inline_code_match.end() > EMBED_CHAR_LIMITS["title"] - 1
+                    ):
+
+                        if divide_code_blocks:
+                            embed_dict[
+                                "title"
+                            ] = f'{title[: EMBED_CHAR_LIMITS["title"] - 1]}`'
+
+                            embed_dict["description"] = (
+                                f'`{title[EMBED_CHAR_LIMITS["title"] - 1 :]}'
+                                f' {embed_dict["description"]}'
+                            ).strip()
+                            normal_split = False
+                        elif (
+                            (
+                                (match_span := inline_code_match.span())[1]
+                                - match_span[0]
+                                + 1
+                            )
+                        ) <= EMBED_CHAR_LIMITS[
+                            "description"
+                        ]:  # move it down to the next text field
+                            embed_dict["title"] = title[: inline_code_match.start()]
+                            embed_dict["description"] = (
+                                title[inline_code_match.start() :]
+                                + f' {embed_dict["description"]}'
+                            ).strip()
+
+                            normal_split = False
+
+                    elif (
+                        (url_matches := tuple(re.finditer(regex_patterns.URL, title)))
+                        and (url_match := url_matches[-1]).start()
+                        < EMBED_CHAR_LIMITS["title"] - 1
+                        and url_match.end() > EMBED_CHAR_LIMITS["title"]
+                    ):
+                        if (
+                            ((match_span := url_match.span())[1] - match_span[0] + 1)
+                        ) <= EMBED_CHAR_LIMITS[
+                            "description"
+                        ]:  # shift entire URL down
+                            embed_dict["title"] = title[: url_match.start()]
+                            embed_dict["description"] = (
+                                title[url_match.start() :]
+                                + f' {embed_dict["description"]}'
+                            ).strip()
+                            normal_split = False
+
+                    if normal_split:
+                        embed_dict["title"] = title[: EMBED_CHAR_LIMITS["title"] - 1]
+                        embed_dict["description"] = (
+                            title[EMBED_CHAR_LIMITS["title"] - 1 :]
+                            + f' {embed_dict["description"]}'
+                        )
+
+                    if not embed_dict["description"]:
+                        del embed_dict["description"]
+
+                    updated = True
+
+            if "description" in embed_dict:
+                description = embed_dict["description"]
+                if len(description) > EMBED_CHAR_LIMITS["description"]:
+                    next_embed_dict: EmbedDict = {
+                        attr: embed_dict.pop(attr)
+                        for attr in ("color", "fields", "image", "footer")
+                        if attr in embed_dict
+                    }
+                    next_embed_dict["description"] = ""
+                    if "color" in next_embed_dict:
+                        embed_dict["color"] = next_embed_dict["color"]
+
+                    normal_split = True
+
+                    if (
+                        (
+                            code_matches := tuple(
+                                re.finditer(regex_patterns.CODE_BLOCK, description)
+                            )
+                        )
+                        and (code_match := code_matches[-1]).start()
+                        < EMBED_CHAR_LIMITS["description"] - 1
+                        and code_match.end() > EMBED_CHAR_LIMITS["description"] - 1
+                    ):
+
+                        if (
+                            divide_code_blocks
+                            and code_match.start() + code_match.group().find("\n")
+                            < EMBED_CHAR_LIMITS["description"] - 1
+                        ):  # find first newline required for a valid code block
+                            embed_dict[
+                                "description"
+                            ] = f'{description[: EMBED_CHAR_LIMITS["description"] - 3]}```'
+
+                            next_embed_dict["description"] = (
+                                f'```{code_match.group(1)}\n{description[EMBED_CHAR_LIMITS["description"] - 1 :]}'  # group 1 is the code language
+                                + f' {next_embed_dict["description"]}'
+                            )
+                            normal_split = False
+                        elif (
+                            ((match_span := code_match.span())[1] - match_span[0] + 1)
+                        ) <= EMBED_CHAR_LIMITS["description"]:
+                            embed_dict["description"] = description[
+                                : code_match.start()
+                            ]
+                            next_embed_dict["description"] = (
+                                description[code_match.start() :]
+                                + f' {next_embed_dict["description"]}'
+                            )
+                            normal_split = False
+
+                    elif (
+                        (
+                            inline_code_matches := tuple(
+                                re.finditer(regex_patterns.CODE_BLOCK, description)
+                            )
+                        )
+                        and (inline_code_match := inline_code_matches[-1]).start()
+                        < EMBED_CHAR_LIMITS["description"] - 1
+                        and inline_code_match.end()
+                        > EMBED_CHAR_LIMITS["description"] - 1
+                    ):
+
+                        if divide_code_blocks:
+                            embed_dict[
+                                "description"
+                            ] = f'{description[: EMBED_CHAR_LIMITS["description"] - 1]}`'
+
+                            next_embed_dict["description"] = (
+                                f'`{description[EMBED_CHAR_LIMITS["description"] - 1 :]}'
+                                + f' {next_embed_dict["description"]}'
+                            ).strip()
+                            normal_split = False
+                        elif (
+                            (
+                                (match_span := inline_code_match.span())[1]
+                                - match_span[0]
+                                + 1
+                            )
+                        ) <= EMBED_CHAR_LIMITS[
+                            "description"
+                        ]:  # shift entire inline code block down
+                            embed_dict["description"] = description[
+                                : inline_code_match.start()
+                            ]
+                            next_embed_dict["description"] = (
+                                description[inline_code_match.start() :]
+                                + f' {next_embed_dict["description"]}'
+                            ).strip()
+                            normal_split = False
+
+                    elif (
+                        (
+                            url_matches := tuple(
+                                re.finditer(regex_patterns.URL, description)
+                            )
+                        )
+                        and (url_match := url_matches[-1]).start()
+                        < EMBED_CHAR_LIMITS["description"] - 1
+                        and url_match.end() > EMBED_CHAR_LIMITS["description"] - 1
+                    ):
+                        if (
+                            ((match_span := url_match.span())[1] - match_span[0] + 1)
+                        ) <= EMBED_CHAR_LIMITS[
+                            "description"
+                        ]:  # shift entire URL down
+
+                            embed_dict["description"] = description[: url_match.start()]
+                            next_embed_dict["description"] = (
+                                description[url_match.start() :]
+                                + f' {next_embed_dict["description"]}'
+                            ).strip()
+
+                            normal_split = False
+
+                    if normal_split:
+                        embed_dict["description"] = description[
+                            : EMBED_CHAR_LIMITS["description"] - 1
+                        ]
+                        next_embed_dict["description"] = (
+                            description[EMBED_CHAR_LIMITS["description"] - 1 :]
+                            + f' {next_embed_dict["description"]}'
+                        ).strip()
+
+                    if not next_embed_dict["description"]:
+                        del next_embed_dict["description"]
+
+                    if next_embed_dict and not (
+                        len(next_embed_dict) == 1 and "color" in next_embed_dict
+                    ):
+                        embed_dicts.insert(i + 1, next_embed_dict)
+
+                    updated = True
+
+            current_len = (
+                len(embed_dict.get("author", {}).get("name", ""))
+                + len(embed_dict.get("title", ""))
+                + len(embed_dict.get("description", ""))
+            )
+
+            if "fields" in embed_dict:
+                fields = embed_dict["fields"]
+                for j in range(len(fields)):
+                    field = fields[j]
+                    if "name" in field:
+                        field_name = field["name"]
+                        if len(field_name) > EMBED_CHAR_LIMITS["field.name"]:
+                            if "value" not in field:
+                                field["value"] = ""
+
+                            normal_split = True
+
+                            if (
+                                inline_code_matches := tuple(
+                                    re.finditer(
+                                        regex_patterns.INLINE_CODE_BLOCK, field_name
+                                    )
+                                )
+                            ) and (
+                                inline_code_match := inline_code_matches[-1]
+                            ).end() > EMBED_CHAR_LIMITS[
+                                "field.name"
+                            ] - 1:
+
+                                if divide_code_blocks:
+                                    field[
+                                        "name"
+                                    ] = f'{field_name[: EMBED_CHAR_LIMITS["field.name"] - 1]}`'
+
+                                    field["value"] = (
+                                        f'`{field_name[EMBED_CHAR_LIMITS["field.name"] - 1 :]}'
+                                        f' {field["value"]}'
+                                    ).strip()
+                                elif (
+                                    (
+                                        (match_span := inline_code_match.span())[1]
+                                        - match_span[0]
+                                        + 1
+                                    )
+                                ) <= EMBED_CHAR_LIMITS[
+                                    "field.value"
+                                ]:  # shift entire inline code block down
+                                    field["name"] = field_name[
+                                        : inline_code_match.start()
+                                    ]
+                                    field["value"] = (
+                                        field_name[inline_code_match.start() :]
+                                        + f' {field["value"]}'
+                                    ).strip()
+                                    normal_split = False
+
+                            elif (
+                                (
+                                    url_matches := tuple(
+                                        re.finditer(regex_patterns.URL, field_name)
+                                    )
+                                )
+                                and (url_match := url_matches[-1]).start()
+                                < EMBED_CHAR_LIMITS["field.name"] - 1
+                                and url_match.end() > EMBED_CHAR_LIMITS["field.name"]
+                            ):
+                                if (
+                                    (
+                                        (match_span := url_match.span())[1]
+                                        - match_span[0]
+                                        + 1
+                                    )
+                                ) <= EMBED_CHAR_LIMITS[
+                                    "field.name"
+                                ]:  # shift entire URL down
+                                    field["name"] = field_name[: url_match.start()]
+                                    field["value"] = (
+                                        field_name[url_match.start() :]
+                                        + f' {field["value"]}'
+                                    ).strip()
+
+                                    normal_split = False
+
+                            if normal_split:
+                                field["name"] = field_name[
+                                    : EMBED_CHAR_LIMITS["field.name"] - 1
+                                ]
+                                field["value"] = (
+                                    field_name[EMBED_CHAR_LIMITS["field.name"] - 1 :]
+                                    + f' {field["value"]}'
+                                ).strip()
+
+                            if not field["value"]:
+                                del field["value"]
+
+                            updated = True
+
+                    if "value" in field:
+                        field_value = field["value"]
+                        if len(field_value) > EMBED_CHAR_LIMITS["field.value"]:
+                            next_field = {}
+                            next_field["name"] = "\u200b"
+
+                            if "inline" in field:
+                                next_field["inline"] = field["inline"]
+
+                            normal_split = True
+
+                            if (
+                                (
+                                    code_matches := tuple(
+                                        re.finditer(
+                                            regex_patterns.CODE_BLOCK, field_value
+                                        )
+                                    )
+                                )
+                                and (code_match := code_matches[-1]).start()
+                                < EMBED_CHAR_LIMITS["field.value"] - 1
+                                and code_match.end()
+                                > EMBED_CHAR_LIMITS["field.value"] - 1
+                            ):
+
+                                if (
+                                    divide_code_blocks
+                                    and code_match.start()
+                                    + code_match.group().find("\n")
+                                    < EMBED_CHAR_LIMITS["field.value"] - 1
+                                ):  # find first newline required for a valid code block
+                                    field[
+                                        "value"
+                                    ] = f'{field_value[: EMBED_CHAR_LIMITS["field.value"] - 3]}```'
+
+                                    next_field["value"] = (
+                                        f'```{code_match.group(1)}\n{field_value[EMBED_CHAR_LIMITS["field.value"] - 1 :]}'  # group 1 is the code language
+                                        f' {next_field["field.value"]}'
+                                    ).split()
+                                    normal_split = False
+                                elif (
+                                    (
+                                        (match_span := code_match.span())[1]
+                                        - match_span[0]
+                                        + 1
+                                    )
+                                ) <= EMBED_CHAR_LIMITS["field.value"]:
+                                    field["value"] = description[: code_match.start()]
+                                    next_field["value"] = (
+                                        field_value[code_match.start() :]
+                                        + f' {next_field["value"]}'
+                                    ).strip()
+                                    normal_split = False
+
+                            elif (
+                                (
+                                    inline_code_matches := tuple(
+                                        re.finditer(
+                                            regex_patterns.CODE_BLOCK, description
+                                        )
+                                    )
+                                )
+                                and (
+                                    inline_code_match := inline_code_matches[-1]
+                                ).start()
+                                < EMBED_CHAR_LIMITS["field.value"] - 1
+                                and inline_code_match.end()
+                                > EMBED_CHAR_LIMITS["field.value"] - 1
+                            ):
+
+                                if divide_code_blocks:
+                                    field[
+                                        "value"
+                                    ] = f'{description[: EMBED_CHAR_LIMITS["field.value"] - 1]}`'
+
+                                    next_field["value"] = (
+                                        f'`{description[EMBED_CHAR_LIMITS["field.value"] - 1 :]}'
+                                        f' {next_field["value"]}'
+                                    ).strip()
+                                    normal_split = False
+                                elif (
+                                    (
+                                        (match_span := inline_code_match.span())[1]
+                                        - match_span[0]
+                                        + 1
+                                    )
+                                ) <= EMBED_CHAR_LIMITS[
+                                    "field.value"
+                                ]:  # shift entire inline code block down
+                                    field["value"] = description[
+                                        : inline_code_match.start()
+                                    ]
+                                    next_field["value"] = (
+                                        field_value[inline_code_match.start() :]
+                                        + f' {next_field["value"]}'
+                                    ).strip()
+                                    normal_split = False
+
+                            elif (
+                                (
+                                    url_matches := tuple(
+                                        re.finditer(regex_patterns.URL, field_value)
+                                    )
+                                )
+                                and (url_match := url_matches[-1]).start()
+                                < EMBED_CHAR_LIMITS["field.value"] - 1
+                                and url_match.end() > EMBED_CHAR_LIMITS["field.value"]
+                            ):
+                                if (
+                                    (
+                                        (match_span := url_match.span())[1]
+                                        - match_span[0]
+                                        + 1
+                                    )
+                                ) <= EMBED_CHAR_LIMITS[
+                                    "field.value"
+                                ]:  # shift entire URL down
+                                    field["value"] = field_value[: url_match.start()]
+                                    next_field["value"] = (
+                                        field_value[url_match.start() :]
+                                        + f' {next_field["value"]}'
+                                    ).strip()
+
+                                    normal_split = False
+
+                            if normal_split:
+                                field["value"] = field_value[
+                                    : EMBED_CHAR_LIMITS["field.value"] - 1
+                                ]
+                                next_field["value"] = (
+                                    field["value"][
+                                        EMBED_CHAR_LIMITS["field.value"] - 1 :
+                                    ]
+                                    + f' {next_field["value"]}'
+                                ).strip()
+
+                            if not next_field["value"]:
+                                del next_field["value"]
+
+                            if next_field:
+                                fields.insert(j + 1, next_field)
+
+                            updated = True
+
+                for j in range(len(fields)):
+                    field = fields[j]
+                    field_char_count = len(field.get("name", "")) + len(
+                        field.get("value", "")
+                    )
+                    if (
+                        current_len + field_char_count > EMBED_TOTAL_CHAR_LIMIT
+                        or j > 24
+                    ):
+                        next_embed_dict: EmbedDict = {
+                            attr: embed_dict.pop(attr)
+                            for attr in ("color", "image", "footer")
+                            if attr in embed_dict
+                        }
+                        if "color" in next_embed_dict:
+                            embed_dict["color"] = next_embed_dict["color"]
+
+                        embed_dict["fields"] = fields[:j]
+                        next_embed_dict["fields"] = fields[j:]
+                        embed_dicts.insert(i + 1, next_embed_dict)
+
+                        updated = True
+                        break
+
+                    current_len += field_char_count
+
+            if "footer" in embed_dict and "text" in embed_dict["footer"]:
+                for _ in range(2):
+                    footer_text = embed_dict["footer"]["text"]
+                    footer_text_len = len(footer_text)
+                    if (
+                        footer_text_len > EMBED_CHAR_LIMITS["footer.text"]
+                        or current_len + footer_text_len > EMBED_TOTAL_CHAR_LIMIT
+                    ):
+                        if i + 1 < len(embed_dicts):
+                            next_embed_dict = embed_dicts[i + 1]
+                        else:
+                            next_embed_dict: EmbedDict = {
+                                "footer": {
+                                    attr: embed_dict["footer"].pop(attr)
+                                    for attr in ("icon_url", "proxy_icon_url")
+                                    if attr in embed_dict["footer"]
+                                }
+                            }
+                            if "color" in embed_dict:
+                                next_embed_dict["color"] = embed_dict["color"]
+
+                            embed_dicts.insert(i + 1, next_embed_dict)
+
+                        if footer_text_len > EMBED_CHAR_LIMITS["footer.text"]:
+                            split_index = EMBED_CHAR_LIMITS["footer.text"] - 1
+                        elif current_len + footer_text_len > EMBED_TOTAL_CHAR_LIMIT:
+                            split_index = (
+                                footer_text_len
+                                - (
+                                    current_len
+                                    + footer_text_len
+                                    - EMBED_TOTAL_CHAR_LIMIT
+                                )
+                                - 1
+                            )
+
+                        normal_split = True
+
+                        if (
+                            (
+                                url_matches := tuple(
+                                    re.finditer(regex_patterns.URL, footer_text)
+                                )
+                            )
+                            and (url_match := url_matches[-1]).start() < split_index
+                            and url_match.end() > split_index
+                        ):
+                            if (
+                                (
+                                    (match_span := url_match.span())[1]
+                                    - match_span[0]
+                                    + 1
+                                )
+                            ) <= EMBED_CHAR_LIMITS[
+                                "footer.text"
+                            ]:  # shift entire URL down
+                                embed_dict["footer"]["text"] = footer_text[
+                                    : url_match.start()
+                                ]
+                                next_embed_dict["footer"]["text"] = (
+                                    footer_text[url_match.start() :]
+                                    + f' {next_embed_dict["footer"]["text"]}'
+                                ).strip()
+                                normal_split = False
+
+                        if normal_split:
+                            embed_dict["footer"]["text"] = footer_text[:split_index]
+                            next_embed_dict["footer"]["text"] = (
+                                footer_text[split_index:]
+                                + f' {next_embed_dict["footer"]["text"]}'
+                            ).strip()
+
+                        if not embed_dict["footer"]["text"]:
+                            del embed_dict["footer"]["text"]
+
+                        if next_embed_dict["footer"]:
+                            embed_dicts.insert(i + 1, next_embed_dict)
+
+                        updated = True
+
+                current_len += len(footer_text)
+
+    return embed_dicts
 
 
 def check_embed_dict_char_count(embed_dict: EmbedDict) -> int:
@@ -541,8 +1081,7 @@ def check_embed_dict_char_count(embed_dict: EmbedDict) -> int:
     """
     count = 0
 
-    author = embed_dict.get("author")
-    if author is not None:
+    if (author := embed_dict.get("author")) is not None:
         count += len(author.get("name", ""))
 
     count += len(embed_dict.get("title", "")) + len(embed_dict.get("description", ""))
@@ -552,8 +1091,7 @@ def check_embed_dict_char_count(embed_dict: EmbedDict) -> int:
     for field in fields:
         count += len(field.get("name", "")) + len(field.get("value", ""))
 
-    footer = embed_dict.get("footer")
-    if footer is not None:
+    if (footer := embed_dict.get("footer")) is not None:
         count += len(footer.get("text", ""))
 
     return count
@@ -593,7 +1131,7 @@ def validate_embed_dict_char_count(embed_dict: EmbedDict) -> bool:
 
     fields = embed_dict.get("fields", [])
 
-    if len(fields) > EMBED_FIELD_LIMIT:
+    if len(fields) > EMBED_FIELDS_LIMIT:
         return False
 
     for field in fields:
@@ -617,7 +1155,7 @@ def validate_embed_dict_char_count(embed_dict: EmbedDict) -> bool:
 
         count += footer_text_count
 
-    return count <= EMBED_CHARACTER_LIMIT
+    return count <= EMBED_TOTAL_CHAR_LIMIT
 
 
 def validate_embed_dict(embed_dict: EmbedDict) -> bool:
