@@ -103,7 +103,14 @@ class EmbedPaginator:
             color=self._theme_color,
         )
 
+        self._current_event_task: Optional[
+            asyncio.Task[discord.RawReactionActionEvent]
+        ] = None
+
+        self._is_running = True
         self._stopped = False
+        self._told_to_stop = False
+
         self._callers = None
 
         if isinstance(caller, discord.Member):
@@ -116,6 +123,8 @@ class EmbedPaginator:
             if whitelisted_role_ids is not None
             else None
         )
+
+        self._stop_futures: list[asyncio.Future[bool]] = []
 
     @property
     def message(self):
@@ -173,7 +182,7 @@ class EmbedPaginator:
             self.set_page_number(len(self._pages))
 
         elif reaction == self._control_emojis.get("stop", ("",))[0]:
-            self._stopped = True
+            self._told_to_stop = True
             return
 
         elif reaction == self._control_emojis.get("info", ("",))[0]:
@@ -286,7 +295,22 @@ class EmbedPaginator:
 
     def is_running(self):
         """Whether the paginator is currently running."""
-        return not self._stopped
+        return self._is_running
+
+    def stopped(self):
+        return self._stopped
+
+    async def stop(self) -> bool:
+        if not self._is_running:
+            return False
+
+        if self._current_event_task is not None and not self._current_event_task.done():
+            self._current_event_task.cancel()
+
+        self._told_to_stop = True
+        fut = asyncio.get_running_loop().create_future()
+        self._stop_futures.append(fut)
+        await fut
 
     async def mainloop(
         self, client: Union[discord.Client, discord.AutoShardedClient, None] = None
@@ -297,25 +321,38 @@ class EmbedPaginator:
 
         client = client or config.conf.global_client
 
+        self._is_running = True
+        self._told_to_stop = False
+        self._stopped = False
+
         try:
             if not await self._setup():
+                self._is_running = False
+                self._told_to_stop = False
+                self._stopped = True
                 return
         except (discord.HTTPException, asyncio.CancelledError):
+            self._is_running = False
+            self._told_to_stop = False
+            self._stopped = True
             return
 
-        self._stopped = False
-        while not self._stopped:
+        while self._is_running:
             listening_start = time.time()
             try:
-                event = await client.wait_for(
-                    "raw_reaction_add",
-                    timeout=self._inactivity_timeout,
-                    check=(
-                        lambda event: event.message_id == self._message.id
-                        and isinstance(event.member, discord.Member)
-                        and not event.member.bot
-                    ),
+                self._current_event_task = asyncio.create_task(
+                    client.wait_for(
+                        "raw_reaction_add",
+                        timeout=self._inactivity_timeout,
+                        check=(
+                            lambda event: event.message_id == self._message.id
+                            and isinstance(event.member, discord.Member)
+                            and not event.member.bot
+                        ),
+                    )
                 )
+
+                event = await self._current_event_task
 
                 await self._message.remove_reaction(str(event.emoji), event.member)
 
@@ -328,11 +365,27 @@ class EmbedPaginator:
                     and self._message.edited_at.timestamp() - listening_start
                     < self._inactivity_timeout
                 ):
-                    self._stopped = True
+                    self._told_to_stop = True
             except (discord.HTTPException, asyncio.CancelledError):
-                self._stopped = True
+                self._told_to_stop = True
+
+            if self._told_to_stop:
+                self._is_running = False
+
+        self._told_to_stop = False
 
         try:
             await self._message.clear_reactions()
         except (discord.HTTPException, asyncio.CancelledError):
             pass
+
+        for fut in self._stop_futures:
+            if not fut.done():
+                fut.set_result(True)
+
+        self._stop_futures.clear()
+
+        self._stopped = True
+
+    def __await__(self):
+        return self.mainloop.__await__()

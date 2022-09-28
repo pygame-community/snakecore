@@ -125,7 +125,7 @@ def kwarg_command(
 
         new_param_list.append(
             commands.Parameter(
-                "__keyword_only_flag__",
+                "keywords",
                 inspect.Parameter.KEYWORD_ONLY,
                 annotation=flags_cls,
             )
@@ -135,10 +135,8 @@ def kwarg_command(
             parameters=new_param_list, return_annotation=sig.return_annotation
         )
 
-        async def kwarg_command_wrapper(
-            *args, __keyword_only_flag__: flags_cls, **kwargs
-        ):
-            return await func(*args, **(__keyword_only_flag__.__dict__ | kwargs))
+        async def kwarg_command_wrapper(*args, keywords: flags_cls, **kwargs):
+            return await func(*args, **(keywords.__dict__ | kwargs))
 
         functools.update_wrapper(kwarg_command_wrapper, func)
         del kwarg_command_wrapper.__wrapped__  # don't reveal wrapped function here
