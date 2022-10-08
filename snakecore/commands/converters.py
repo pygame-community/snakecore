@@ -162,7 +162,7 @@ class CodeBlock:
                 code = markdown[newline_idx + 1 : -3]
 
             code = code.replace(
-                "\```", "```"
+                "\\```", "```"
             )  # support nested code blocks that were properly escaped
 
         else:
@@ -304,7 +304,7 @@ class Parens(commands.Converter[tuple]):
 
     """
 
-    def __init__(self, converters: tuple[T]) -> None:
+    def __init__(self, converters) -> None:
         super().__init__()
         self.converters = self.__args__ = converters
         self.__origin__ = tuple
@@ -317,7 +317,7 @@ class Parens(commands.Converter[tuple]):
                 converter.parens_depth = self.parens_depth + 1
                 converter._increment_nested_parens_depth()
 
-    def __class_getitem__(cls, params: Union[tuple[T], T]) -> "Parens[T]":
+    def __class_getitem__(cls, params: Union[tuple[T], T]) -> "Parens":
         if not isinstance(params, tuple):
             params = (params,)
         if len(params) == 2 and params[1] is Ellipsis:
@@ -361,7 +361,7 @@ class Parens(commands.Converter[tuple]):
 
             converters.append(converter)
 
-        return cls(converters=converters)
+        return cls(converters=tuple(converters))
 
     async def convert(self, ctx: commands.Context, argument: str) -> tuple[Any, ...]:
 
@@ -461,7 +461,7 @@ class Parens(commands.Converter[tuple]):
 
                     try:
                         transformed = await commands.run_converters(
-                            ctx, converter, fake_argument, fake_parameter
+                            ctx, converter, fake_argument, fake_parameter  # type: ignore fake_argument won't become None
                         )
                         outputs.append(transformed)
 
@@ -477,7 +477,8 @@ class Parens(commands.Converter[tuple]):
                         )
 
                     if (
-                        ctx.command._is_typing_optional(fake_parameter.annotation)
+                        ctx.command
+                        and ctx.command._is_typing_optional(fake_parameter.annotation)
                         and transformed is None
                     ):
                         ctx.view.index = previous_index  # view.undo() does not revert properly for Optional[...]

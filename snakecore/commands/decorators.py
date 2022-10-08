@@ -8,6 +8,7 @@ their behavior.
 
 import functools
 import inspect
+import sys
 from typing import Any, Callable, Coroutine, Optional, TypeVar, Union
 
 import discord
@@ -18,11 +19,20 @@ import snakecore.commands.bot as sc_bot
 from snakecore.commands.parser import parse_command_str
 from ._types import AnyCommandType
 
+_T = TypeVar("_T")
+
+if sys.version_info >= (3, 10):
+    from typing import ParamSpec
+else:
+    from typing_extensions import ParamSpec
+
+_P = ParamSpec("_P")
+
 
 def kwarg_command(
     prefix: Optional[str] = "",
     delimiter: str = "=",
-) -> Callable[..., Coroutine[Any, Any, Any]]:
+) -> Callable[[Callable[_P, _T]], _T]:
     """Wraps a `discord.ext.commands` command function using a wrapper function
     that fakes its signature, whilst mapping the `.__dict__`s key-value pairs from
     an implicitly generated `commands.FlagConverter` subclass's object to its
@@ -53,7 +63,7 @@ def kwarg_command(
           wrapper function.
     """
 
-    def kwarg_command_inner_deco(func: Callable[..., Coroutine[Any, Any, Any]]):
+    def kwarg_command_inner_deco(func: Callable[_P, _T]) -> Callable[_P, _T]:
         sig = inspect.signature(func)
 
         flag_dict = {"__annotations__": {}}
@@ -135,8 +145,8 @@ def kwarg_command(
             parameters=new_param_list, return_annotation=sig.return_annotation
         )
 
-        async def kwarg_command_wrapper(*args, keywords: flags_cls, **kwargs):
-            return await func(*args, **(keywords.__dict__ | kwargs))
+        async def kwarg_command_wrapper(*args, keywords: flags_cls, **kwargs):  # type: ignore
+            return await func(*args, **(keywords.__dict__ | kwargs))  # type: ignore
 
         functools.update_wrapper(kwarg_command_wrapper, func)
         del kwarg_command_wrapper.__wrapped__  # don't reveal wrapped function here
@@ -148,14 +158,14 @@ def kwarg_command(
         kwarg_command_wrapper.__wrapped_func_signature__ = sig
         kwarg_command_wrapper.__flagconverter_class__ = flags_cls
 
-        return kwarg_command_wrapper
+        return kwarg_command_wrapper  # type: ignore
 
-    return kwarg_command_inner_deco
+    return kwarg_command_inner_deco  # type: ignore
 
 
 def custom_parsing(
     *, inside_class: bool = False, inject_message_reference: bool = False
-) -> Callable[[Callable[..., Coroutine[Any, Any, Any]]], Any]:
+) -> Callable[[Callable[_P, _T]], _T]:
     """A decorator that registers a `discord.ext.commands` command function to
     use snakecore's custom argument parser. This returns a wrapper function that
     bypasses `discord.ext.commands` parsing system, parses the input string from
@@ -191,7 +201,7 @@ def custom_parsing(
     def custom_parsing_inner_deco(func: Callable[..., Coroutine[Any, Any, Any]]):
         if inside_class:
 
-            async def cmd_func_wrapper(
+            async def cmd_func_wrapper(  # type: ignore
                 self, ctx: commands.Context, *, raw_command_input: str = ""
             ):
                 signature = cmd_func_wrapper.__wrapped_func_signature__
@@ -238,10 +248,10 @@ def custom_parsing(
 
         return cmd_func_wrapper
 
-    return custom_parsing_inner_deco
+    return custom_parsing_inner_deco  # type: ignore
 
 
-def with_extras(**extras: Any) -> AnyCommandType:
+def with_extras(**extras: Any) -> Callable[[AnyCommandType], AnyCommandType]:
     """A convenience decorator for adding data into the `extras`
     attribute of a command object.
 
@@ -257,15 +267,15 @@ def with_extras(**extras: Any) -> AnyCommandType:
 
 
 def extension_config_setup_arguments(
-    setup: Callable[[Union[sc_bot.ExtBot, sc_bot.ExtAutoShardedBot], ...], None]  # type: ignore
-):
+    setup: Callable[..., Any]  # type: ignore
+) -> Callable[[Union[sc_bot.ExtBot, sc_bot.ExtAutoShardedBot]], Any]:
     """A convenience decorator that allows extension `setup()` functions to support
     receiving arguments from the `Ext(AutoSharded)Bot.get_extension_config(...)`
     function's output mapping, if available.
 
     Args:
         func (Callable[[Union[sc_bot.ExtBot, sc_bot.ExtAutoShardedBot], ...], None]):
-        The `setup()` function.
+          The `setup()` function.
     """
 
     async def setup_wrapper(bot: Union[sc_bot.ExtBot, sc_bot.ExtAutoShardedBot]):
