@@ -26,7 +26,7 @@ __title__ = "snakecore"
 __author__ = "pygame-community"
 __license__ = "MIT"
 __copyright__ = "Copyright 2022-present pygame-community"
-__version__ = "0.1.3"
+__version__ = "0.1.4"
 
 
 async def init(
