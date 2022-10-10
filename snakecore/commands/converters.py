@@ -7,8 +7,9 @@ This file defines some converters for command argument parsing.
 
 import datetime
 import re
+import sys
 import types
-from typing import TYPE_CHECKING, Any, Optional, TypeVar, Union
+from typing import Any, Optional, TypeVar, Union
 
 import discord
 from discord.ext import commands
@@ -490,6 +491,9 @@ class Parens(commands.Converter[tuple]):
         raise commands.BadArgument(
             f"Parsing parenthesized argument failed (at depth {self.parens_depth}): Failed to find parenthesized region"
         )
+
+    def __call__(self, *args: Any, **kwds: Any) -> Any:
+        pass
 
     def __repr__(self) -> str:
         return f"Parens[{', '.join(self._repr_converter(conv) for conv in self.converters)}]"

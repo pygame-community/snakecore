@@ -32,7 +32,7 @@ _P = ParamSpec("_P")
 def kwarg_command(
     prefix: Optional[str] = "",
     delimiter: str = "=",
-) -> Callable[[Callable[_P, _T]], _T]:
+) -> Callable[[Callable[_P, Any]], Any]:
     """Wraps a `discord.ext.commands` command function using a wrapper function
     that fakes its signature, whilst mapping the `.__dict__`s key-value pairs from
     an implicitly generated `commands.FlagConverter` subclass's object to its
