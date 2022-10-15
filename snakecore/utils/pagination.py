@@ -8,7 +8,7 @@ Discord.
 
 import asyncio
 import time
-from typing import Optional, Sequence, Union
+from typing import Iterable, Optional, Sequence, Union
 
 import discord
 from snakecore import config, constants
@@ -27,7 +27,7 @@ class EmbedPaginator:
         message: discord.Message,
         *pages: discord.Embed,
         caller: Optional[Union[discord.Member, Sequence[discord.Member]]] = None,
-        whitelisted_role_ids: Optional[Sequence[discord.Role]] = None,
+        whitelisted_role_ids: Optional[Iterable[int]] = None,
         start_page_number: int = 1,
         inactivity_timeout: Optional[int] = None,
         theme_color: int = 0,
@@ -119,9 +119,7 @@ class EmbedPaginator:
             self._callers = tuple(caller)
 
         self._whitelisted_role_ids = (
-            {int(i) for i in whitelisted_role_ids}
-            if whitelisted_role_ids is not None
-            else None
+            set(whitelisted_role_ids) if whitelisted_role_ids is not None else None
         )
 
         self._stop_futures: list[asyncio.Future[bool]] = []
@@ -239,15 +237,20 @@ class EmbedPaginator:
 
     def check_event(self, event: discord.RawReactionActionEvent):
         """Check if the event from `raw_reaction_add` can be passed down to `handle_reaction`"""
+        if not (
+            event.message_id == self._message.id
+            and isinstance(event.member, discord.Member)
+            and not event.member.bot
+        ):
+            return False
 
         if self._callers:
-
             for member in self._callers:
                 if member.id == event.user_id:
                     return True
 
         if self._whitelisted_role_ids is not None:
-            for role in event.member.roles:
+            for role in event.member.roles if event.member else ():
                 if role.id in self._whitelisted_role_ids:
                     return True
 
@@ -257,7 +260,7 @@ class EmbedPaginator:
         self,
         *pages: discord.Embed,
         callers: Optional[Union[discord.Member, Sequence[discord.Member]]] = UNSET,
-        whitelisted_role_ids: Optional[Sequence[discord.Role]] = UNSET,
+        whitelisted_role_ids: Optional[Sequence[int]] = UNSET,
         page_number: int = UNSET,
         inactivity_timeout: Optional[int] = UNSET,
         theme_color: int = UNSET,
@@ -282,9 +285,7 @@ class EmbedPaginator:
 
         if whitelisted_role_ids is not UNSET:
             self._whitelisted_role_ids = (
-                {int(i) for i in whitelisted_role_ids}
-                if whitelisted_role_ids is not None
-                else None
+                set(whitelisted_role_ids) if whitelisted_role_ids is not None else None
             )
 
         if theme_color is not UNSET:
@@ -300,7 +301,7 @@ class EmbedPaginator:
     def stopped(self):
         return self._stopped
 
-    async def stop(self) -> bool:
+    async def stop(self):
         if not self._is_running:
             return False
 
@@ -344,17 +345,15 @@ class EmbedPaginator:
                     client.wait_for(
                         "raw_reaction_add",
                         timeout=self._inactivity_timeout,
-                        check=(
-                            lambda event: event.message_id == self._message.id
-                            and isinstance(event.member, discord.Member)
-                            and not event.member.bot
-                        ),
+                        check=self.check_event,
                     )
                 )
 
                 event = await self._current_event_task
 
-                await self._message.remove_reaction(str(event.emoji), event.member)
+                await self._message.remove_reaction(
+                    str(event.emoji), discord.Object(event.user_id)
+                )
 
                 if self.check_event(event):
                     await self.handle_reaction(str(event.emoji))
@@ -363,7 +362,7 @@ class EmbedPaginator:
                 if (
                     self._message.edited_at is not None
                     and self._message.edited_at.timestamp() - listening_start
-                    < self._inactivity_timeout
+                    < (self._inactivity_timeout or 0)
                 ):
                     self._told_to_stop = True
             except (discord.HTTPException, asyncio.CancelledError):

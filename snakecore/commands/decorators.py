@@ -9,7 +9,7 @@ their behavior.
 import functools
 import inspect
 import sys
-from typing import Any, Callable, Coroutine, Optional, TypeVar, Union
+from typing import Any, Callable, Coroutine, Optional, Type, TypeVar, Union
 
 import discord
 from discord.ext import commands
@@ -29,10 +29,12 @@ else:
 _P = ParamSpec("_P")
 
 
-def kwarg_command(
+def flagconverter_kwargs(
+    *,
     prefix: Optional[str] = "",
-    delimiter: str = "=",
-) -> Callable[[Callable[_P, Any]], Any]:
+    delimiter: str = ":",
+    cls: Type[commands.FlagConverter] = commands.FlagConverter,
+) -> Callable[[Callable[_P, _T]], Callable[_P, _T]]:
     """Wraps a `discord.ext.commands` command function using a wrapper function
     that fakes its signature, whilst mapping the `.__dict__`s key-value pairs from
     an implicitly generated `commands.FlagConverter` subclass's object to its
@@ -56,14 +58,17 @@ def kwarg_command(
         prefix (Optional[str], optional): The prefix to pass to the `FlagConverter`
           subclass. Defaults to `""`.
         delimiter (Optional[str], optional): The delimiter to pass to the `FlagConverter`
-          subclass. Defaults to `"="`.
+          subclass. Defaults to `":"`.
 
     Returns:
         Callable[..., Coroutine[Any, Any, Any]]: The generated
           wrapper function.
     """
 
-    def kwarg_command_inner_deco(func: Callable[_P, _T]) -> Callable[_P, _T]:
+    if not issubclass(cls, commands.FlagConverter):
+        raise TypeError("argument 'cls' must be a subclass of FlagConverter")
+
+    def flagconverter_kwargs_inner_deco(func: Callable[_P, _T]) -> Callable[_P, _T]:
         sig = inspect.signature(func)
 
         flag_dict = {"__annotations__": {}}
@@ -122,20 +127,27 @@ def kwarg_command(
                         else param.annotation
                     )
 
+        if not flag_dict:
+            raise TypeError(
+                "decorated function/method must define keyword-only "
+                "arguments to be used as flags"
+            )
+
         FlagsMeta = type(commands.FlagConverter)
 
         flags_cls = FlagsMeta.__new__(
             FlagsMeta,
-            func.__name__ + "_KwargOnlyFlags",
+            func.__name__ + ".KeywordOnlyFlags",
             (commands.FlagConverter,),
-            attrs=flag_dict | dict(__qualname__=func.__qualname__ + "_KwargOnlyFlags"),
+            attrs=flag_dict
+            | dict(__qualname__=func.__qualname__ + ".KeywordOnlyFlags"),
             prefix=prefix or discord.utils.MISSING,
             delimiter=delimiter or discord.utils.MISSING,
         )
 
         new_param_list.append(
             commands.Parameter(
-                "keywords",
+                "flags",
                 inspect.Parameter.KEYWORD_ONLY,
                 annotation=flags_cls,
             )
@@ -145,27 +157,29 @@ def kwarg_command(
             parameters=new_param_list, return_annotation=sig.return_annotation
         )
 
-        async def kwarg_command_wrapper(*args, keywords: flags_cls, **kwargs):  # type: ignore
-            return await func(*args, **(keywords.__dict__ | kwargs))  # type: ignore
+        async def flagconverter_kwargs_wrapper(*args, flags: flags_cls, **kwargs):  # type: ignore
+            return await func(*args, **(flags.__dict__ | kwargs))  # type: ignore
 
-        functools.update_wrapper(kwarg_command_wrapper, func)
-        del kwarg_command_wrapper.__wrapped__  # don't reveal wrapped function here
+        functools.update_wrapper(flagconverter_kwargs_wrapper, func)
+        del (
+            flagconverter_kwargs_wrapper.__wrapped__
+        )  # don't reveal wrapped function here
 
-        kwarg_command_wrapper.__signature__ = (
+        flagconverter_kwargs_wrapper.__signature__ = (
             new_sig  # fake signature for wrapper function
         )
-        kwarg_command_wrapper.__wrapped_func__ = func
-        kwarg_command_wrapper.__wrapped_func_signature__ = sig
-        kwarg_command_wrapper.__flagconverter_class__ = flags_cls
+        flagconverter_kwargs_wrapper.__wrapped_func__ = func
+        flagconverter_kwargs_wrapper.__wrapped_func_signature__ = sig
+        flagconverter_kwargs_wrapper.KeywordOnlyFlags = flags_cls
 
-        return kwarg_command_wrapper  # type: ignore
+        return flagconverter_kwargs_wrapper  # type: ignore
 
-    return kwarg_command_inner_deco  # type: ignore
+    return flagconverter_kwargs_inner_deco  # type: ignore
 
 
 def custom_parsing(
     *, inside_class: bool = False, inject_message_reference: bool = False
-) -> Callable[[Callable[_P, _T]], _T]:
+) -> Callable[[Callable[_P, _T]], Callable[_P, _T]]:
     """A decorator that registers a `discord.ext.commands` command function to
     use snakecore's custom argument parser. This returns a wrapper function that
     bypasses `discord.ext.commands` parsing system, parses the input string from
@@ -198,7 +212,7 @@ def custom_parsing(
         Callable[..., Coroutine[Any, Any, Any]]: A wrapper callable object.
     """
 
-    def custom_parsing_inner_deco(func: Callable[..., Coroutine[Any, Any, Any]]):
+    def custom_parsing_inner_deco(func: Callable[_P, _T]) -> Callable[_P, _T]:
         if inside_class:
 
             async def cmd_func_wrapper(  # type: ignore
@@ -213,7 +227,7 @@ def custom_parsing(
                     inject_message_reference=inject_message_reference,
                 )
 
-                return await func(self, ctx, *parsed_args, **parsed_kwargs)
+                return await func(self, ctx, *parsed_args, **parsed_kwargs)  # type: ignore
 
         else:
 
@@ -229,7 +243,7 @@ def custom_parsing(
                     inject_message_reference=inject_message_reference,
                 )
 
-                return await func(ctx, *parsed_args, **parsed_kwargs)
+                return await func(ctx, *parsed_args, **parsed_kwargs)  # type: ignore
 
         functools.update_wrapper(cmd_func_wrapper, func)
         del cmd_func_wrapper.__wrapped__  # don't reveal wrapped function here
@@ -246,7 +260,7 @@ def custom_parsing(
         cmd_func_wrapper.__wrapped_func__ = func
         cmd_func_wrapper.__wrapped_func_signature__ = new_sig
 
-        return cmd_func_wrapper
+        return cmd_func_wrapper  # type: ignore
 
     return custom_parsing_inner_deco  # type: ignore
 
@@ -266,9 +280,7 @@ def with_extras(**extras: Any) -> Callable[[AnyCommandType], AnyCommandType]:
     return inner_with_extras
 
 
-def extension_config_setup_arguments(
-    setup: Callable[..., Any]  # type: ignore
-) -> Callable[[Union[sc_bot.ExtBot, sc_bot.ExtAutoShardedBot]], Any]:
+def with_config_kwargs(setup: Callable[_P, Any]) -> Callable[[commands.Bot], Any]:
     """A convenience decorator that allows extension `setup()` functions to support
     receiving arguments from the `Ext(AutoSharded)Bot.get_extension_config(...)`
     function's output mapping, if available.
@@ -278,11 +290,19 @@ def extension_config_setup_arguments(
           The `setup()` function.
     """
 
-    async def setup_wrapper(bot: Union[sc_bot.ExtBot, sc_bot.ExtAutoShardedBot]):
+    async def setup_wrapper(bot: commands.Bot):
         if isinstance(bot, (sc_bot.ExtBot, sc_bot.ExtAutoShardedBot)):
             config_mapping = bot.get_extension_config(setup.__module__, {})
-            return await setup(bot, **config_mapping)
+            return await setup(
+                bot,  # type: ignore
+                **{
+                    param.name: config_mapping[param.name]
+                    for param in tuple(inspect.signature(setup).parameters.values())[1:]
+                    if param.kind in (param.POSITIONAL_OR_KEYWORD, param.KEYWORD_ONLY)
+                    and param.name in config_mapping
+                },
+            )
 
-        return await setup(bot)
+        return await setup(bot)  # type: ignore
 
     return setup_wrapper

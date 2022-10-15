@@ -9,7 +9,18 @@ import datetime
 import re
 import sys
 import types
-from typing import Any, Optional, TypeVar, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Generic,
+    Iterator,
+    Literal,
+    Optional,
+    Tuple,
+    TypeVar,
+    Union,
+)
+from typing_extensions import TypeVarTuple, Unpack
 
 import discord
 from discord.ext import commands
@@ -285,51 +296,37 @@ def find_parenthesized_region(string: str, opening: str = "(", closing: str = ")
     return slice(bstart, bend)
 
 
-class Parens(commands.Converter[tuple]):
-    """A special converter that establishes its own scope of arguments
-    and parses argument tuples.
+class _Parens(commands.Converter[tuple]):
 
-    The recognized arguments are converted into their desired formats
-    using the converters given to it as input, which are then converted
-    into a tuple of arguments. This can be used to implement parsing
-    of argument tuples. Nesting is also supported, as well as variadic
-    parsing of argument tuples. The syntax is similar to type annotations
-    using the `tuple` type (tuple[int, ...] = Parens[int, ...], etc.).
-
-    Arguments for this converter must be surrounded by whitespace, followed
-    by round parentheses on both sides (`'( ... ... ... )'`).
-
-    Syntax:
-        - `"( 1 2 4 5.5 )" -> (1, 2, 4, 5.5)`
-        - `'( 1 ( 4 ) () ( ( 6 ( "a" ) ) ) 0 )' -> (1, (4,), (), ((6,("a",),),), 0)`
-
-    """
+    OPENING_BRACKET = "("
+    CLOSING_BRACKET = ")"
 
     def __init__(self, converters) -> None:
         super().__init__()
-        self.converters = self.__args__ = converters
-        self.__origin__ = tuple
+        self.converters = converters
         self.parens_depth = 1
         self._increment_nested_parens_depth()
 
     def _increment_nested_parens_depth(self):
         for converter in self.converters:
-            if isinstance(converter, Parens):
+            if isinstance(converter, self.__class__):
                 converter.parens_depth = self.parens_depth + 1
                 converter._increment_nested_parens_depth()
 
-    def __class_getitem__(cls, params: Union[tuple[T], T]) -> "Parens":
+    def __class_getitem__(cls, params: Any):
         if not isinstance(params, tuple):
             params = (params,)
         if len(params) == 2 and params[1] is Ellipsis:
             if params[0] is Ellipsis:
                 raise TypeError(
-                    "Parens[Ellipsis] or Parens[Ellipsis, [<other type>,]] is invalid."
+                    f"{cls.__name__}[Ellipsis] or {cls.__name__}[Ellipsis, [<other type>,]] "
+                    "is invalid."
                 )
 
         elif len(params) > 2 and params[-1] is Ellipsis:
             raise TypeError(
-                "Parens[<other type>, [<other type>, ...,] Ellipsis] is invalid."
+                f"{cls.__name__}[<other type>, [<other type>, ...,] Ellipsis] is "
+                "invalid."
             )
 
         converters = []
@@ -351,152 +348,214 @@ class Parens(commands.Converter[tuple]):
                 or converter is Ellipsis
             ):
                 raise TypeError(
-                    "Parens[...] expects a type or a Converter instance, or a tuple of them."
+                    f"{cls.__name__}[...] expects a type or a Converter instance, or "
+                    "a tuple of them."
                 )
 
             if (
                 converter in (commands.Greedy, type(None), discord.Attachment)
                 or origin is commands.Greedy
             ):
-                raise TypeError(f"Parens[{converter.__name__}] is invalid.")  # type: ignore
+                raise TypeError(f"{cls.__name__}[{converter.__name__}] is invalid.")  # type: ignore
 
             converters.append(converter)
 
-        return cls(converters=tuple(converters))
+        return cls(converters=converters)
+
+    @staticmethod
+    def _find_parenthesized_region(string: str, opening: str, closing: str):
+        bstart = 0
+        bend = 0
+        scope_level = -1
+        if string.startswith(closing):
+            return slice(bstart, bend)
+        for i, s in enumerate(string):
+            if s == opening:
+                scope_level += 1
+                if scope_level == 0:
+                    bstart = i
+            elif s == closing:
+                if scope_level == 0:
+                    bend = i + 1
+                    return slice(bstart, bend)
+                scope_level -= 1
+        return slice(bstart, bend)
 
     async def convert(self, ctx: commands.Context, argument: str) -> tuple[Any, ...]:
+        if not argument.startswith(self.OPENING_BRACKET):
+            raise commands.BadArgument(
+                "Parsing parenthesized argument failed "
+                f"(at depth {self.parens_depth}): Failed to find parenthesized region, must be enclosed as "
+                f"'{self.OPENING_BRACKET} ... {self.CLOSING_BRACKET}'"
+            )
+        elif argument == f"{self.OPENING_BRACKET}{self.CLOSING_BRACKET}":
+            return ()
 
-        if argument.startswith("("):
-            if argument == "()":
-                return ()
-            else:
-                if len(argument) > 1 and not argument[1].isspace():
-                    raise commands.BadArgument(
-                        f"Parsing parenthesized argument failed (at depth {self.parens_depth}): Content of parenthesized region must be surrounded by whitespace"
-                    )
-                parsed_argument = argument.strip("\n").strip()
-                parens_slice = find_parenthesized_region(
-                    ctx.view.buffer[ctx.view.index - len(parsed_argument) :]
+        if len(argument) > 1 and not argument[1].isspace():
+            raise commands.BadArgument(
+                "Parsing parenthesized argument failed "
+                f"(at depth {self.parens_depth}): Content of parenthesized "
+                "region must be surrounded by whitespace"
+            )
+
+        parsed_argument = argument.strip("\n").strip()
+        parens_slice = self._find_parenthesized_region(
+            ctx.view.buffer[ctx.view.index - len(parsed_argument) :],
+            self.OPENING_BRACKET,
+            self.CLOSING_BRACKET,
+        )
+        if parens_slice.start == parens_slice.stop == 0:
+            raise commands.BadArgument(
+                "Parsing parenthesized argument failed "
+                f"(at depth {self.parens_depth}): Could not find parenthesized "
+                "region, must be enclosed as "
+                f"'{self.OPENING_BRACKET} ... {self.CLOSING_BRACKET}'"
+            )
+
+        parens_slice = slice(
+            parens_slice.start + ctx.view.index,
+            parens_slice.stop + ctx.view.index,
+        )  # offset slice to match the view's buffer string
+        parsed_argument = ctx.view.buffer[parens_slice]
+
+        old_previous = ctx.view.previous
+        old_index = ctx.view.index
+        original_parameter = ctx.current_parameter
+        fake_parameter = commands.parameter()
+
+        ctx.view.index -= len(argument)
+        ctx.view.read(1)  # move right after starting bracket '('
+
+        outputs = []
+        converter_index = 0
+
+        is_variadic = self.converters[-1] is Ellipsis
+
+        while True:
+            if ctx.view.index >= parens_slice.stop - 1:
+                break
+
+            ctx.view.skip_ws()
+
+            if (
+                ctx.view.current == self.CLOSING_BRACKET
+                and converter_index < len(self.converters) - 1
+            ):
+                # reset any StringView changes done by this converter
+                ctx.current_parameter = original_parameter
+                ctx.current_argument = argument
+                ctx.view.previous = old_previous
+                ctx.view.index = old_index
+                raise commands.BadArgument(
+                    "Parsing parenthesized argument failed "
+                    f"(at depth {self.parens_depth}): Too few arguments in "
+                    "parenthesized region"
                 )
-                if parens_slice.start == parens_slice.stop == 0:
-                    raise commands.BadArgument(
-                        f"Parsing parenthesized argument failed (at depth {self.parens_depth}): Could not find parenthesized region"
-                    )
 
-                parens_slice = slice(
-                    parens_slice.start + ctx.view.index,
-                    parens_slice.stop + ctx.view.index,
-                )  # offset slice to match the view's buffer string
-                parsed_argument = ctx.view.buffer[parens_slice]
+            if converter_index == len(self.converters) - 1 and is_variadic:
+                if ctx.view.current == self.CLOSING_BRACKET:
+                    ctx.view.get()
+                    break
 
-                old_previous = ctx.view.previous
-                old_index = ctx.view.index
-                ctx.view.index -= len(argument)
-                ctx.view.read(1)  # move right after starting bracket '('
+                converter_index -= 1
+            elif (
+                converter_index == len(self.converters)
+                and ctx.view.current == self.CLOSING_BRACKET
+            ):  # end of parenthesized region
+                ctx.view.get()
+                break
 
-                outputs = []
-                converter_index = 0
+            try:
+                converter = self.converters[converter_index]
+            except IndexError:
+                ctx.current_parameter = original_parameter
+                ctx.current_argument = argument
+                ctx.view.previous = old_previous
+                ctx.view.index = old_index
+                raise commands.BadArgument(
+                    "Parsing parenthesized argument failed "
+                    f"(at depth {self.parens_depth}): Too many arguments in "
+                    "parenthesized region"
+                )
 
-                original_parameter = ctx.current_parameter
-                fake_parameter = commands.parameter()
+            converter_index += 1
 
-                is_variadic = self.converters[-1] is Ellipsis
+            fake_parameter._annotation = converter
+            ctx.current_parameter = fake_parameter
 
-                while True:
-                    if ctx.view.index >= parens_slice.stop - 1:
-                        break
+            previous_previous = ctx.view.previous
+            previous_index = ctx.view.index
+            try:
+                ctx.current_argument = fake_argument = ctx.view.get_quoted_word()
 
-                    ctx.view.skip_ws()
-
-                    if (
-                        ctx.view.current == ")"
-                        and converter_index < len(self.converters) - 1
-                    ):
-                        raise commands.BadArgument(
-                            f"Parsing parenthesized argument failed (at depth {self.parens_depth}): Too few arguments in parenthesized region"
-                        )
-
-                    if converter_index == len(self.converters) - 1 and is_variadic:
-                        if ctx.view.current == ")":
-                            ctx.view.get()
-                            break
-
-                        converter_index -= 1
-                    elif (
-                        converter_index == len(self.converters)
-                        and ctx.view.current == ")"
-                    ):  # end of parenthesized region
-                        ctx.view.get()
-                        break
-
-                    try:
-                        converter = self.converters[converter_index]
-                    except IndexError:
-                        raise commands.BadArgument(
-                            f"Parsing parenthesized argument failed (at depth {self.parens_depth}): Too many arguments in parenthesized region"
-                        )
-
-                    converter_index += 1
-
-                    fake_parameter._annotation = converter
-                    ctx.current_parameter = fake_parameter
-
-                    previous_previous = ctx.view.previous
-                    previous_index = ctx.view.index
-                    try:
-                        ctx.current_argument = (
-                            fake_argument
-                        ) = ctx.view.get_quoted_word()
-
-                    except commands.ArgumentParsingError as err:
-
-                        ctx.current_parameter = original_parameter
-                        ctx.current_argument = argument
-                        ctx.view.previous = old_previous
-                        ctx.view.index = old_index
-                        raise commands.BadArgument(
-                            f"Parsing parenthesized argument failed (at depth {self.parens_depth}): Failed to parse parenthesized contents"
-                        )
-
-                    ctx.current_parameter = fake_parameter
-
-                    try:
-                        transformed = await commands.run_converters(
-                            ctx, converter, fake_argument, fake_parameter  # type: ignore fake_argument won't become None
-                        )
-                        outputs.append(transformed)
-
-                    except commands.UserInputError as err:
-                        ctx.current_parameter = original_parameter
-                        ctx.current_argument = argument
-                        ctx.view.previous = old_previous
-                        ctx.view.index = old_index
-                        if isinstance(converter, Parens):
-                            raise
-                        raise commands.BadArgument(
-                            f"Parsing parenthesized argument failed (at depth {self.parens_depth}): Failed to parse parenthesized contents"
-                        )
-
-                    if (
-                        ctx.command
-                        and ctx.command._is_typing_optional(fake_parameter.annotation)
-                        and transformed is None
-                    ):
-                        ctx.view.index = previous_index  # view.undo() does not revert properly for Optional[...]
-                        ctx.view.previous = previous_previous
+            except commands.ArgumentParsingError:
 
                 ctx.current_parameter = original_parameter
-                return tuple(outputs)
+                ctx.current_argument = argument
+                ctx.view.previous = old_previous
+                ctx.view.index = old_index
+                raise commands.BadArgument(
+                    "Parsing parenthesized argument failed "
+                    f"(at depth {self.parens_depth}): Failed to parse "
+                    "parenthesized contents"
+                )
 
-        raise commands.BadArgument(
-            f"Parsing parenthesized argument failed (at depth {self.parens_depth}): Failed to find parenthesized region"
-        )
+            ctx.current_parameter = fake_parameter
+
+            try:
+                transformed = await commands.run_converters(
+                    ctx, converter, fake_argument, fake_parameter  # type: ignore
+                )  # fake_argument won't become None
+                outputs.append(transformed)
+
+            except commands.UserInputError as err:
+                ctx.current_parameter = original_parameter
+                ctx.current_argument = argument
+                ctx.view.previous = old_previous
+                ctx.view.index = old_index
+                if isinstance(converter, self.__class__):
+                    raise
+                elif (
+                    fake_argument
+                    and len(fake_argument) > 1
+                    and (
+                        fake_argument.startswith(self.OPENING_BRACKET)
+                        and not fake_argument[1].isspace()
+                        or fake_argument.endswith(self.CLOSING_BRACKET)
+                        and not fake_argument[-2].isspace()
+                    )
+                ):
+                    raise commands.BadArgument(
+                        "Parsing parenthesized argument failed "
+                        f"(at depth {self.parens_depth}): Content of "
+                        "parenthesized region must be surrounded by whitespace"
+                    ) from err
+
+                raise commands.BadArgument(
+                    "Parsing parenthesized argument failed "
+                    f"(at depth {self.parens_depth}): Failed to parse "
+                    "parenthesized argument at position "
+                    f"{converter_index+1}: {err!s}"
+                ) from err
+
+            if (
+                ctx.command
+                and getattr(fake_parameter.annotation, "__origin__", None) is Union
+                and type(None)
+                in fake_parameter.annotation.__args__  # check for Optional[...]  # type: ignore
+                and transformed is None
+            ):
+                ctx.view.index = previous_index  # view.undo() does not revert properly for Optional[...]
+                ctx.view.previous = previous_previous
+
+        ctx.current_parameter = original_parameter
+        return tuple(outputs)
 
     def __call__(self, *args: Any, **kwds: Any) -> Any:
         pass
 
     def __repr__(self) -> str:
-        return f"Parens[{', '.join(self._repr_converter(conv) for conv in self.converters)}]"
+        return f"{self.__class__.__name__}[{', '.join(self._repr_converter(conv) for conv in self.converters)}]"
 
     @staticmethod
     def _repr_converter(obj):
@@ -511,6 +570,51 @@ class Parens(commands.Converter[tuple]):
         if isinstance(obj, types.FunctionType):
             return obj.__name__
         return repr(obj)
+
+
+if TYPE_CHECKING:
+    _PT = TypeVarTuple("_PT")
+
+    class Parens(Tuple[Unpack[_PT]]):
+        """A special converter that establishes its own scope of arguments
+        and parses argument tuples.
+
+        The recognized arguments are converted into their desired formats
+        using the converters given to it as input, which are then converted
+        into a tuple of arguments. This can be used to implement parsing
+        of argument tuples. Nesting is also supported, as well as variadic
+        parsing of argument tuples. The syntax is similar to type annotations
+        using the `tuple` type (tuple[int, ...] = Parens[int, ...], etc.).
+
+        Arguments for this converter must be surrounded by whitespace, followed
+        by round parentheses on both sides (`'( ... ... ... )'`).
+
+        Syntax:
+            - `"( 1 2 4 5.5 )" -> (1, 2, 4, 5.5)`
+            - `'( 1 ( 4 ) () ( ( 6 ( "a" ) ) ) 0 )' -> (1, (4,), (), ((6,("a",),),), 0)`
+
+        """
+
+        def __init__(self, converters: Tuple[Unpack[_PT]]) -> None:
+            ...
+
+        def __iter__(self) -> Iterator[Any]:
+            ...
+
+        def __class_getitem__(cls, params: tuple[Unpack[_PT]]) -> "Parens[Unpack[_PT]]":
+            ...
+
+        async def convert(
+            self, ctx: commands.Context, argument: str
+        ) -> tuple[Any, ...]:
+            ...
+
+        def __call__(self, *args: Any, **kwds: Any) -> Any:
+            ...
+
+else:
+    _Parens.__name__ = "Parens"
+    Parens = _Parens
 
 
 class QuotedString(commands.Converter[str]):

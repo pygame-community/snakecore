@@ -10,7 +10,15 @@ import io
 import json
 import re
 from ast import literal_eval
-from typing import Literal, Optional, Sequence, TypedDict, Union
+from typing import (
+    Any,
+    Literal,
+    MutableMapping,
+    Optional,
+    Sequence,
+    TypedDict,
+    Union,
+)
 
 import black
 import discord
@@ -437,7 +445,9 @@ def create_embed_mask_dict(
     return embed_mask_dict
 
 
-def split_embed_dict(embed_dict: EmbedDict, divide_code_blocks: bool = True):
+def split_embed_dict(
+    embed_dict: MutableMapping[str, Any], divide_code_blocks: bool = True
+):
     """Split an embed dictionary into multiple valid embed dictionaries based on embed text
     attribute character limits and the total character limit of a single embed in a single
     message. This function will not correct invalid embed attributes or add any missing
@@ -452,6 +462,7 @@ def split_embed_dict(embed_dict: EmbedDict, divide_code_blocks: bool = True):
     Returns:
         list[dict]: A list of newly generated embed dictionaries.
     """
+
     embed_dict = copy_embed_dict(embed_dict)
     embed_dicts = [embed_dict]
     updated = True
@@ -586,7 +597,7 @@ def split_embed_dict(embed_dict: EmbedDict, divide_code_blocks: bool = True):
             if "description" in embed_dict:
                 description = embed_dict["description"]
                 if len(description) > EMBED_CHAR_LIMITS["description"]:
-                    next_embed_dict: EmbedDict = {
+                    next_embed_dict = {
                         attr: embed_dict.pop(attr)
                         for attr in ("color", "fields", "image", "footer")
                         if attr in embed_dict
@@ -862,7 +873,7 @@ def split_embed_dict(embed_dict: EmbedDict, divide_code_blocks: bool = True):
                                         + 1
                                     )
                                 ) <= EMBED_CHAR_LIMITS["field.value"]:
-                                    field["value"] = description[: code_match.start()]
+                                    field["value"] = field_value[: code_match.start()]
                                     next_field["value"] = (
                                         field_value[code_match.start() :]
                                         + f' {next_field["value"]}'
@@ -873,7 +884,7 @@ def split_embed_dict(embed_dict: EmbedDict, divide_code_blocks: bool = True):
                                 (
                                     inline_code_matches := tuple(
                                         re.finditer(
-                                            regex_patterns.CODE_BLOCK, description
+                                            regex_patterns.CODE_BLOCK, field_value
                                         )
                                     )
                                 )
@@ -888,10 +899,10 @@ def split_embed_dict(embed_dict: EmbedDict, divide_code_blocks: bool = True):
                                 if divide_code_blocks:
                                     field[
                                         "value"
-                                    ] = f'{description[: EMBED_CHAR_LIMITS["field.value"] - 1]}`'
+                                    ] = f'{field_value[: EMBED_CHAR_LIMITS["field.value"] - 1]}`'
 
                                     next_field["value"] = (
-                                        f'`{description[EMBED_CHAR_LIMITS["field.value"] - 1 :]}'
+                                        f'`{field_value[EMBED_CHAR_LIMITS["field.value"] - 1 :]}'
                                         f' {next_field["value"]}'
                                     ).strip()
                                     normal_split = False
@@ -904,7 +915,7 @@ def split_embed_dict(embed_dict: EmbedDict, divide_code_blocks: bool = True):
                                 ) <= EMBED_CHAR_LIMITS[
                                     "field.value"
                                 ]:  # shift entire inline code block down
-                                    field["value"] = description[
+                                    field["value"] = field_value[
                                         : inline_code_match.start()
                                     ]
                                     next_field["value"] = (
@@ -968,7 +979,7 @@ def split_embed_dict(embed_dict: EmbedDict, divide_code_blocks: bool = True):
                         current_len + field_char_count > EMBED_TOTAL_CHAR_LIMIT
                         or j > 24
                     ):
-                        next_embed_dict: EmbedDict = {
+                        next_embed_dict = {
                             attr: embed_dict.pop(attr)
                             for attr in ("color", "image", "footer")
                             if attr in embed_dict
@@ -986,6 +997,7 @@ def split_embed_dict(embed_dict: EmbedDict, divide_code_blocks: bool = True):
                     current_len += field_char_count
 
             if "footer" in embed_dict and "text" in embed_dict["footer"]:
+                footer_text = ""
                 for _ in range(2):
                     footer_text = embed_dict["footer"]["text"]
                     footer_text_len = len(footer_text)
@@ -996,7 +1008,7 @@ def split_embed_dict(embed_dict: EmbedDict, divide_code_blocks: bool = True):
                         if i + 1 < len(embed_dicts):
                             next_embed_dict = embed_dicts[i + 1]
                         else:
-                            next_embed_dict: EmbedDict = {
+                            next_embed_dict = {
                                 "footer": {
                                     attr: embed_dict["footer"].pop(attr)
                                     for attr in ("icon_url", "proxy_icon_url")
@@ -1010,7 +1022,7 @@ def split_embed_dict(embed_dict: EmbedDict, divide_code_blocks: bool = True):
 
                         if footer_text_len > EMBED_CHAR_LIMITS["footer.text"]:
                             split_index = EMBED_CHAR_LIMITS["footer.text"] - 1
-                        elif current_len + footer_text_len > EMBED_TOTAL_CHAR_LIMIT:
+                        else:
                             split_index = (
                                 footer_text_len
                                 - (
@@ -1065,12 +1077,12 @@ def split_embed_dict(embed_dict: EmbedDict, divide_code_blocks: bool = True):
 
                         updated = True
 
-                current_len += len(footer_text)
+                    current_len += len(footer_text)
 
     return embed_dicts
 
 
-def check_embed_dict_char_count(embed_dict: EmbedDict) -> int:
+def check_embed_dict_char_count(embed_dict: MutableMapping[str, Any]) -> int:
     """Count the number of characters in the text fields of an embed dictionary.
 
     Args:
@@ -1097,7 +1109,7 @@ def check_embed_dict_char_count(embed_dict: EmbedDict) -> int:
     return count
 
 
-def validate_embed_dict_char_count(embed_dict: EmbedDict) -> bool:
+def validate_embed_dict_char_count(embed_dict: MutableMapping[str, Any]) -> bool:
     """Check if all text attributes of an embed dictionary are below their respective
     character limits.
 
@@ -1158,7 +1170,7 @@ def validate_embed_dict_char_count(embed_dict: EmbedDict) -> bool:
     return count <= EMBED_TOTAL_CHAR_LIMIT
 
 
-def validate_embed_dict(embed_dict: EmbedDict) -> bool:
+def validate_embed_dict(embed_dict: MutableMapping[str, Any]) -> bool:
     """Checks if an embed dictionary can produce
     a viable embed on Discord. This also includes keeping to character limits on all
     embed attributes.
@@ -1192,12 +1204,12 @@ def validate_embed_dict(embed_dict: EmbedDict) -> bool:
             or k in ("author", "thumbnail", "image", "footer")
             and (not isinstance(v, dict))
             or k in ("thumbnail", "image")
-            and ("url" not in v or not isinstance(v["url"], str) or not v["url"])
+            and ("url" not in v or not isinstance(v["url"], str) or not v["url"])  # type: ignore
             or k == "author"
             and (
                 "name" not in v
                 or any(
-                    ak in v and (not isinstance(v[ak], str) or not v[ak])
+                    ak in v and (not isinstance(v[ak], str) or not v[ak])  # type: ignore
                     for ak in ("name", "url", "icon_url")
                 )
             )
@@ -1205,7 +1217,7 @@ def validate_embed_dict(embed_dict: EmbedDict) -> bool:
             and (
                 "text" not in v
                 or any(
-                    ak in v and (not isinstance(v[ak], str) or not v[ak])
+                    ak in v and (not isinstance(v[ak], str) or not v[ak])  # type: ignore
                     for ak in ("text", "icon_url")
                 )
             )
@@ -1246,8 +1258,8 @@ def validate_embed_dict(embed_dict: EmbedDict) -> bool:
 
 
 def filter_embed_dict(
-    embed_dict: EmbedDict, in_place: bool = True
-) -> Optional[EmbedDict]:
+    embed_dict: MutableMapping[str, Any], in_place: bool = True
+) -> Optional[MutableMapping[str, Any]]:
     """Delete invalid embed attributes in the given embed dictionary that would cause
     exceptionsfor structural errors. Note that the output embed dictionary of this
     function might still not be a viable embed dictionary to be sent to Discord's
@@ -1260,7 +1272,7 @@ def filter_embed_dict(
           Defaults to True.
 
     Returns:
-        Optional[dict]: A new filtered embed dictionary or `None` depending on the
+        Optional[MutableMapping[str, Any]]: A new filtered embed dictionary or `None` depending on the
           given arguments.
     """
 
@@ -1268,7 +1280,7 @@ def filter_embed_dict(
         embed_dict = copy_embed_dict(embed_dict)
 
     if not embed_dict or not isinstance(embed_dict, dict):
-        return False
+        return None
 
     embed_dict_len = len(embed_dict)
 
@@ -1295,7 +1307,7 @@ def filter_embed_dict(
             and (
                 "name" not in v
                 or any(
-                    ak in v and (not isinstance(v[ak], str) or not v[ak])
+                    ak in v and (not isinstance(v[ak], str) or not v[ak])  # type: ignore
                     for ak in ("name", "url", "icon_url")
                 )
             )
@@ -1303,7 +1315,7 @@ def filter_embed_dict(
             and (
                 "text" not in v
                 or any(
-                    ak in v and (not isinstance(v[ak], str) or not v[ak])
+                    ak in v and (not isinstance(v[ak], str) or not v[ak])  # type: ignore
                     for ak in ("text", "icon_url")
                 )
             )
@@ -1316,7 +1328,7 @@ def filter_embed_dict(
             if not isinstance(v, list):
                 del embed_dict[k]
 
-            for i, f in reversed(tuple(enumerate(v))):
+            for i, f in reversed(tuple(enumerate(v))):  # type: ignore
                 if (
                     not isinstance(f, dict)
                     or ("name" not in f or "value" not in f)
@@ -1329,11 +1341,11 @@ def filter_embed_dict(
                     or "inline" in f
                     and not isinstance(f["inline"], bool)
                 ):
-                    v.pop(i)
+                    v.pop(i)  # type: ignore
 
         elif k == "timestamp":
             if not isinstance(v, str):
-                return False
+                return None
             try:
                 datetime.datetime.fromisoformat(embed_dict[k])
             except ValueError:
@@ -1342,12 +1354,12 @@ def filter_embed_dict(
     if not in_place:
         return embed_dict
 
-    return
+    return None
 
 
 def handle_embed_dict_timestamp(
-    embed_dict: EmbedDict, *, in_place: bool = True
-) -> Optional[EmbedDict]:
+    embed_dict: MutableMapping[str, Any], *, in_place: bool = True
+) -> Optional[MutableMapping[str, Any]]:
     """Correct or delete the `"timestamp"` key's value in an embed dictionary.
 
     Args:
@@ -1357,7 +1369,7 @@ def handle_embed_dict_timestamp(
           Defaults to True.
 
     Returns:
-        Optional[dict]: A new embed dictionary, depending on which arguments were
+        Optional[MutableMapping[str, Any]]: A new embed dictionary, depending on which arguments were
           given.
     """
 
@@ -1365,15 +1377,15 @@ def handle_embed_dict_timestamp(
         embed_dict = copy_embed_dict(embed_dict)
 
     if "timestamp" in embed_dict:
-        timestamp = embed_dict.get("timestamp")
-        if isinstance(embed_dict.get("timestamp"), str):
+        timestamp = embed_dict["timestamp"]
+        if isinstance(timestamp, str):
             try:
-                final_timestamp = embed_dict["timestamp"].removesuffix("Z")
+                final_timestamp = timestamp.removesuffix("Z")
                 datetime.datetime.fromisoformat(final_timestamp)
                 embed_dict["timestamp"] = final_timestamp
             except ValueError:
                 del embed_dict["timestamp"]
-        elif isinstance(embed_dict.get("timestamp"), datetime.datetime):
+        elif isinstance(timestamp, datetime.datetime):
             embed_dict["timestamp"] = timestamp.isoformat()
         else:
             del embed_dict["timestamp"]
@@ -1384,7 +1396,7 @@ def handle_embed_dict_timestamp(
     return
 
 
-def copy_embed_dict(embed_dict: EmbedDict) -> EmbedDict:
+def copy_embed_dict(embed_dict: MutableMapping[str, Any]) -> dict:
     """Make a shallow copy of the given embed dictionary,
     and embed fields (if present).
 
@@ -1438,7 +1450,7 @@ def parse_embed_field_strings(
                 elif len(field_data) == 2:
                     field_data.append("")
 
-                field_data[2] = (
+                field_data[2] = (  # type: ignore
                     True if field_data[2].lower() in true_bool_strings else False
                 )
 
@@ -1594,7 +1606,7 @@ def parse_condensed_embed_list(embed_list: Union[list, tuple]) -> FlattenedEmbed
     if arg_count > 6:
         embed_args.update(timestamp=embed_list[6] + "")
 
-    return embed_args
+    return embed_args  # type: ignore
 
 
 def create_embed_as_dict(
@@ -1607,11 +1619,13 @@ def create_embed_as_dict(
     description: Optional[str] = None,
     image_url: Optional[str] = None,
     color: int = 0,
-    fields: Optional[Sequence[dict[str, Union[str, bool]]]] = None,
+    fields: Optional[
+        Sequence[Union[list[Union[str, bool]], tuple[str, str], tuple[str, str, bool]]]
+    ] = None,
     footer_text: Optional[str] = None,
     footer_icon_url: Optional[str] = None,
     timestamp: Optional[Union[str, datetime.datetime]] = None,
-) -> EmbedDict:
+) -> dict:
 
     embed_dict = {}
 
@@ -1658,7 +1672,7 @@ def create_embed_as_dict(
         fields_list = []
         embed_dict["fields"] = fields_list
         for i, field in enumerate(fields):
-            name, value, inline = _read_embed_field_dict(field_dict=field, index=i)
+            name, value, inline = _read_embed_field_dict(field_dict=field, index=i)  # type: ignore
             fields_list.append({"name": name, "value": value, "inline": inline})
 
     return embed_dict
@@ -1675,7 +1689,9 @@ def create_embed(
     description: Optional[str] = None,
     image_url: Optional[str] = None,
     color: int = 0,
-    fields: Optional[Sequence[dict[str, Union[str, bool]]]] = None,
+    fields: Optional[
+        Sequence[Union[list[Union[str, bool]], tuple[str, str], tuple[str, str, bool]]]
+    ] = None,
     footer_text: Optional[str] = None,
     footer_icon_url: Optional[str] = None,
     timestamp: Optional[Union[str, datetime.datetime]] = None,
@@ -1754,11 +1770,11 @@ def create_embed(
 
     if fields:
         for i, field in enumerate(fields):
-            name, value, inline = _read_embed_field_dict(field_dict=field, index=i)
+            name, value, inline = _read_embed_field_dict(field_dict=field, index=i)  # type: ignore
             embed.add_field(
                 name=name,
                 value=value,
-                inline=inline,
+                inline=inline or False,
             )
 
     if footer_text:
@@ -1781,7 +1797,9 @@ def edit_embed(
     description: Optional[str] = None,
     image_url: Optional[str] = None,
     color: int = -1,
-    fields: Optional[Sequence[dict[str, Union[str, bool]]]] = None,
+    fields: Optional[
+        Sequence[Union[list[Union[str, bool]], tuple[str, str], tuple[str, str, bool]]]
+    ] = None,
     footer_text: Optional[str] = None,
     footer_icon_url: Optional[str] = None,
     timestamp: Optional[Union[str, datetime.datetime]] = None,
@@ -1898,13 +1916,13 @@ def edit_embed(
                     inline = embed_field.inline
 
                     name, value, inline = _read_embed_field_dict(
-                        field_dict=field, index=i
+                        field_dict=field, index=i  # type: ignore
                     )
                     embed.set_field_at(
                         i,
                         name=name,
                         value=value,
-                        inline=inline,
+                        inline=inline or False,
                     )
 
                 else:
@@ -1945,14 +1963,14 @@ def edit_embed(
                     embed.add_field(
                         name=name,
                         value=value,
-                        inline=inline,
+                        inline=inline or False,
                     )
 
         if footer_text is not None:
             embed.set_footer(text=footer_text, icon_url=footer_icon_url)
 
     else:
-        old_embed_dict = embed.to_dict()
+        old_embed_dict: MutableMapping[str, Any] = embed.to_dict()  # type: ignore
         update_embed_dict = create_embed_as_dict(
             author_name=author_name,
             author_url=author_url,
@@ -1971,7 +1989,7 @@ def edit_embed(
 
         if edit_inner_fields:
             if "fields" in old_embed_dict:
-                old_embed_dict["fields"] = {
+                old_embed_dict["fields"] = {  # type: ignore
                     str(i): old_embed_dict["fields"][i]
                     for i in range(len(old_embed_dict["fields"]))
                 }
@@ -1981,13 +1999,13 @@ def edit_embed(
                     for i in range(len(update_embed_dict["fields"]))
                 }
 
-        recursive_mapping_update(old_embed_dict, update_embed_dict, add_new_keys=True)
+        recursive_mapping_update(old_embed_dict, update_embed_dict, add_new_keys=True)  # type: ignore
 
         if edit_inner_fields:
             if "fields" in old_embed_dict:
                 old_embed_dict["fields"] = [
                     old_embed_dict["fields"][i]
-                    for i in sorted(old_embed_dict["fields"].keys())
+                    for i in sorted(old_embed_dict["fields"].keys())  # type: ignore
                 ]
             if "fields" in update_embed_dict:
                 update_embed_dict["fields"] = [
@@ -2000,7 +2018,6 @@ def edit_embed(
 
 async def send_embed(
     channel: discord.abc.Messageable,
-    reference: Optional[Union[discord.Message, discord.MessageReference]] = None,
     *,
     author_name: Optional[str] = None,
     author_url: Optional[str] = None,
@@ -2017,6 +2034,9 @@ async def send_embed(
     footer_text: Optional[str] = None,
     footer_icon_url: Optional[str] = None,
     timestamp: Optional[Union[str, datetime.datetime]] = None,
+    reference: Optional[
+        Union[discord.Message, discord.MessageReference, discord.PartialMessage]
+    ] = None,
 ) -> discord.Message:
     """Create an embed using the given arguments and send it to a
     `discord.abc.Messageable` and return the resulting message.
@@ -2076,7 +2096,7 @@ async def send_embed(
         timestamp=timestamp,
     )
 
-    return await channel.send(embed=embed, reference=reference)
+    return await channel.send(embed=embed, reference=reference)  # type: ignore
 
 
 async def replace_embed_at(
@@ -2266,7 +2286,7 @@ async def edit_embed_at(
     else:
         return message
 
-    embeds[index] = edit_embed(
+    embeds[index] = edit_embed(  # type: ignore
         embed,
         in_place=False,
         edit_inner_fields=edit_inner_fields,
@@ -2288,7 +2308,7 @@ async def edit_embed_at(
     return await message.edit(embeds=embeds)
 
 
-def create_embed_from_dict(embed_dict: EmbedDict) -> discord.Embed:
+def create_embed_from_dict(embed_dict: MutableMapping[str, Any]) -> discord.Embed:
     """Create an embed from a given embed dictionary.
 
     Args:
@@ -2303,9 +2323,7 @@ def create_embed_from_dict(embed_dict: EmbedDict) -> discord.Embed:
     return discord.Embed.from_dict(embed_dict)
 
 
-async def send_embeds_from_dicts(
-    channel: discord.abc.Messageable, *embed_dicts: EmbedDict
-):
+async def send_embeds_from_dicts(channel: discord.abc.Messageable, *embed_dicts: dict):
     """Sends an embed from a dictionary with a much more tight function"""
     return await channel.send(
         embeds=[create_embed_from_dict(embed_dict) for embed_dict in embed_dicts]
@@ -2313,7 +2331,9 @@ async def send_embeds_from_dicts(
 
 
 async def replace_embed_from_dict_at(
-    message: discord.Message, embed_dict: EmbedDict, index: Optional[int] = None
+    message: discord.Message,
+    embed_dict: MutableMapping[str, Any],
+    index: Optional[int] = None,
 ):
     """Create an embed using the specified embed dictionary and use it to replace
     another embed of a given message at the specified index.
@@ -2354,7 +2374,7 @@ async def replace_embed_from_dict_at(
 
 async def edit_embed_from_dict_at(
     message: discord.Message,
-    embed_dict: EmbedDict,
+    embed_dict: MutableMapping[str, Any],
     index: int = 0,
     add_attributes: bool = True,
     edit_inner_fields: bool = False,
@@ -2387,7 +2407,7 @@ async def edit_embed_from_dict_at(
     if 0 <= index < len(message.embeds):
         embeds[index] = discord.Embed.from_dict(
             edit_embed_dict_from_dict(
-                embeds[index].to_dict(),
+                embeds[index].to_dict(),  # type: ignore
                 embed_dict,
                 in_place=False,
                 add_attributes=add_attributes,
@@ -2401,7 +2421,7 @@ async def edit_embed_from_dict_at(
 
 def edit_embed_from_dict(
     embed: discord.Embed,
-    update_embed_dict: dict,
+    update_embed_dict: MutableMapping[str, Any],
     in_place: bool = True,
     add_attributes: bool = True,
     edit_inner_fields: bool = False,
@@ -2481,8 +2501,8 @@ def edit_embed_from_dict(
                 )
             footer_text = footer.get("text")
             footer_icon_url = (
-                auth["icon_url"]
-                if auth.get("icon_url") is not None
+                footer["icon_url"]
+                if footer.get("icon_url") is not None
                 else embed.author.icon_url
             )
 
@@ -2559,7 +2579,7 @@ def edit_embed_from_dict(
                         i,
                         name=name,
                         value=value,
-                        inline=inline,
+                        inline=inline or False,
                     )
 
                 else:
@@ -2602,14 +2622,14 @@ def edit_embed_from_dict(
                     embed.add_field(
                         name=name,
                         value=value,
-                        inline=inline,
+                        inline=inline or False,
                     )
 
         return
 
     return discord.Embed.from_dict(
         edit_embed_dict_from_dict(
-            embed.to_dict(),
+            embed.to_dict(),  # type: ignore
             update_embed_dict,
             in_place=False,
             add_attributes=add_attributes,
@@ -2619,12 +2639,12 @@ def edit_embed_from_dict(
 
 
 def edit_embed_dict_from_dict(
-    old_embed_dict: EmbedDict,
-    update_embed_dict: dict,
+    old_embed_dict: MutableMapping[str, Any],
+    update_embed_dict: MutableMapping[str, Any],
     in_place: bool = True,
     add_attributes: bool = True,
     edit_inner_fields: bool = False,
-) -> Optional[EmbedDict]:
+) -> Optional[MutableMapping[str, Any]]:
     """Edit the attributes of a given embed dictionary using another dictionary.
 
     Args:
@@ -2640,7 +2660,7 @@ def edit_embed_dict_from_dict(
           one. Defaults to False.
 
     Returns:
-        Optional[dict]: A new embed dictionary or `None` depending on the given
+        Optional[MutableMapping[str, Any]]: A new embed dictionary or `None` depending on the given
           arguments.
     """
 
@@ -2680,11 +2700,15 @@ def edit_embed_dict_from_dict(
     if not in_place:
         return old_embed_dict
 
-    return
+    return None
 
 
 def _read_embed_field_dict(
-    field_dict: dict, allow_incomplete: bool = False, index: Optional[int] = None
+    field_dict: Sequence[
+        Union[list[Union[str, bool]], tuple[str, str], tuple[str, str, bool]]
+    ],
+    allow_incomplete: bool = False,
+    index: Optional[int] = None,
 ) -> tuple[Optional[str], Optional[str], Optional[bool]]:
     err_str = f" at `fields[{index}]`" if index is not None else ""
     name = value = inline = None
@@ -2773,7 +2797,7 @@ def add_embed_fields_from_dicts(
         embed.add_field(
             name=name,
             value=value,
-            inline=inline,
+            inline=inline or False,
         )
 
     if not in_place:
@@ -2806,13 +2830,12 @@ def insert_embed_fields_from_dicts(
         embed = embed.copy()
 
     for i, field in enumerate(field_dicts):
-        print(field)
-        name, value, inline = _read_embed_field_dict(field_dict=field, index=i)
+        name, value, inline = _read_embed_field_dict(field_dict=field, index=i)  # type: ignore
         embed.insert_field_at(
             index,
             name=name,
             value=value,
-            inline=inline,
+            inline=inline or False,
         )
 
     if not in_place:
@@ -2836,19 +2859,20 @@ def edit_embed_field_from_dict(
 
     embed_dict = embed.to_dict()
 
-    if 0 <= index < fields_count:
-        old_field_dict = embed_dict["fields"][index].copy()
+    if "fields" in embed_dict:
+        if 0 <= index < fields_count:
+            old_field_dict = embed_dict["fields"][index].copy()
 
-        for k in field_dict:
-            if k in old_field_dict and field_dict[k] is not None:
-                old_field_dict[k] = field_dict[k]
+            for k in field_dict:
+                if k in old_field_dict and field_dict[k] is not None:
+                    old_field_dict[k] = field_dict[k]
 
-        embed.set_field_at(
-            index,
-            name=old_field_dict["name"],
-            value=old_field_dict["value"],
-            inline=old_field_dict["inline"],
-        )
+            embed.set_field_at(
+                index,
+                name=old_field_dict["name"],
+                value=old_field_dict["value"],
+                inline=old_field_dict.get("inline", False),
+            )
 
     if not in_place:
         return embed
@@ -2887,7 +2911,7 @@ def edit_embed_fields_from_dicts(
                 i,
                 name=old_field_dict["name"],
                 value=old_field_dict["value"],
-                inline=old_field_dict["inline"],
+                inline=old_field_dict.get("inline", False),
             )
 
     if not in_place:
@@ -2940,11 +2964,13 @@ def swap_embed_fields(
     index_b = fields_count + index_b if index_b < 0 else index_b
 
     embed_dict = embed.to_dict()
-    fields_list = embed_dict["fields"]
-    fields_list[index_a], fields_list[index_b] = (
-        fields_list[index_b],
-        fields_list[index_a],
-    )
+
+    if "fields" in embed_dict:
+        fields_list = embed_dict["fields"]
+        fields_list[index_a], fields_list[index_b] = (
+            fields_list[index_b],
+            fields_list[index_a],
+        )
 
     if not in_place:
         return embed
@@ -3060,8 +3086,11 @@ def import_embed_data(
     """
 
     if input_format.upper() in ("JSON", "JSON_STRING"):
-
         if input_format.upper() == "JSON_STRING":
+            if not isinstance(source, str):
+                raise TypeError(
+                    f"invalid source for format '{source}': Must be a str object"
+                )
             json_data = json.loads(source)
 
             if (
@@ -3078,6 +3107,10 @@ def import_embed_data(
             return json_data
 
         else:
+            if not isinstance(source, io.StringIO):
+                raise TypeError(
+                    f"invalid source for format '{source}': Must be an io.StringIO object"
+                )
             json_data = json.load(source)
 
             if (
@@ -3094,6 +3127,10 @@ def import_embed_data(
             return json_data
 
     elif input_format.upper() == "STRING":
+        if not isinstance(source, str):
+            raise TypeError(
+                f"invalid source for format '{source}': Must be a str object"
+            )
         try:
             data = literal_eval(source)
         except Exception as e:
@@ -3119,7 +3156,9 @@ def import_embed_data(
         data = None
         if input_format == "STRING_BUFFER":
             if not isinstance(source, io.StringIO):
-                raise TypeError("invalid source, must be an io.StringIO object")
+                raise TypeError(
+                    f"invalid source for format '{source}': Must be an io.StringIO object"
+                )
 
             if output_format.upper() == "STRING":
                 data = source.getvalue()
@@ -3131,7 +3170,7 @@ def import_embed_data(
                         f", not '{type(data)}'"
                         f"the content of the file at '{source}' must be parsable into a"
                         "literal Python strings, bytes, numbers, tuples, lists, dicts, sets, booleans, and None."
-                    ).with_traceback(e)
+                    ) from e
 
                 if not isinstance(data, dict) and output_format.upper() == "DICTIONARY":
                     raise TypeError(
@@ -3139,6 +3178,11 @@ def import_embed_data(
                         f", not '{type(data)}'"
                     )
         elif input_format == "FILE_PATH":
+            if not isinstance(source, str):
+                raise TypeError(
+                    f"invalid source for format '{source}': Must be a str object"
+                )
+
             with open(source, "r", encoding="utf-8") as d:
                 if output_format.upper() == "STRING":
                     data = d.read()
@@ -3150,7 +3194,7 @@ def import_embed_data(
                             f", not '{type(data)}'"
                             f"the content of the file at '{source}' must be parsable into a"
                             "literal Python strings, bytes, numbers, tuples, lists, dicts, sets, booleans, and None."
-                        ).with_traceback(e)
+                        ) from e
 
                     if (
                         not isinstance(data, dict)

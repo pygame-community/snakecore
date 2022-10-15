@@ -10,7 +10,7 @@ import importlib
 import inspect
 import sys
 import types
-from typing import Any, Dict, Mapping, Optional, Union
+from typing import Any, Mapping, Optional, Union
 from discord.ext import commands
 from discord.ext.commands import errors
 
@@ -31,24 +31,24 @@ def _is_submodule(parent: str, child: str) -> bool:
 class ExtBotBase(commands.bot.BotBase):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self._extension_configs: dict[str, dict[str, Any]] = {}
+        self._extension_configs: dict[str, Mapping[str, Any]] = {}
 
-    def set_extension_config(self, absolute_name: str, config: Mapping[str, Any]):
+    def set_extension_config(self, qualified_name: str, config: Mapping[str, Any]):
         """Set a configuration mapping that an extension should be loaded with, under
         the given absolute name.
 
         Args:
-            absolute_name (str): The extension's absolute name.
+            qualified_name (str): The extension's qualified name.
             config (Mapping[str, Any]): A mapping containing the configuration data
               to be read by the extension.
 
         Raises:
             TypeError: Invalid argument types.
         """
-        if not isinstance(absolute_name, str):
+        if not isinstance(qualified_name, str):
             raise TypeError(
                 "'absolute_name' must be of type 'str', not "
-                f"'{absolute_name.__class__.__name__}'"
+                f"'{qualified_name.__class__.__name__}'"
             )
 
         elif not isinstance(config, Mapping):
@@ -57,16 +57,35 @@ class ExtBotBase(commands.bot.BotBase):
                 f"'{config.__class__.__name__}'"
             )
 
-        self._extension_configs[absolute_name] = config
+        self._extension_configs[qualified_name] = config
 
-    def get_extension_config(
-        self, absolute_name: str, default: Any = UNSET, /
-    ) -> Union[Mapping[str, Any], Any]:
-        """Get the configuration mapping that an extension should be loaded with, under
-        the given absolute name.
+    def delete_extension_config(self, qualified_name: str):
+        """Delete an extension configuration mapping under
+        the given qualified name, if present.
 
         Args:
-            absolute_name (str): The extension's absolute name.
+            qualified_name (str): The extension's qualified name.
+
+        Raises:
+            TypeError: Invalid argument types.
+        """
+        if not isinstance(qualified_name, str):
+            raise TypeError(
+                "'absolute_name' must be of type 'str', not "
+                f"'{qualified_name.__class__.__name__}'"
+            )
+
+        if qualified_name in self._extension_configs:
+            del self._extension_configs[qualified_name]
+
+    def get_extension_config(
+        self, qualified_name: str, default: Any = UNSET, /
+    ) -> Union[Mapping[str, Any], Any]:
+        """Get the configuration mapping that an extension should be loaded with, under
+        the given qualified name.
+
+        Args:
+            qualified_name (str): The extension's qualified name.
             default (Any, optional): A default value to return if no configuration
               mapping was found. Omission will lead to a LookupError being raised.
 
@@ -76,7 +95,7 @@ class ExtBotBase(commands.bot.BotBase):
         Returns:
             Union[Mapping[str, Any], Any]: The mapping or a default value.
         """
-        config = self._extension_configs.get(absolute_name, None)
+        config = self._extension_configs.get(qualified_name, None)
 
         if config is not None:
             return config
@@ -85,7 +104,7 @@ class ExtBotBase(commands.bot.BotBase):
             return default
 
         raise LookupError(
-            f"could not find configuration data for extension named '{absolute_name}'"
+            f"could not find configuration data for extension named '{qualified_name}'"
         )
 
     async def load_extension_with_config(
@@ -95,7 +114,7 @@ class ExtBotBase(commands.bot.BotBase):
         package: Optional[str] = None,
         config: Optional[Mapping[str, Any]] = None,
     ) -> None:
-        """A shorthand for calling `load_extension` followed by `set_extension_config`."""
+        """A shorthand for calling `set_extension_config` followed by `load_extension`."""
         name = self._resolve_name(name, package)
         if name in self.extensions:
             raise errors.ExtensionAlreadyLoaded(name)

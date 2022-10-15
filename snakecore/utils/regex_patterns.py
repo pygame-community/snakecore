@@ -24,10 +24,10 @@ def url_with_protocols(*protocols: str) -> str:
     return rf"({'|'.join(protocols)}){URL[3]}"
 
 
-CODE_BLOCK = r"```([^`\n]*)\n(((?!```).|\s|(?<=\\)```)+)```"
+CODE_BLOCK = r"```([^`\s]*)\n(((?!```).|\s|(?<=\\)```)+)```"
 "Matches a fenced code block."
 INLINE_CODE_BLOCK = r"`((?:(?<=\\)`|[^`\n])+)`"
-"Matches an inline code block (\`...\`)."
+"Matches an inline code block (`...`)."
 USER_ROLE_MENTION = r"<@[&!]?(\d+)>"
 """Matches a Discord user or role mention ('<@[!]6969...>'  
 or '<@&6969...>').
