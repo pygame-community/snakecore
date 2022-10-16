@@ -9,10 +9,13 @@ their behavior.
 import functools
 import inspect
 import sys
+import types
+import typing
 from typing import Any, Callable, Coroutine, Optional, Type, TypeVar, Union
 
 import discord
 from discord.ext import commands
+from discord.ext.commands.flags import FlagsMeta, Flag
 from discord import app_commands
 
 import snakecore.commands.bot as sc_bot
@@ -28,6 +31,8 @@ else:
 
 _P = ParamSpec("_P")
 
+UnionGenericAlias = type(Union[str, int])
+
 
 def flagconverter_kwargs(
     *,
@@ -37,14 +42,13 @@ def flagconverter_kwargs(
 ) -> Callable[[Callable[_P, _T]], Callable[_P, _T]]:
     """Wraps a `discord.ext.commands` command function using a wrapper function
     that fakes its signature, whilst mapping the `.__dict__`s key-value pairs from
-    an implicitly generated `commands.FlagConverter` subclass's object to its
+    an implicitly generated FlagConverter subclass's instance to its
     keyword-only arguments. Variable keyword arguments are ignored.
 
     This decorator must be applied as the very first decorator when defining a command.
 
     This is a convenience decorator that handles the creation of `FlagConverter`
-    subclasses for you, whilst allowing you to support keyword argument syntax
-    from a command invocation from Discord. Note that the output wrapper function
+    subclasses for you. Note that the output wrapper function
     will have a different signature than the input command function, and hence is
     not meant to be called directly.
 
@@ -59,6 +63,9 @@ def flagconverter_kwargs(
           subclass. Defaults to `""`.
         delimiter (Optional[str], optional): The delimiter to pass to the `FlagConverter`
           subclass. Defaults to `":"`.
+        cls (Type[commands.FlagConverter], optional): The class to use as a base class for
+          the resulting FlagConverter class to make. Useful for implementing custom flag
+          parsing functionality.
 
     Returns:
         Callable[..., Coroutine[Any, Any, Any]]: The generated
@@ -71,7 +78,7 @@ def flagconverter_kwargs(
     def flagconverter_kwargs_inner_deco(func: Callable[_P, _T]) -> Callable[_P, _T]:
         sig = inspect.signature(func)
 
-        flag_dict = {"__annotations__": {}}
+        flag_dict = {"__annotations__": {}, "__module__": func.__module__}
 
         new_param_list = []
 
@@ -89,16 +96,38 @@ def flagconverter_kwargs(
             elif param.kind == param.VAR_POSITIONAL:
                 new_annotation = param.annotation
                 if isinstance(new_annotation, str):
-                    if not new_annotation.startswith(
-                        (
-                            "commands.Greedy",
-                            "discord.ext.commands.Greedy",
-                            commands.Greedy.__qualname__,
-                        )
+                    evaluated_anno = eval(new_annotation, func.__globals__)
+                    if not isinstance(
+                        evaluated_anno,
+                        commands.Greedy,
                     ):
-                        new_annotation = f"commands.Greedy[{param.annotation}]"
+                        if (
+                            isinstance(evaluated_anno, UnionGenericAlias)
+                            and type(None) in evaluated_anno.__args__
+                            or evaluated_anno in (None, type(None), str)
+                        ):
+                            raise TypeError(
+                                "Cannot have None, NoneType or typing.Optional as an "
+                                f"annotation for '*{param.name}' when using "
+                                "flagconverter decorator"
+                            )
+                        else:
+                            new_annotation = f"commands.Greedy[{param.annotation}]"
 
-                elif not isinstance(new_annotation, commands.Greedy):
+                elif not (
+                    new_annotation is param.empty
+                    or isinstance(new_annotation, commands.Greedy)
+                ):
+                    if (
+                        isinstance(new_annotation, UnionGenericAlias)
+                        and type(None) in new_annotation.__args__
+                        or new_annotation in (None, type(None), str)
+                    ):
+                        raise TypeError(
+                            "Cannot have None, NoneType or typing.Optional as an "
+                            f"annotation for '*{param.name}' when using "
+                            "flagconverter decorator"
+                        )
                     new_annotation = commands.Greedy(converter=param.annotation)
 
                 new_param_list.append(
@@ -111,36 +140,33 @@ def flagconverter_kwargs(
                 )
 
             elif param.kind == param.KEYWORD_ONLY:
-                flag_dict[k] = commands.flag(
-                    name=k,
-                    default=(
-                        param.default
-                        if param.default is not param.empty
-                        else discord.utils.MISSING
-                    ),
-                )
-
-                if param.annotation != param.empty:
-                    flag_dict["__annotations__"][k] = (
-                        eval(param.annotation, func.__globals__)
-                        if isinstance(param.annotation, str)
-                        else param.annotation
+                if isinstance(param.default, Flag):
+                    flag_dict[k] = param.default
+                else:
+                    flag_dict[k] = commands.flag(
+                        name=k,
+                        default=(
+                            param.default
+                            if param.default is not param.empty
+                            else discord.utils.MISSING
+                        ),
                     )
 
-        if not flag_dict:
+                if param.annotation is not param.empty:
+                    flag_dict["__annotations__"][k] = param.annotation
+
+        if not flag_dict["__annotations__"]:
             raise TypeError(
                 "decorated function/method must define keyword-only "
                 "arguments to be used as flags"
             )
 
-        FlagsMeta = type(commands.FlagConverter)
-
         flags_cls = FlagsMeta.__new__(
             FlagsMeta,
-            func.__name__ + ".KeywordOnlyFlags",
-            (commands.FlagConverter,),
+            "KeywordOnlyFlags",
+            (cls,),
             attrs=flag_dict
-            | dict(__qualname__=func.__qualname__ + ".KeywordOnlyFlags"),
+            | dict(__qualname__=f"{func.__qualname__}.KeywordOnlyFlags"),
             prefix=prefix or discord.utils.MISSING,
             delimiter=delimiter or discord.utils.MISSING,
         )
@@ -157,10 +183,20 @@ def flagconverter_kwargs(
             parameters=new_param_list, return_annotation=sig.return_annotation
         )
 
-        async def flagconverter_kwargs_wrapper(*args, flags: flags_cls, **kwargs):  # type: ignore
-            return await func(*args, **(flags.__dict__ | kwargs))  # type: ignore
+        async def wrapper(*args, flags: flags_cls = None, **kwargs):  # type: ignore
+            return await func(*args, **(flags.__dict__ if flags is not None else {} | kwargs))  # type: ignore
+
+        # shallow-copy wrapper function to override __globals__
+        flagconverter_kwargs_wrapper: Callable[_P, _T] = types.FunctionType(
+            wrapper.__code__,
+            func.__globals__,
+            name=wrapper.__name__,
+            argdefs=wrapper.__defaults__,
+            closure=wrapper.__closure__,
+        )  # type: ignore
 
         functools.update_wrapper(flagconverter_kwargs_wrapper, func)
+
         del (
             flagconverter_kwargs_wrapper.__wrapped__
         )  # don't reveal wrapped function here
