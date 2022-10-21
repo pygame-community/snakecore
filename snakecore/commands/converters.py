@@ -30,6 +30,38 @@ from snakecore.utils import regex_patterns
 
 T = TypeVar("T")
 
+_quotes = {
+    '"': '"',
+    "‘": "’",
+    "‚": "‛",
+    "“": "”",
+    "„": "‟",
+    "⹂": "⹂",
+    "「": "」",
+    "『": "』",
+    "〝": "〞",
+    "﹁": "﹂",
+    "﹃": "﹄",
+    "＂": "＂",
+    "｢": "｣",
+    "«": "»",
+    "‹": "›",
+    "《": "》",
+    "〈": "〉",
+}
+
+
+def _find_start_quote(string: str) -> Optional[str]:
+    if not string:
+        return None
+
+    start = string[0]
+    for start_quote in _quotes.keys():
+        if start_quote == start:
+            return start_quote
+
+    return None
+
 
 class DateTime(commands.Converter[datetime.datetime]):
     """A converter that parses UNIX/ISO timestamps to `datetime.datetime` objects.
@@ -629,25 +661,21 @@ class QuotedString(commands.Converter[str]):
 
     async def convert(self, ctx: commands.Context, argument: str) -> str:
         passed = False
-        if argument.startswith('"'):
-            if argument.endswith('"'):
-                passed = True
-            else:
-                raise commands.BadArgument(
-                    "argument string quote '\"' was not closed with \""
-                )
-
-        elif argument.startswith("'"):
-            if argument.endswith("'"):
-                passed = True
-            else:
-                raise commands.BadArgument(
-                    "argument string quote \"'\" was not closed with '"
-                )
+        if argument:
+            start_quote = _find_start_quote(argument)
+            if start_quote:
+                if argument.endswith(_quotes[start_quote]):
+                    passed = True
+                else:
+                    raise commands.BadArgument(
+                        f"argument string quote '{start_quote}' was not "
+                        f"closed with '{_quotes[start_quote]}'"
+                    )
 
         if not passed:
             raise commands.BadArgument(
-                "argument string is not properly quoted with '' or \"\""
+                "argument string is not properly quoted with "
+                f"'{start_quote}{_quotes[start_quote]}'"
             )
 
         return argument[1:-1]
