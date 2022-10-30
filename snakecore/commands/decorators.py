@@ -16,9 +16,9 @@ from typing import Any, Callable, Coroutine, Optional, Type, TypeVar, Union
 import discord
 from discord.ext import commands
 from discord.ext.commands.flags import FlagsMeta, Flag
-from discord import app_commands
+from snakecore.commands.bot import ExtAutoShardedBot, ExtBot
 
-import snakecore.commands.bot as sc_bot
+from snakecore.commands.converters import FlagConverter as _FlagConverter
 from snakecore.commands.parser import parse_command_str
 from ._types import AnyCommandType
 
@@ -38,7 +38,7 @@ def flagconverter_kwargs(
     *,
     prefix: Optional[str] = "",
     delimiter: str = ":",
-    cls: Type[commands.FlagConverter] = commands.FlagConverter,
+    cls: Type[commands.FlagConverter] = _FlagConverter,
 ) -> Callable[[Callable[_P, _T]], Callable[_P, _T]]:
     """Wraps a `discord.ext.commands` command function using a wrapper function
     that fakes its signature, whilst mapping the `.__dict__`s key-value pairs from
@@ -64,8 +64,10 @@ def flagconverter_kwargs(
         delimiter (Optional[str], optional): The delimiter to pass to the `FlagConverter`
           subclass. Defaults to `":"`.
         cls (Type[commands.FlagConverter], optional): The class to use as a base class for
-          the resulting FlagConverter class to make. Useful for implementing custom flag
-          parsing functionality.
+          the resulting FlagConverter class to generate. Useful for implementing custom flag
+          parsing functionality. If specified and the class is not a subclass of
+          `snakecore.commands.converters.FlagConverter`, flags with annotation `tuple[T[, ...]]`
+          where `T` is `CodeBlock` or `Parens` will fail to parse correctly.
 
     Returns:
         Callable[..., Coroutine[Any, Any, Any]]: The generated
@@ -322,12 +324,12 @@ def with_config_kwargs(setup: Callable[_P, Any]) -> Callable[[commands.Bot], Any
     function's output mapping, if available.
 
     Args:
-        func (Callable[[Union[sc_bot.ExtBot, sc_bot.ExtAutoShardedBot], ...], None]):
+        func (Callable[[Union[ExtBot, ExtAutoShardedBot], ...], None]):
           The `setup()` function.
     """
 
     async def setup_wrapper(bot: commands.Bot):
-        if isinstance(bot, (sc_bot.ExtBot, sc_bot.ExtAutoShardedBot)):
+        if isinstance(bot, (ExtBot, ExtAutoShardedBot)):
             config_mapping = bot.get_extension_config(setup.__module__, {})
             return await setup(
                 bot,  # type: ignore

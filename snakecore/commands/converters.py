@@ -16,51 +16,27 @@ from typing import (
     Iterator,
     Literal,
     Optional,
+    SupportsIndex,
     Tuple,
     TypeVar,
     Union,
+    overload,
 )
-from typing_extensions import TypeVarTuple, Unpack
+from typing_extensions import Self, TypeVarTuple, Unpack
 
 import discord
 from discord.ext import commands
+from discord.ext.commands import flags as _flags
+from discord.ext.commands.view import StringView
 
 import snakecore
 from snakecore.utils import regex_patterns
+from .bot import Bot, AutoShardedBot
 
-T = TypeVar("T")
-
-_quotes = {
-    '"': '"',
-    "‘": "’",
-    "‚": "‛",
-    "“": "”",
-    "„": "‟",
-    "⹂": "⹂",
-    "「": "」",
-    "『": "』",
-    "〝": "〞",
-    "﹁": "﹂",
-    "﹃": "﹄",
-    "＂": "＂",
-    "｢": "｣",
-    "«": "»",
-    "‹": "›",
-    "《": "》",
-    "〈": "〉",
-}
-
-
-def _find_start_quote(string: str) -> Optional[str]:
-    if not string:
-        return None
-
-    start = string[0]
-    for start_quote in _quotes.keys():
-        if start_quote == start:
-            return start_quote
-
-    return None
+_T = TypeVar("_T")
+_T_co = TypeVar("_T_co", covariant=True)
+_PT = TypeVarTuple("_PT")
+BotT = Union[Bot, AutoShardedBot]
 
 
 class DateTime(commands.Converter[datetime.datetime]):
@@ -121,20 +97,31 @@ class RangeObject(commands.Converter[range]):
 class CodeBlock:
     """An object that represents a fenced or inline markdown code block.
     Can be used as a converter, which returns an instance of this class.
-    The instance attributes can be used to obtain the code block contents.
-    To get the raw code block text from an instance, convert it into a string.
+    The instance attributes `code` and `language` can be used to obtain
+    the code block contents. To get the raw code block text from an
+    instance, cast it into a string.
+
+    This converter does not parse successfully if specified inside a tuple
+    annotation of `discord.ext.commands.flags.Flag`, inside a subclass of
+    `discord.ext.commands`'s default `FlagConverter`. To migitate this, it
+    is recommended to subclass `snakecore.commands.converters.FlagConverter`
+    instead.
     """
 
-    multiline_pattern = re.compile(regex_patterns.CODE_BLOCK)
-    inline_pattern = re.compile(regex_patterns.INLINE_CODE_BLOCK)
+    _MULTILINE_PATTERN = re.compile(regex_patterns.CODE_BLOCK)
+    _INLINE_PATTERN = re.compile(regex_patterns.INLINE_CODE_BLOCK)
 
-    def __init__(self, code: str, language: Optional[str] = None, inline: bool = False):
+    def __init__(
+        self, code: str, language: Optional[str] = None, inline: Optional[bool] = None
+    ):
         self.code = code
         self.language = language
-        self.inline = inline
+        self.inline = inline if inline is not None else not (language or "\n" in code)
 
     @classmethod
-    async def convert(cls, ctx: commands.Context, argument: str):
+    async def convert(cls, ctx: commands.Context, argument: str) -> Self:
+
+        view: StringView = getattr(ctx, "_custom_view", ctx.view)
 
         if argument.startswith("```"):
 
@@ -143,13 +130,13 @@ class CodeBlock:
             ):
 
                 parsed_argument = argument.strip("\n").strip()
-                multiline_match = cls.multiline_pattern.match(
-                    ctx.view.buffer, pos=ctx.view.index - len(parsed_argument)
+                multiline_match = cls._MULTILINE_PATTERN.match(
+                    view.buffer, pos=view.index - len(parsed_argument)
                 )
 
                 if multiline_match is not None:
-                    parsed_argument = ctx.view.buffer[slice(*multiline_match.span())]
-                    ctx.view.index = multiline_match.end()
+                    parsed_argument = view.buffer[slice(*multiline_match.span())]
+                    view.index = multiline_match.end()
 
                 argument = parsed_argument
 
@@ -160,13 +147,13 @@ class CodeBlock:
             ):
 
                 parsed_argument = argument.strip("\n").strip()
-                inline_match = cls.inline_pattern.match(
-                    ctx.view.buffer, pos=ctx.view.index - len(parsed_argument)
+                inline_match = cls._INLINE_PATTERN.match(
+                    view.buffer, pos=view.index - len(parsed_argument)
                 )
 
                 if inline_match is not None:
-                    parsed_argument = ctx.view.buffer[slice(*inline_match.span())]
-                    ctx.view.index = inline_match.end()
+                    parsed_argument = view.buffer[slice(*inline_match.span())]
+                    view.index = inline_match.end()
 
                 argument = parsed_argument
 
@@ -178,7 +165,7 @@ class CodeBlock:
             ) from err
 
     @classmethod
-    def from_markdown(cls, markdown: str):
+    def from_markdown(cls, markdown: str) -> Self:
 
         if not isinstance(markdown, str):
             raise TypeError(
@@ -328,10 +315,63 @@ def find_parenthesized_region(string: str, opening: str = "(", closing: str = ")
     return slice(bstart, bend)
 
 
-class _Parens(commands.Converter[tuple]):
+class Parens(Generic[_T_co, Unpack[_PT]]):
+    """A special converter that establishes its own scope of arguments
+    and parses argument tuples.
 
-    OPENING_BRACKET = "("
-    CLOSING_BRACKET = ")"
+    The recognized arguments are converted into their desired formats
+    using the converters given to it as input, which are then converted
+    into a tuple of arguments. This can be used to implement parsing
+    of argument tuples. Nesting is also supported, as well as variadic
+    parsing of argument tuples. The syntax is similar to type annotations
+    using the `tuple` type (tuple[int, ...] = Parens[int, ...], etc.).
+
+    Arguments for this converter must be surrounded by whitespace, followed
+    by round parentheses on both sides (`'( ... ... ... )'`).
+
+    This converter does not parse successfully if specified inside a tuple
+    annotation of `discord.ext.commands.flags.Flag`, inside a subclass of
+    `discord.ext.commands`'s default `FlagConverter`. To migitate this, it
+    is recommended to subclass `snakecore.commands.converters.FlagConverter`
+    instead.
+
+    Syntax:
+        - `"( 1 2 4 5.5 )" -> (1, 2, 4, 5.5)`
+        - `'( 1 ( 4 ) () ( ( 6 ( "a" ) ) ) 0 )' -> (1, (4,), (), ((6,("a",),),), 0)`
+    """
+
+    def __init__(self, converters: tuple[_T_co, Unpack[_PT]]) -> None:
+        ...
+
+    def __iter__(self) -> Iterator[_T_co]:
+        ...
+
+    def __class_getitem__(
+        cls, params: tuple[_T_co, Unpack[_PT]]
+    ) -> "Parens[_T_co, Unpack[_PT]]":
+        ...
+
+    @overload
+    def __getitem__(self, __x: SupportsIndex) -> _T_co:
+        ...
+
+    @overload
+    def __getitem__(self, __x: slice) -> tuple[_T_co, ...]:
+        ...
+
+    def __getitem__(self, __x) -> Union[_T_co, tuple[_T_co, ...]]:
+        ...
+
+    async def convert(self, ctx: commands.Context, argument: str) -> tuple[Any, ...]:
+        ...
+
+    def __call__(self, *args: Any, **kwds: Any) -> Any:
+        ...
+
+
+class _Parens(commands.Converter[tuple]):
+    OPENING = "("
+    CLOSING = ")"
 
     def __init__(self, converters) -> None:
         super().__init__()
@@ -414,13 +454,13 @@ class _Parens(commands.Converter[tuple]):
         return slice(bstart, bend)
 
     async def convert(self, ctx: commands.Context, argument: str) -> tuple[Any, ...]:
-        if not argument.startswith(self.OPENING_BRACKET):
+        if not argument.startswith(self.OPENING):
             raise commands.BadArgument(
                 "Parsing parenthesized argument failed "
                 f"(at depth {self.parens_depth}): Failed to find parenthesized region, must be enclosed as "
-                f"'{self.OPENING_BRACKET} ... {self.CLOSING_BRACKET}'"
+                f"'{self.OPENING} ... {self.CLOSING}'"
             )
-        elif argument == f"{self.OPENING_BRACKET}{self.CLOSING_BRACKET}":
+        elif argument == f"{self.OPENING}{self.CLOSING}":
             return ()
 
         if len(argument) > 1 and not argument[1].isspace():
@@ -430,33 +470,35 @@ class _Parens(commands.Converter[tuple]):
                 "region must be surrounded by whitespace"
             )
 
+        view: StringView = getattr(ctx, "_custom_view", ctx.view)
+
         parsed_argument = argument.strip("\n").strip()
         parens_slice = self._find_parenthesized_region(
-            ctx.view.buffer[ctx.view.index - len(parsed_argument) :],
-            self.OPENING_BRACKET,
-            self.CLOSING_BRACKET,
+            view.buffer[view.index - len(parsed_argument) :],
+            self.OPENING,
+            self.CLOSING,
         )
         if parens_slice.start == parens_slice.stop == 0:
             raise commands.BadArgument(
                 "Parsing parenthesized argument failed "
                 f"(at depth {self.parens_depth}): Could not find parenthesized "
                 "region, must be enclosed as "
-                f"'{self.OPENING_BRACKET} ... {self.CLOSING_BRACKET}'"
+                f"'{self.OPENING} ... {self.CLOSING}'"
             )
 
         parens_slice = slice(
-            parens_slice.start + ctx.view.index,
-            parens_slice.stop + ctx.view.index,
+            parens_slice.start + view.index,
+            parens_slice.stop + view.index,
         )  # offset slice to match the view's buffer string
-        parsed_argument = ctx.view.buffer[parens_slice]
+        parsed_argument = view.buffer[parens_slice]
 
-        old_previous = ctx.view.previous
-        old_index = ctx.view.index
+        old_previous = view.previous
+        old_index = view.index
         original_parameter = ctx.current_parameter
         fake_parameter = commands.parameter()
 
-        ctx.view.index -= len(argument)
-        ctx.view.read(1)  # move right after starting bracket '('
+        view.index -= len(argument)
+        view.read(1)  # move right after starting bracket '('
 
         outputs = []
         converter_index = 0
@@ -464,20 +506,20 @@ class _Parens(commands.Converter[tuple]):
         is_variadic = self.converters[-1] is Ellipsis
 
         while True:
-            if ctx.view.index >= parens_slice.stop - 1:
+            if view.index >= parens_slice.stop - 1:
                 break
 
-            ctx.view.skip_ws()
+            view.skip_ws()
 
             if (
-                ctx.view.current == self.CLOSING_BRACKET
+                view.current == self.CLOSING
                 and converter_index < len(self.converters) - 1
             ):
                 # reset any StringView changes done by this converter
                 ctx.current_parameter = original_parameter
                 ctx.current_argument = argument
-                ctx.view.previous = old_previous
-                ctx.view.index = old_index
+                view.previous = old_previous
+                view.index = old_index
                 raise commands.BadArgument(
                     "Parsing parenthesized argument failed "
                     f"(at depth {self.parens_depth}): Too few arguments in "
@@ -485,16 +527,15 @@ class _Parens(commands.Converter[tuple]):
                 )
 
             if converter_index == len(self.converters) - 1 and is_variadic:
-                if ctx.view.current == self.CLOSING_BRACKET:
-                    ctx.view.get()
+                if view.current == self.CLOSING:
+                    view.get()
                     break
 
                 converter_index -= 1
             elif (
-                converter_index == len(self.converters)
-                and ctx.view.current == self.CLOSING_BRACKET
+                converter_index == len(self.converters) and view.current == self.CLOSING
             ):  # end of parenthesized region
-                ctx.view.get()
+                view.get()
                 break
 
             try:
@@ -502,8 +543,8 @@ class _Parens(commands.Converter[tuple]):
             except IndexError:
                 ctx.current_parameter = original_parameter
                 ctx.current_argument = argument
-                ctx.view.previous = old_previous
-                ctx.view.index = old_index
+                view.previous = old_previous
+                view.index = old_index
                 raise commands.BadArgument(
                     "Parsing parenthesized argument failed "
                     f"(at depth {self.parens_depth}): Too many arguments in "
@@ -515,17 +556,17 @@ class _Parens(commands.Converter[tuple]):
             fake_parameter._annotation = converter
             ctx.current_parameter = fake_parameter
 
-            previous_previous = ctx.view.previous
-            previous_index = ctx.view.index
+            previous_previous = view.previous
+            previous_index = view.index
             try:
-                ctx.current_argument = fake_argument = ctx.view.get_quoted_word()
+                ctx.current_argument = fake_argument = view.get_quoted_word()
 
             except commands.ArgumentParsingError:
 
                 ctx.current_parameter = original_parameter
                 ctx.current_argument = argument
-                ctx.view.previous = old_previous
-                ctx.view.index = old_index
+                view.previous = old_previous
+                view.index = old_index
                 raise commands.BadArgument(
                     "Parsing parenthesized argument failed "
                     f"(at depth {self.parens_depth}): Failed to parse "
@@ -543,17 +584,17 @@ class _Parens(commands.Converter[tuple]):
             except commands.UserInputError as err:
                 ctx.current_parameter = original_parameter
                 ctx.current_argument = argument
-                ctx.view.previous = old_previous
-                ctx.view.index = old_index
+                view.previous = old_previous
+                view.index = old_index
                 if isinstance(converter, self.__class__):
                     raise
                 elif (
                     fake_argument
                     and len(fake_argument) > 1
                     and (
-                        fake_argument.startswith(self.OPENING_BRACKET)
+                        fake_argument.startswith(self.OPENING)
                         and not fake_argument[1].isspace()
-                        or fake_argument.endswith(self.CLOSING_BRACKET)
+                        or fake_argument.endswith(self.CLOSING)
                         and not fake_argument[-2].isspace()
                     )
                 ):
@@ -577,8 +618,8 @@ class _Parens(commands.Converter[tuple]):
                 in fake_parameter.annotation.__args__  # check for Optional[...]  # type: ignore
                 and transformed is None
             ):
-                ctx.view.index = previous_index  # view.undo() does not revert properly for Optional[...]
-                ctx.view.previous = previous_previous
+                view.index = previous_index  # view.undo() does not revert properly for Optional[...]
+                view.previous = previous_previous
 
         ctx.current_parameter = original_parameter
         return tuple(outputs)
@@ -604,78 +645,180 @@ class _Parens(commands.Converter[tuple]):
         return repr(obj)
 
 
-if TYPE_CHECKING:
-    _PT = TypeVarTuple("_PT")
-
-    class Parens(Tuple[Unpack[_PT]]):
-        """A special converter that establishes its own scope of arguments
-        and parses argument tuples.
-
-        The recognized arguments are converted into their desired formats
-        using the converters given to it as input, which are then converted
-        into a tuple of arguments. This can be used to implement parsing
-        of argument tuples. Nesting is also supported, as well as variadic
-        parsing of argument tuples. The syntax is similar to type annotations
-        using the `tuple` type (tuple[int, ...] = Parens[int, ...], etc.).
-
-        Arguments for this converter must be surrounded by whitespace, followed
-        by round parentheses on both sides (`'( ... ... ... )'`).
-
-        Syntax:
-            - `"( 1 2 4 5.5 )" -> (1, 2, 4, 5.5)`
-            - `'( 1 ( 4 ) () ( ( 6 ( "a" ) ) ) 0 )' -> (1, (4,), (), ((6,("a",),),), 0)`
-
-        """
-
-        def __init__(self, converters: Tuple[Unpack[_PT]]) -> None:
-            ...
-
-        def __iter__(self) -> Iterator[Any]:
-            ...
-
-        def __class_getitem__(cls, params: tuple[Unpack[_PT]]) -> "Parens[Unpack[_PT]]":
-            ...
-
-        async def convert(
-            self, ctx: commands.Context, argument: str
-        ) -> tuple[Any, ...]:
-            ...
-
-        def __call__(self, *args: Any, **kwds: Any) -> Any:
-            ...
-
-else:
-    _Parens.__name__ = "Parens"
+if not TYPE_CHECKING:
+    _Parens.__name__ = Parens.__name__
+    _Parens.__qualname__ = Parens.__qualname__
+    _Parens.__doc__ = Parens.__doc__
     Parens = _Parens
 
 
-class QuotedString(commands.Converter[str]):
-    """A simple converter that enforces a quoted string as an argument.
-    It removes leading and ending single or doble quotes. If those quotes
-    are not found, exceptions are raised.
-
+class SingleQuotedString(commands.Converter[str]):
+    """A simple converter that enforces a single-quoted string as an argument.
     Syntax:
-        - `"abc" -> str("abc")`
         - `'abc' -> str('abc')`
     """
 
     async def convert(self, ctx: commands.Context, argument: str) -> str:
-        passed = False
-        if argument:
-            start_quote = _find_start_quote(argument)
-            if start_quote:
-                if argument.endswith(_quotes[start_quote]):
-                    passed = True
-                else:
-                    raise commands.BadArgument(
-                        f"argument string quote '{start_quote}' was not "
-                        f"closed with '{_quotes[start_quote]}'"
-                    )
-
-        if not passed:
+        if not (argument.startswith("'") and argument.endswith("'")):
             raise commands.BadArgument(
-                "argument string is not properly quoted with "
-                f"'{start_quote}{_quotes[start_quote]}'"
+                'argument string is not properly quoted with "\'"'
             )
 
         return argument[1:-1]
+
+
+async def tuple_convert_all(
+    ctx: commands.Context[BotT], argument: str, flag: commands.Flag, converter: Any
+) -> Tuple[Any, ...]:
+    view = StringView(argument)
+    results = []
+    param: commands.Parameter = ctx.current_parameter  # type: ignore
+    ctx._custom_view = view  # type: ignore # store temporary StringView,
+    # to implement support for flag annotation 'tuple[T, ...]', where T is CodeBlock/Parens
+    while not view.eof:
+        view.skip_ws()
+        if view.eof:
+            break
+
+        word = view.get_quoted_word()
+        if word is None:
+            break
+
+        try:
+            converted = await commands.run_converters(ctx, converter, word, param)
+        except Exception as e:
+            del ctx._custom_view  # type: ignore
+            raise commands.BadFlagArgument(flag, word, e) from e
+        else:
+            results.append(converted)
+
+    del ctx._custom_view  # type: ignore
+
+    return tuple(results)
+
+
+async def tuple_convert_flag(
+    ctx: commands.Context[BotT], argument: str, flag: commands.Flag, converters: Any
+) -> Tuple[Any, ...]:
+    view = StringView(argument)
+    results = []
+    param: commands.Parameter = ctx.current_parameter  # type: ignore
+    ctx._custom_view = view  # type: ignore # store temporary StringView,
+    # to implement support for flag annotation 'tuple[T, ...]', where T is CodeBlock/Parens
+    for converter in converters:
+        view.skip_ws()
+        if view.eof:
+            break
+
+        word = view.get_quoted_word()
+        if word is None:
+            break
+
+        try:
+            converted = await commands.run_converters(ctx, converter, word, param)
+        except Exception as e:
+            del ctx._custom_view  # type: ignore
+            raise commands.BadFlagArgument(flag, word, e) from e
+        else:
+            results.append(converted)
+
+    del ctx._custom_view  # type: ignore
+
+    if len(results) != len(converters):
+        raise commands.MissingFlagArgument(flag)
+
+    return tuple(results)
+
+
+async def convert_flag(
+    ctx: commands.Context[BotT],
+    argument: str,
+    flag: commands.Flag,
+    annotation: Any = None,
+) -> Any:
+    param: commands.Parameter = ctx.current_parameter  # type: ignore
+    annotation = annotation or flag.annotation
+    try:
+        origin = annotation.__origin__
+    except AttributeError:
+        pass
+    else:
+        if origin is tuple:
+            if annotation.__args__[-1] is Ellipsis:
+                return await tuple_convert_all(
+                    ctx, argument, flag, annotation.__args__[0]
+                )
+            else:
+                return await tuple_convert_flag(
+                    ctx, argument, flag, annotation.__args__
+                )
+        elif origin is list:
+            # typing.List[x]
+            annotation = annotation.__args__[0]
+            return await convert_flag(ctx, argument, flag, annotation)
+        elif origin is Union and type(None) in annotation.__args__:
+            # typing.Optional[x]
+            annotation = Union[tuple(arg for arg in annotation.__args__ if arg is not type(None))]  # type: ignore
+            return await commands.run_converters(ctx, annotation, argument, param)
+        elif origin is dict:
+            # typing.Dict[K, V] -> typing.Tuple[K, V]
+            return await tuple_convert_flag(ctx, argument, flag, annotation.__args__)
+
+    try:
+        return await commands.run_converters(ctx, annotation, argument, param)
+    except Exception as e:
+        raise commands.BadFlagArgument(flag, argument, e) from e
+
+
+class FlagConverter(commands.FlagConverter):
+    """A drop-in replacement of the subclass of `FlagConverter` from
+    `discord.ext.commands`, which adds support for parsing `CodeBlock`
+    and `Parens` inside of `tuple` annotations of `discord.ext.commands.flags.Flag`.
+    """
+
+    @classmethod
+    async def convert(cls, ctx: commands.Context[BotT], argument: str) -> Self:
+        arguments = cls.parse_flags(argument)
+        flags = cls.__commands_flags__
+
+        self = cls.__new__(cls)
+        for name, flag in flags.items():
+            try:
+                values = arguments[name]
+            except KeyError:
+                if flag.required:
+                    raise commands.MissingRequiredFlag(flag)
+                else:
+                    if callable(flag.default):
+                        # Type checker does not understand flag.default is a Callable
+                        default = await discord.utils.maybe_coroutine(flag.default, ctx)  # type: ignore
+                        setattr(self, flag.attribute, default)
+                    else:
+                        setattr(self, flag.attribute, flag.default)
+                    continue
+
+            if flag.max_args > 0 and len(values) > flag.max_args:
+                if flag.override:
+                    values = values[-flag.max_args :]
+                else:
+                    raise commands.TooManyFlags(flag, values)
+
+            # Special case:
+            if flag.max_args == 1:
+                value = await convert_flag(ctx, values[0], flag)
+                setattr(self, flag.attribute, value)
+                continue
+
+            # Another special case, tuple parsing.
+            # Tuple parsing is basically converting arguments within the flag
+            # So, given flag: hello 20 as the input and Tuple[str, int] as the type hint
+            # We would receive ('hello', 20) as the resulting value
+            # This uses the same whitespace and quoting rules as regular parameters.
+            values = [await convert_flag(ctx, value, flag) for value in values]
+
+            if flag.cast_to_dict:
+                values = dict(values)
+
+            setattr(self, flag.attribute, values)
+
+        return self
