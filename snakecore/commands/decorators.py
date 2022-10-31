@@ -48,9 +48,10 @@ def flagconverter_kwargs(
     This decorator must be applied as the very first decorator when defining a command.
 
     This is a convenience decorator that handles the creation of `FlagConverter`
-    subclasses for you. Note that the output wrapper function
-    will have a different signature than the input command function, and hence is
-    not meant to be called directly.
+    subclasses for you. Note that The output wrapper function
+    will have a less restrictive signature than the input command function.
+    If called directly, the implicitly generated `__flags__` keyword argument
+    should not be specified.
 
     The generated wrapper function doesn't expose the wrapped command function
     using a `__wrapped__` attribute, but by using a custom `__wrapped_func__`
@@ -174,8 +175,8 @@ def flagconverter_kwargs(
         )
 
         new_param_list.append(
-            commands.Parameter(
-                "flags",
+            commands.Parameter(  # add generated FlagConverter class as parameter
+                "__flags__",
                 inspect.Parameter.KEYWORD_ONLY,
                 annotation=flags_cls,
             )
@@ -185,8 +186,8 @@ def flagconverter_kwargs(
             parameters=new_param_list, return_annotation=sig.return_annotation
         )
 
-        async def wrapper(*args, flags: flags_cls = None, **kwargs):  # type: ignore
-            return await func(*args, **(flags.__dict__ if flags is not None else {} | kwargs))  # type: ignore
+        async def wrapper(*args, __flags__: flags_cls = None, **kwargs):  # type: ignore
+            return await func(*args, **(__flags__.__dict__ if __flags__ is not None else {} | kwargs))  # type: ignore
 
         # shallow-copy wrapper function to override __globals__
         flagconverter_kwargs_wrapper: Callable[_P, _T] = types.FunctionType(
