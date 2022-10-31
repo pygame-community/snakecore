@@ -210,7 +210,7 @@ class CodeBlock:
         )
 
 
-class String(commands.Converter[str]):
+class String(str):
     """A converter that parses string literals to string objects,
     thereby handling escaped characters and removing trailing quotes.
 
@@ -219,7 +219,19 @@ class String(commands.Converter[str]):
         - `'"ab\\"c"' -> 'ab"c'`
     """
 
-    ESCAPES = {
+    _ESCAPES: dict[str, str]
+
+    @classmethod
+    async def convert(cls, ctx: commands.Context, argument: str) -> str:
+        ...
+
+    @classmethod
+    def escape(cls, string: str) -> str:
+        ...
+
+
+class _String:
+    _ESCAPES = {
         "0": "\0",
         "n": "\n",
         "r": "\r",
@@ -231,11 +243,28 @@ class String(commands.Converter[str]):
         '"': '"',
         "'": "'",
         "`": "`",
+        "‘": "’",
+        "‚": "‛",
+        "“": "”",
+        "„": "‟",
+        "⹂": "⹂",
+        "「": "」",
+        "『": "』",
+        "〝": "〞",
+        "﹁": "﹂",
+        "﹃": "﹄",
+        "＂": "＂",
+        "｢": "｣",
+        "«": "»",
+        "‹": "›",
+        "《": "》",
+        "〈": "〉",
     }
 
-    async def convert(self, ctx: commands.Context, argument: str):
+    @classmethod
+    async def convert(cls, ctx: commands.Context, argument: str) -> str:
         try:
-            s = self.escape(argument)
+            s = cls.escape(argument)
         except ValueError as verr:
             raise commands.BadArgument(
                 f"Escaping input argument failed: {verr}"
@@ -248,7 +277,8 @@ class String(commands.Converter[str]):
             s = s[1:-1]
         return s
 
-    def escape(self, string: str):
+    @classmethod
+    def escape(cls, string: str) -> str:
         """
         Convert a "raw" string to one where characters are escaped
         """
@@ -261,7 +291,7 @@ class String(commands.Converter[str]):
                 # got a backslash, handle escapes
                 char = string[index]
                 index += 1
-                if char.lower() in ["x", "u"]:  # these are unicode escapes
+                if char.lower() in ("x", "u"):  # these are unicode escapes
                     if char.lower() == "x":
                         n = 2
                     else:
@@ -282,9 +312,9 @@ class String(commands.Converter[str]):
                         )
                     index += n
 
-                elif char in self.ESCAPES:
+                elif char in cls._ESCAPES:
                     # general escapes
-                    newstr += self.ESCAPES[char]
+                    newstr += cls._ESCAPES[char]
                 else:
                     raise ValueError(
                         "Invalid escape character",
@@ -650,6 +680,11 @@ if not TYPE_CHECKING:
     _Parens.__qualname__ = Parens.__qualname__
     _Parens.__doc__ = Parens.__doc__
     Parens = _Parens
+
+    _String.__name__ = String.__name__
+    _String.__qualname__ = String.__qualname__
+    _String.__doc__ = String.__doc__
+    String = _String
 
 
 class SingleQuotedString(commands.Converter[str]):
