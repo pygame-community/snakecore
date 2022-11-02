@@ -11,21 +11,27 @@ from collections import deque
 import datetime
 import itertools
 from types import FunctionType
-from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Type, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Literal,
+    Optional,
+    Type,
+    TypedDict,
+    Union,
+    no_type_check,
+)
 
 from snakecore import events
 from snakecore.constants import UNSET, _UnsetType, JobPermissionLevels
-from snakecore.constants.enums import JobBoolFlags as JF
+from snakecore.constants.enums import JobBoolFlags as JF, JobOps
 from snakecore.exceptions import JobIsDone
 
 from . import jobs, manager
 
 
-class JobProxy:  # will be overridden at runtime
-    """A proxy class that provides an interface for safe access to job objects at
-    runtime.
-    """
-
+class JobProxy:
     __slots__ = (
         "__j",
         "__job_class",
@@ -45,155 +51,7 @@ class JobProxy:  # will be overridden at runtime
     )
 
     def __init__(self, job: "jobs.JobBase"):
-        ...
-
-    def _cache_current_job_state(self):
-        ...
-
-    def _eject_from_source(self):
-        ...
-
-    def _check_if_ejected(self):
-        ...
-
-    @property
-    def job_class(self) -> jobs.JobBase:
-        ...
-
-    @property
-    def permission_level(self) -> JobPermissionLevels:
-        ...
-
-    @property
-    def runtime_id(self) -> str:
-        ...
-
-    @property
-    def creator(self) -> Optional["JobProxy"]:
-        """The `JobProxy` of the creator of this job."""
-        ...
-
-    @property
-    def guardian(self) -> Optional[jobs.JobBase]:
-        """The `JobProxy` of the current guardian of this job."""
-        ...
-
-    @property
-    def created_at(self) -> datetime.datetime:
-        ...
-
-    @property
-    def registered_at(self) -> Optional[datetime.datetime]:
-        ...
-
-    @property
-    def killed_at(self) -> Optional[datetime.datetime]:
-        ...
-
-    @property
-    def completed_at(self) -> Optional[datetime.datetime]:
-        ...
-
-    initialized = (
-        jobs.JobBase.initialized
-    )  # fool autocompetion tools in order to reuse docstrings
-
-    is_initializing = jobs.JobBase.is_initializing
-
-    initialized_since = jobs.JobBase.initialized_since
-
-    alive = jobs.JobBase.alive
-
-    alive_since = jobs.JobBase.alive_since
-
-    is_starting = jobs.JobBase.is_starting
-
-    is_running = jobs.JobBase.is_running
-
-    running_since = jobs.JobBase.running_since
-
-    is_stopping = jobs.JobBase.is_stopping
-
-    get_stopping_reason = jobs.JobBase.get_stopping_reason
-
-    stopped = jobs.JobBase.stopped
-
-    get_last_stopping_reason = jobs.JobBase.get_last_stopping_reason
-
-    stopped_since = jobs.JobBase.stopped_since
-
-    is_idling = jobs.JobBase.is_idling
-
-    idling_since = jobs.JobBase.idling_since
-
-    run_failed = jobs.JobBase.run_failed
-
-    killed = jobs.JobBase.killed
-
-    is_being_killed = jobs.JobBase.is_being_killed
-
-    is_being_startup_killed = jobs.JobBase.is_being_startup_killed
-
-    completed = jobs.JobBase.completed
-
-    is_completing = jobs.JobBase.is_completing
-
-    done = jobs.JobBase.done
-
-    done_since = jobs.JobBase.done_since
-
-    is_restarting = jobs.JobBase.is_restarting
-
-    was_restarted = jobs.JobBase.was_restarted
-
-    is_being_guarded = jobs.JobBase.is_being_guarded
-
-    await_done = jobs.JobBase.await_done
-
-    await_unguard = jobs.JobBase.await_unguard
-
-    get_output_queue_proxy = jobs.JobBase.get_output_queue_proxy
-
-    verify_output_field_support = jobs.JobBase.verify_output_field_support
-
-    verify_output_queue_support = jobs.JobBase.verify_output_queue_support
-
-    get_output_field = jobs.JobBase.get_output_field
-
-    get_output_queue_contents = jobs.JobBase.get_output_queue_contents
-
-    get_output_field_names = jobs.JobBase.get_output_field_names
-
-    get_output_queue_names = jobs.JobBase.get_output_queue_names
-
-    has_output_field_name = jobs.JobBase.has_output_field_name
-
-    has_output_queue_name = jobs.JobBase.has_output_queue_name
-
-    output_field_is_set = jobs.JobBase.output_field_is_set
-
-    output_queue_is_empty = jobs.JobBase.output_queue_is_empty
-
-    await_output_field = jobs.JobBase.await_output_field
-
-    await_output_queue_add = jobs.JobBase.await_output_queue_add
-
-    verify_public_method_suppport = jobs.JobBase.verify_public_method_suppport
-
-    get_public_method_names = jobs.JobBase.get_public_method_names
-
-    has_public_method_name = jobs.JobBase.has_public_method_name
-
-    public_method_is_async = jobs.JobBase.public_method_is_async
-
-    run_public_method = jobs.JobBase.run_public_method
-
-
-class _JobProxy:
-    __slots__ = JobProxy.__slots__
-
-    def __init__(self, job: "jobs.JobBase"):
-        self.__j = job
+        self.__j: Optional["jobs.JobBase"] = job
         self._cache_current_job_state()
 
     def _cache_current_job_state(self):
@@ -206,6 +64,7 @@ class _JobProxy:
         self.__creator = job.creator
         self._created_at = job.created_at
         self._registered_at = job.registered_at
+        self._killed_at = job.killed_at
         self._done = job.done()
         self._initialized_since = job.initialized_since()
         self._alive_since = job.alive_since()
@@ -217,16 +76,18 @@ class _JobProxy:
             self.__j = None
 
     def _eject_from_source(self):
-        if self.__j.done():
+        if self.__j and self.__j.done():
             self._cache_current_job_state()
             self.__j = None
 
-    def _check_if_ejected(self):
+    def _check_if_ejected(self) -> bool:
         if self.__j is None:
             raise JobIsDone("this job object is already done.")
 
+        return False
+
     @property
-    def job_class(self) -> jobs.JobBase:
+    def job_class(self) -> type[jobs.JobBase]:
         return self.__job_class
 
     @property
@@ -257,11 +118,11 @@ class _JobProxy:
 
     @property
     def registered_at(self) -> Optional[datetime.datetime]:
-        return self.__j.registered_at
+        return self._registered_at
 
     @property
     def killed_at(self) -> Optional[datetime.datetime]:
-        return self.__j.killed_at
+        return self._killed_at
 
     @property
     def completed_at(self) -> Optional[datetime.datetime]:
@@ -330,12 +191,8 @@ class _JobProxy:
             else bool(self._job_bools & JF.KILLED)
         )
 
-    def is_being_killed(self, get_reason=False):
-        return (
-            self.__j.is_being_killed(get_reason=get_reason)
-            if self.__j is not None
-            else False
-        )
+    def is_being_killed(self):
+        return self.__j.is_being_killed() if self.__j is not None else False
 
     def is_being_startup_killed(self):
         return self.__j.is_being_startup_killed() if self.__j is not None else False
@@ -354,7 +211,7 @@ class _JobProxy:
         return self._done
 
     def done_since(self):
-        return self.__j.done_since() if self._done else self._done_since
+        return self._done_since
 
     completed_at = killed_at = property(fget=done_since)
 
@@ -375,15 +232,15 @@ class _JobProxy:
         self, timeout: Optional[float] = None, cancel_if_killed: bool = False
     ):
         self._check_if_ejected()
-        return self.__j.await_done(timeout=timeout, cancel_if_killed=cancel_if_killed)
+        return self.__j.await_done(timeout=timeout, cancel_if_killed=cancel_if_killed)  # type: ignore
 
     def await_unguard(self, timeout: Optional[float] = None):
         self._check_if_ejected()
-        return self.__j.await_unguard(timeout=timeout)
+        return self.__j.await_unguard(timeout=timeout)  # type: ignore
 
     def get_output_queue_proxy(self):
         self._check_if_ejected()
-        return self.__j.get_output_queue_proxy()
+        return self.__j.get_output_queue_proxy()  # type: ignore
 
     def verify_output_field_support(self, field_name: str, raise_exceptions=False):
         return self.__job_class.verify_output_field_support(
@@ -397,11 +254,11 @@ class _JobProxy:
 
     def get_output_field(self, field_name: str, default=UNSET, /):
         self._check_if_ejected()
-        return self.__j.get_output_field(field_name, default=default)
+        return self.__j.get_output_field(field_name, default=default)  # type: ignore
 
     def get_output_queue_contents(self, queue_name: str, default=UNSET, /):
         self._check_if_ejected()
-        return self.__j.get_output_queue_contents(queue_name, default=default)
+        return self.__j.get_output_queue_contents(queue_name, default=default)  # type: ignore
 
     def get_output_field_names(self):
         return self.__job_class.get_output_field_names()
@@ -417,15 +274,15 @@ class _JobProxy:
 
     def output_field_is_set(self, field_name: str):
         self._check_if_ejected()
-        return self.__j.output_field_is_set(field_name)
+        return self.__j.output_field_is_set(field_name)  # type: ignore
 
     def output_queue_is_empty(self, queue_name: str):
         self._check_if_ejected()
-        return self.__j.output_queue_is_empty(queue_name)
+        return self.__j.output_queue_is_empty(queue_name)  # type: ignore
 
     def await_output_field(self, field_name: str, timeout: Optional[float] = None):
         self._check_if_ejected()
-        return self.__j.await_output_field(field_name, timeout=timeout)
+        return self.__j.await_output_field(field_name, timeout=timeout)  # type: ignore
 
     def await_output_queue_add(
         self,
@@ -434,7 +291,7 @@ class _JobProxy:
         cancel_if_cleared: bool = True,
     ):
         self._check_if_ejected()
-        return self.__j.await_output_queue_add(
+        return self.__j.await_output_queue_add(  # type: ignore
             queue_name, timeout=timeout, cancel_if_cleared=cancel_if_cleared
         )
 
@@ -454,13 +311,19 @@ class _JobProxy:
 
     def run_public_method(self, method_name: str, *args, **kwargs):
         self._check_if_ejected()
-        return self.__j.run_public_method(method_name, *args, **kwargs)
+        return self.__j.run_public_method(method_name, *args, **kwargs)  # type: ignore
 
     def __str__(self):
         return f"<JobProxy ({self.__j!s})>"
 
     def __repr__(self):
         return f"<JobProxy ({self.__j!r})>"
+
+
+class _JobOutputQueueProxyDict(TypedDict):
+    index: int
+    rescue_buffer: Optional[deque[Any]]
+    job_output_queue: list[Any]
 
 
 class JobOutputQueueProxy:
@@ -485,11 +348,9 @@ class JobOutputQueueProxy:
         self.__job_proxy = job._proxy
         self.__output_queue_names = job.OutputQueues
         job_output_queues = self.__j._output_queues
-        self._output_queue_proxy_dict: dict[
-            str, list[Union[int, Optional[deque[Any]], list[Any]]]
-        ] = {
-            queue_name: [0, None, job_output_queues[queue_name]]
-            for queue_name in self.__j.OutputQueues.get_all_names()
+        self._output_queue_proxy_dict: dict[str, _JobOutputQueueProxyDict] = {
+            queue_name: {"index": 0, "rescue_buffer": None, "job_output_queue": job_output_queues[queue_name]}  # type: ignore
+            for queue_name in self.__j.OutputQueues.get_all_names()  # type: ignore
         }
 
         self._default_queue_config = {"use_rescue_buffer": False}
@@ -542,12 +403,16 @@ class JobOutputQueueProxy:
         self.verify_output_queue_support(queue_name, raise_exceptions=True)
 
         if queue_name not in self._output_queue_proxy_dict:
-            self._output_queue_proxy_dict[queue_name] = [0, None, []]
+            self._output_queue_proxy_dict[queue_name] = {
+                "index": 0,
+                "rescue_buffer": None,
+                "job_output_queue": [],
+            }
 
         if use_rescue_buffer:
-            self._output_queue_proxy_dict[queue_name][1] = deque()
+            self._output_queue_proxy_dict[queue_name]["rescue_buffer"] = deque()
         elif use_rescue_buffer is False:
-            self._output_queue_proxy_dict[queue_name][1] = None
+            self._output_queue_proxy_dict[queue_name]["rescue_buffer"] = None
 
     def config_output_queue_defaults(self, use_rescue_buffer: Optional[bool] = None):
         """Configure default settings for output queues.
@@ -564,21 +429,25 @@ class JobOutputQueueProxy:
     def _output_queue_clear_alert(self, queue_name: str):
         # Alerts OutputQueueProxy objects that their job
         # object is about to clear its output queues.
-        queue_list = self._output_queue_proxy_dict[queue_name]
+        queue_dict = self._output_queue_proxy_dict[queue_name]
 
-        if queue_list[1] is not None:
-            queue_list[1].extend(queue_list[2])
+        if queue_dict["rescue_buffer"] is not None:
+            queue_dict["rescue_buffer"].extend(queue_dict["job_output_queue"])
 
-        queue_list[0] = 0
+        queue_dict["index"] = 0
 
-    def _new_output_queue_alert(self, queue_name: str, queue_list: list):
+    def _new_output_queue_alert(self, queue_name: str, queue_dict: list):
         if queue_name not in self._output_queue_proxy_dict:
-            self._output_queue_proxy_dict[queue_name] = [0, None, queue_list]
+            self._output_queue_proxy_dict[queue_name] = {
+                "index": 0,
+                "rescue_buffer": None,
+                "job_output_queue": queue_dict,
+            }
         else:
-            self._output_queue_proxy_dict[queue_name][2] = queue_list
+            self._output_queue_proxy_dict[queue_name]["job_output_queue"] = queue_dict
 
         if self._default_queue_config["use_rescue_buffer"]:
-            self._output_queue_proxy_dict[queue_name][1] = deque()
+            self._output_queue_proxy_dict[queue_name]["rescue_buffer"] = deque()
 
     def pop_output_queue(
         self, queue_name: str, amount: Optional[int] = None, all_values: bool = False
@@ -603,16 +472,16 @@ class JobOutputQueueProxy:
         """
         self.verify_output_queue_support(queue_name, raise_exceptions=True)
 
-        queue_list = self._output_queue_proxy_dict[queue_name]
+        queue_dict = self._output_queue_proxy_dict[queue_name]
 
         if not all_values and amount is None:
 
-            if queue_list[1]:
-                return queue_list[1].popleft()
-            elif queue_list[2]:
-                if queue_list[0] < len(queue_list[2]):
-                    output = queue_list[2][queue_list[0]]
-                    queue_list[0] += 1
+            if queue_dict["rescue_buffer"]:
+                return queue_dict["rescue_buffer"].popleft()
+            elif queue_dict["job_output_queue"]:
+                if queue_dict["index"] < len(queue_dict["job_output_queue"]):
+                    output = queue_dict["job_output_queue"][queue_dict["index"]]
+                    queue_dict["index"] += 1
                     return output
 
                 raise LookupError(
@@ -625,13 +494,15 @@ class JobOutputQueueProxy:
         elif all_values or isinstance(amount, int) and amount > 0:
             entries = []
 
-            for _ in itertools.count() if all_values else range(amount):
-                if queue_list[1]:
-                    entries.append(queue_list[1].popleft())
-                elif queue_list[2]:
-                    if queue_list[0] < len(queue_list[2]):
-                        entries.append(queue_list[2][queue_list[0]])
-                        queue_list[0] += 1
+            for _ in itertools.count() if all_values else range(amount):  # type: ignore
+                if queue_dict["rescue_buffer"]:
+                    entries.append(queue_dict["rescue_buffer"].popleft())  # type: ignore
+                elif queue_dict["job_output_queue"]:
+                    if queue_dict["index"] < len(queue_dict["job_output_queue"]):
+                        entries.append(
+                            queue_dict["job_output_queue"][queue_dict["index"]]
+                        )
+                        queue_dict["index"] += 1
                     else:
                         break
                 else:
@@ -661,10 +532,10 @@ class JobOutputQueueProxy:
         self.verify_output_queue_support(queue_name, raise_exceptions=True)
 
         if ignore_rescue_buffer:
-            return not self._output_queue_proxy_dict[queue_name][2]
+            return not self._output_queue_proxy_dict[queue_name]["job_output_queue"]
 
-        queue_list = self._output_queue_proxy_dict[queue_name]
-        return not queue_list[1] and not queue_list[2]
+        queue_dict = self._output_queue_proxy_dict[queue_name]
+        return not queue_dict["rescue_buffer"] and not queue_dict["job_output_queue"]
 
     def output_queue_is_exhausted(self, queue_name: str):
         """Whether the specified output queue is exhausted,
@@ -686,12 +557,14 @@ class JobOutputQueueProxy:
         """
 
         self.verify_output_queue_support(queue_name, raise_exceptions=True)
-        queue_list = self._output_queue_proxy_dict.get(queue_name, UNSET)
+        queue_dict = self._output_queue_proxy_dict.get(queue_name, UNSET)
 
-        if queue_list is UNSET:
+        if queue_dict is UNSET:
             return False
 
-        if queue_list[2] and queue_list[0] >= len(queue_list[2]):
+        if queue_dict["job_output_queue"] and queue_dict["index"] >= len(
+            queue_dict["job_output_queue"]
+        ):
             return True
         return False
 
@@ -731,30 +604,51 @@ class JobOutputQueueProxy:
 
 
 class JobManagerProxy:
+    __slots__ = (
+        "__mgr",
+        "__j",
+        "__job_class",
+        "__runtime_id",
+        "__permission_level",
+        "__creator",
+        "_created_at",
+        "_job_stop_timeout",
+        "_registered_at",
+        "_done_since",
+        "_initialized_since",
+        "_alive_since",
+        "_last_stopping_reason",
+        "_killed_at",
+        "_completed_at",
+        "_done",
+        "_job_bools",
+    )
 
-    __slots__ = ("__mgr", "__j", "_job_stop_timeout")
+    def __init__(self, mgr: manager.JobManager, job: jobs.JobBase):
+        self.__mgr: manager.JobManager = mgr
+        self.__j: jobs.JobBase = job
+        self._job_stop_timeout = None
 
-    def __init__(
-        self,
-        mgr: manager.JobManager,
-        job: jobs.ManagedJobBase,
-    ):
-        ...
+    def is_running(self):
+        return self.__mgr.is_running()
 
-    is_running = manager.JobManager.is_running
-
-    @property
-    def _loop(self) -> AbstractEventLoop:
-        ...
+    def _check_if_ejected(self) -> bool:
+        if not (self.__j and self.__mgr):
+            raise RuntimeError("This job manager proxy has been invalidated.")
+        return False
 
     @property
     def manager_job(self) -> JobProxy:
         """The job manager's representative job."""
-        ...
+        self._check_if_ejected()
+        return self.__mgr._manager_job._proxy  # type: ignore
 
-    def get_job_stop_timeout(
-        self,
-    ) -> Optional[float]:  # placeholder method with docstring
+    @property
+    def _loop(self) -> AbstractEventLoop:
+        self._check_if_ejected()
+        return self.__mgr._loop
+
+    def get_job_stop_timeout(self):
         """Get the maximum time period in seconds for the job object managed
         by this `JobManagerProxy` to stop when halted from the
         job manager, either due to stopping, restarted or killed.
@@ -767,14 +661,20 @@ class JobManagerProxy:
             None: No timeout was set for the job object or globally for the
               current job manager.
         """
-        ...
+        self._check_if_ejected()
+        return (
+            self._job_stop_timeout
+            if self._job_stop_timeout
+            else self.__mgr.get_global_job_stop_timeout()
+        )
 
     def verify_permissions(
         self,
-        op: JobPermissionLevels,
+        op: JobOps,
         target: Optional[JobProxy] = None,
         target_cls: Optional[Type[jobs.ManagedJobBase]] = None,
-    ):
+        register_permission_level: Optional[JobPermissionLevels] = None,
+    ) -> bool:
         """Check if the permissions of the job of this `JobManagerProxy` object
         are sufficient for carrying out the specified operation on the given input.
 
@@ -791,103 +691,9 @@ class JobManagerProxy:
         Returns:
             bool: The result of the permission check.
         """
-        ...
-
-    def _eject(self):
-        """
-        Irreversible job death. Do not call this method without ensuring that
-        a job is killed.
-        """
-        ...
-
-    def _self_ungard(self):
-        ...
-
-    get_job_permission_level = manager.JobManager.get_job_permission_level
-
-    create_job = manager.JobManager.create_job
-
-    initialize_job = manager.JobManager.initialize_job
-
-    register_job = manager.JobManager.register_job
-
-    create_and_register_job = manager.JobManager.create_and_register_job
-
-    restart_job = manager.JobManager.restart_job
-
-    start_job = manager.JobManager.start_job
-
-    stop_job = manager.JobManager.stop_job
-
-    kill_job = manager.JobManager.kill_job
-
-    guard_job = manager.JobManager.guard_job
-
-    unguard_job = manager.JobManager.unguard_job
-
-    guard_on_job = manager.JobManager.guard_on_job
-
-    find_job = manager.JobManager.find_job
-
-    find_jobs = manager.JobManager.find_jobs
-
-    wait_for_event = manager.JobManager.wait_for_event
-
-    dispatch_event = manager.JobManager.dispatch_event
-
-    def has_job(self, job_proxy: JobProxy) -> bool:
-        """Whether a specific job object is currently in this
-        job manager.
-
-        Args:
-            job_proxy (JobProxy): The target job's proxy.
-
-        Returns:
-            bool: True/False
-        """
-        ...
-
-    __contains__ = has_job
-
-    has_job_identifier = manager.JobManager.has_job_identifier
-
-
-class _JobManagerProxy:  # hidden implementation to trick type-checker engines
-    __slots__ = JobManagerProxy.__slots__
-
-    def __init__(self, mgr: manager.JobManager, job: jobs.JobBase):
-        self.__mgr = mgr
-        self.__j = job
-        self._job_stop_timeout = None
-
-    def is_running(self):
-        return self.__mgr.is_running()
-
-    @property
-    def manager_job(self) -> JobProxy:
-        """The job manager's representative job."""
-        return self.__mgr._manager_job._proxy
-
-    @property
-    def _loop(self) -> AbstractEventLoop:
-        return self.__mgr._loop
-
-    def get_job_stop_timeout(self):
-        return (
-            self._job_stop_timeout
-            if self._job_stop_timeout
-            else self.__mgr.get_global_job_stop_timeout()
-        )
-
-    def verify_permissions(
-        self,
-        op: JobPermissionLevels,
-        target: Optional[JobProxy] = None,
-        target_cls: Optional[Type[jobs.ManagedJobBase]] = None,
-        register_permission_level: Optional[JobPermissionLevels] = None,
-    ) -> bool:
+        self._check_if_ejected()
         return self.__mgr._verify_permissions(
-            self.__j,
+            self.__j,  # type: ignore
             op,
             target=target if target is not None else target,
             target_cls=target_cls,
@@ -896,6 +702,7 @@ class _JobManagerProxy:  # hidden implementation to trick type-checker engines
         )
 
     def get_job_permission_level(self, job_proxy: JobProxy) -> JobPermissionLevels:
+        self._check_if_ejected()
         return self.__mgr.get_job_permission_level(job_proxy)
 
     def create_job(
@@ -904,17 +711,20 @@ class _JobManagerProxy:  # hidden implementation to trick type-checker engines
         *args,
         **kwargs,
     ):
+        self._check_if_ejected()
         return self.__mgr.create_job(
             cls, *args, _return_proxy=True, _iv=self.__j, **kwargs
         )
 
     async def initialize_job(self, job_proxy: JobProxy, raise_exceptions: bool = True):
+        self._check_if_ejected()
         return await self.__mgr.initialize_job(
             job_proxy, raise_exceptions=raise_exceptions
         )
 
     async def register_job(self, job_proxy: JobProxy):
-        return await self.__mgr.register_job(job_proxy, _iv=self.__j)
+        self._check_if_ejected()
+        return await self.__mgr.register_job(job_proxy, _iv=self.__j)  # type: ignore
 
     async def create_and_register_job(
         self,
@@ -922,6 +732,7 @@ class _JobManagerProxy:  # hidden implementation to trick type-checker engines
         *args,
         **kwargs,
     ) -> JobProxy:
+        self._check_if_ejected()
         return await self.__mgr.create_and_register_job(
             cls,
             *args,
@@ -933,20 +744,22 @@ class _JobManagerProxy:  # hidden implementation to trick type-checker engines
     def restart_job(
         self, job_proxy: JobProxy, stopping_timeout: Optional[float] = None
     ):
+        self._check_if_ejected()
         job = self.__mgr._get_job_from_proxy(job_proxy)
 
         if job is self.__j:
             job.RESTART()
 
         return self.__mgr.restart_job(
-            job_proxy, stopping_timeout=stopping_timeout, _iv=self.__j
+            job_proxy, stopping_timeout=stopping_timeout, _iv=self.__j  # type: ignore
         )
 
     def start_job(
         self,
         job_proxy: JobProxy,
     ):
-        return self.__mgr.start_job(job_proxy, _iv=self.__j)
+        self._check_if_ejected()
+        return self.__mgr.start_job(job_proxy, _iv=self.__j)  # type: ignore
 
     def stop_job(
         self,
@@ -954,6 +767,7 @@ class _JobManagerProxy:  # hidden implementation to trick type-checker engines
         stopping_timeout: Optional[float] = None,
         force=False,
     ):
+        self._check_if_ejected()
         job = self.__mgr._get_job_from_proxy(job_proxy)
 
         if job is self.__j:
@@ -961,66 +775,71 @@ class _JobManagerProxy:  # hidden implementation to trick type-checker engines
 
         return self.__mgr.stop_job(
             job_proxy, stopping_timeout=stopping_timeout, force=force, _iv=self.__j
-        )
+        )  # type: ignore
 
     def kill_job(self, job_proxy: JobProxy, stopping_timeout: Optional[float] = None):
+        self._check_if_ejected()
         job = self.__mgr._get_job_from_proxy(job_proxy)
 
         if job is self.__j:
             job.KILL()
 
         return self.__mgr.kill_job(
-            job_proxy, stopping_timeout=stopping_timeout, _iv=self.__j
+            job_proxy, stopping_timeout=stopping_timeout, _iv=self.__j  # type: ignore
         )
 
     def guard_job(
         self,
         job_proxy: JobProxy,
     ):
-        return self.__mgr.guard_job(job_proxy, _iv=self.__j)
+        self._check_if_ejected()
+        return self.__mgr.guard_job(job_proxy, _iv=self.__j)  # type: ignore
 
     def unguard_job(
         self,
         job_proxy: JobProxy,
     ):
-        return self.__mgr.unguard_job(job_proxy, _iv=self.__j)
+        self._check_if_ejected()
+        return self.__mgr.unguard_job(job_proxy, _iv=self.__j)  # type: ignore
 
     def guard_on_job(
         self,
         job_proxy: JobProxy,
     ):
-        return self.__mgr.guard_on_job(job_proxy, _iv=self.__j)
+        return self.__mgr.guard_on_job(job_proxy, _iv=self.__j)  # type: ignore
 
     def _eject(self):
         """
         Irreversible job death. Do not call this method without ensuring that
         a job is killed.
         """
+        self._check_if_ejected()
         if not self.__j.alive():
-            self.__mgr._remove_job(self.__j)
+            self.__mgr._remove_job(self.__j)  # type: ignore
             self.__j._manager = None
-            self.__j = None
-            self.__mgr = None
+            self.__j = None  # type: ignore
+            self.__mgr = None  # type: ignore
 
     def _self_ungard(self):
+        self._check_if_ejected()
         if self.__j._guardian is not None:
             guardian = self.__mgr._get_job_from_proxy(self.__j._guardian)
-            self.__mgr.unguard_job(self.__j, _iv=guardian)
+            self.__mgr.unguard_job(self.__j, _iv=guardian)  # type: ignore
 
     def find_job(
         self,
         *,
-        identifier: Union[str, _UnsetType] = None,
-        created_at: Union[datetime.datetime, _UnsetType] = None,
+        identifier: Optional[str] = None,
+        created_at: Optional[datetime.datetime] = None,
     ) -> Optional[JobProxy]:
-
+        self._check_if_ejected()
         return self.__mgr.find_job(
             identifier=identifier,
             created_at=created_at,
             _return_proxy=True,
-        )
+        )  # type: ignore
 
-    def find_jobs(
+    def find_jobs(  # type: ignore
         self,
         *,
         classes: Optional[
@@ -1033,28 +852,26 @@ class _JobManagerProxy:  # hidden implementation to trick type-checker engines
             ]
         ] = tuple(),
         exact_class_match: bool = False,
-        creator: Union[JobProxy, _UnsetType] = UNSET,
-        created_before: Union[datetime.datetime, _UnsetType] = UNSET,
-        created_after: Union[datetime.datetime, _UnsetType] = UNSET,
-        permission_level: Union[JobPermissionLevels, _UnsetType] = UNSET,
-        above_permission_level: Union[JobPermissionLevels, _UnsetType] = UNSET,
-        below_permission_level: Union[
-            JobPermissionLevels, _UnsetType
-        ] = JobPermissionLevels.SYSTEM,
-        alive: Union[bool, _UnsetType] = UNSET,
-        is_starting: Union[bool, _UnsetType] = UNSET,
-        is_running: Union[bool, _UnsetType] = UNSET,
-        is_idling: Union[bool, _UnsetType] = UNSET,
-        is_being_guarded: Union[bool, _UnsetType] = UNSET,
-        guardian: Union[JobProxy, _UnsetType] = UNSET,
-        is_stopping: Union[bool, _UnsetType] = UNSET,
-        is_restarting: Union[bool, _UnsetType] = UNSET,
-        is_being_killed: Union[bool, _UnsetType] = UNSET,
-        is_completing: Union[bool, _UnsetType] = UNSET,
-        stopped: Union[bool, _UnsetType] = UNSET,
+        creator: JobProxy = UNSET,
+        created_before: datetime.datetime = UNSET,
+        created_after: datetime.datetime = UNSET,
+        permission_level: JobPermissionLevels = UNSET,
+        above_permission_level: JobPermissionLevels = UNSET,
+        below_permission_level: JobPermissionLevels = UNSET,
+        alive: bool = UNSET,
+        is_starting: bool = UNSET,
+        is_running: bool = UNSET,
+        is_idling: bool = UNSET,
+        is_being_guarded: bool = UNSET,
+        guardian: JobProxy = UNSET,
+        is_stopping: bool = UNSET,
+        is_restarting: bool = UNSET,
+        is_being_killed: bool = UNSET,
+        is_completing: bool = UNSET,
+        stopped: bool = UNSET,
         query_match_mode: Literal["ANY", "ALL"] = "ALL",
     ) -> tuple[JobProxy, ...]:
-
+        self._check_if_ejected()
         return self.__mgr.find_jobs(
             classes=classes,
             exact_class_match=exact_class_match,
@@ -1077,7 +894,7 @@ class _JobManagerProxy:  # hidden implementation to trick type-checker engines
             stopped=stopped,
             query_match_mode=query_match_mode,
             _return_proxy=True,
-        )
+        )  # type: ignore
 
     def wait_for_event(
         self,
@@ -1085,18 +902,28 @@ class _JobManagerProxy:  # hidden implementation to trick type-checker engines
         check: Optional[Callable[[events.BaseEvent], bool]] = None,
         timeout: Optional[float] = None,
     ):
+        self._check_if_ejected()
         return self.__mgr.wait_for_event(
             *event_types,
             check=check,
             timeout=timeout,
-            _iv=self.__j,
+            _iv=self.__j,  # type: ignore
         )
 
     def dispatch_event(self, event: events.BaseEvent):
         event._dispatcher = self.__j._proxy
-        return self.__mgr.dispatch_event(event, _iv=self.__j)
+        return self.__mgr.dispatch_event(event, _iv=self.__j)  # type: ignore
 
     def has_job(self, job_proxy: JobProxy):
+        """Whether a specific job object is currently in this
+        job manager.
+
+        Args:
+            job_proxy (JobProxy): The target job's proxy.
+
+        Returns:
+            bool: True/False
+        """
         return self.__mgr.has_job(job_proxy)
 
     __contains__ = has_job
@@ -1112,25 +939,3 @@ class _JobManagerProxy:  # hidden implementation to trick type-checker engines
 
     def __repr__(self):
         return f"<{self.__class__.__name__} ({self.__mgr!r})>"
-
-
-for key, obj in _JobProxy.__dict__.items():  # replace placeholder functions
-    if isinstance(obj, (FunctionType, type)):
-        obj.__qualname__ = f"JobProxy.{obj.__name__}"
-        obj.__doc__ = getattr(JobProxy, key).__doc__
-
-
-for key, obj in _JobManagerProxy.__dict__.items():
-    if isinstance(obj, (FunctionType, type)):
-        obj.__qualname__ = f"JobManagerProxy.{obj.__name__}"
-        obj.__doc__ = getattr(JobManagerProxy, key).__doc__
-
-
-if not TYPE_CHECKING:
-    _JobProxy.__doc__ = JobProxy.__doc__
-    _JobProxy.__qualname__ = _JobProxy.__name__ = "JobProxy"
-    JobProxy = _JobProxy
-
-    _JobManagerProxy.__doc__ = JobManagerProxy.__doc__
-    _JobManagerProxy.__qualname__ = _JobManagerProxy.__name__ = "JobManagerProxy"
-    JobManagerProxy = _JobManagerProxy

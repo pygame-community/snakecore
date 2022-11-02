@@ -45,6 +45,7 @@ class JobLoop(tasks.Loop):
     def cancel(self):
         """Cancels the internal task, if it is running."""
         if self._can_be_cancelled():
+            assert self._task
             self._task.cancel(msg="CANCEL_BY_TASK_LOOP")
 
     def restart(self, *args, **kwargs):
@@ -64,10 +65,11 @@ class JobLoop(tasks.Loop):
         """
 
         def restart_when_over(fut, *, args=args, kwargs=kwargs):
-            self._task.remove_done_callback(restart_when_over)
+            self._task.remove_done_callback(restart_when_over)  # type: ignore
             self.start(*args, **kwargs)
 
         if self._can_be_cancelled():
+            assert self._task
             self._task.add_done_callback(restart_when_over)
             self._task.cancel(msg="CANCEL_BY_TASK_LOOP")
 

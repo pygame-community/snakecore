@@ -36,7 +36,7 @@ class BaseEventJobMixin(JobMixin):
           default, all instances of `BaseEvent` will be propagated.
     """
 
-    EVENTS: tuple[events.BaseEvent] = (events.BaseEvent,)
+    EVENTS: tuple[type[events.BaseEvent], ...] = (events.BaseEvent,)
 
     DEFAULT_MAX_EVENT_QUEUE_SIZE: Optional[int] = None
 
@@ -107,7 +107,7 @@ class BaseEventJobMixin(JobMixin):
 
         self._bools |= JF.EVENT_DISPATCH_ENABLED  # True
 
-        self._event_queue_futures: list[asyncio.Future[True]] = []
+        self._event_queue_futures: list[asyncio.Future[bool]] = []
         # used for idlling while no events are available
         self._event_queue = deque(maxlen=self._max_event_queue_size)
 
@@ -343,7 +343,7 @@ class EventJobMixin(BaseEventJobMixin):
             not not (self.DEFAULT_STOP_ON_EVENT_DISPATCH_TIMEOUT)
         )  # True/False
 
-        self._event_queue_futures: list[asyncio.Future[True]] = []
+        self._event_queue_futures: list[asyncio.Future[bool]] = []
         # used for idlling while no events are available
         self._event_queue = deque(maxlen=self._max_event_queue_size)
 
@@ -412,8 +412,9 @@ class EventJobMixin(BaseEventJobMixin):
                             pass
             else:
                 while self._event_queue:
+                    event = self._event_queue.popleft()
                     try:
-                        await self.on_event((event := self._event_queue.popleft()))
+                        await self.on_event(event)
                     except Exception as e:
                         try:
                             await self.on_event_error(e, event)
@@ -437,8 +438,9 @@ class EventJobMixin(BaseEventJobMixin):
                         pass
         else:
             for _ in range(max_event_handlings):
+                event = self._event_queue.popleft()
                 try:
-                    await self.on_event((event := self._event_queue.popleft()))
+                    await self.on_event(event)
                 except Exception as e:
                     try:
                         await self.on_event_error(e, event)

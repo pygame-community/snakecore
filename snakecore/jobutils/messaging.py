@@ -40,9 +40,9 @@ class MessageSend(
         channel: Union[int, discord.abc.Messageable, serializers.ChannelSerializer],
         content: Optional[str] = None,
         tts: bool = False,
-        embed: Union[discord.Embed, serializers.EmbedSerializer, dict] = None,
-        file: Union[discord.File, serializers.FileSerializer] = None,
-        files: list[Union[discord.File, serializers.FileSerializer]] = None,
+        embed: Union[discord.Embed, serializers.EmbedSerializer, dict, NoneType] = None,
+        file: Union[discord.File, serializers.FileSerializer, NoneType] = None,
+        files: Optional[list[Union[discord.File, serializers.FileSerializer]]] = None,
         delete_after: Optional[float] = None,
         nonce: Optional[int] = None,
         allowed_mentions: Optional[
@@ -53,6 +53,7 @@ class MessageSend(
             discord.MessageReference,
             serializers.MessageSerializer,
             serializers.MessageReferenceSerializer,
+            NoneType,
         ] = None,
         mention_author: Optional[bool] = None,
         kill_if_failed: bool = True,
@@ -181,6 +182,23 @@ class MessageSend(
             self.COMPLETE()
 
 
+messageable_channels = (
+    discord.TextChannel,
+    discord.VoiceChannel,
+    discord.Thread,
+    discord.DMChannel,
+)
+
+PartialMessageableChannel = Union[
+    discord.TextChannel,
+    discord.VoiceChannel,
+    discord.Thread,
+    discord.DMChannel,
+    discord.PartialMessageable,
+]
+MessageableChannel = Union[PartialMessageableChannel, discord.GroupChannel]
+
+
 class _MessageModify(jobs.ManagedJobBase):
     """A intermediary job class for modifying a message in a
     Discord text channel. Does not do anything on its own.
@@ -192,7 +210,7 @@ class _MessageModify(jobs.ManagedJobBase):
     def __init__(
         self,
         channel: Union[
-            int, discord.abc.Messageable, serializers.ChannelSerializer, NoneType
+            int, MessageableChannel, serializers.ChannelSerializer, NoneType
         ],
         message: Union[int, discord.Message, serializers.MessageSerializer],
         kill_if_failed: bool = True,
@@ -211,7 +229,7 @@ class _MessageModify(jobs.ManagedJobBase):
         self.data.kill_if_failed = not not kill_if_failed
 
     async def on_init(self):
-        if not isinstance(self.data.channel, discord.abc.Messageable):
+        if not isinstance(self.data.channel, messageable_channels):
             if isinstance(self.data.channel, int):
                 channel_id = self.data.channel
                 client = config.conf.global_client
@@ -232,6 +250,7 @@ class _MessageModify(jobs.ManagedJobBase):
 
         if not isinstance(self.data.message, discord.Message):
             if isinstance(self.data.message, int):
+                client = config.conf.global_client
                 channel = client.get_channel(self.data.channel.id)
                 if channel is None:
                     channel = await client.fetch_channel(self.data.channel.id)
@@ -259,11 +278,11 @@ class MessageEdit(
     def __init__(
         self,
         channel: Union[
-            int, discord.abc.Messageable, serializers.ChannelSerializer, NoneType
+            int, MessageableChannel, serializers.ChannelSerializer, NoneType
         ],
         message: Union[int, discord.Message, serializers.MessageSerializer],
         content: Optional[str] = None,
-        embed: Union[discord.Embed, serializers.EmbedSerializer, dict] = None,
+        embed: Union[discord.Embed, serializers.EmbedSerializer, dict, NoneType] = None,
         delete_after: Optional[float] = None,
         allowed_mentions: Optional[
             Union[discord.AllowedMentions, serializers.AllowedMentionsSerializer]
@@ -328,7 +347,7 @@ class MessageDelete(_MessageModify, class_uuid="860055c6-4971-4046-925c-7cafae67
     def __init__(
         self,
         channel: Union[
-            int, discord.abc.Messageable, serializers.ChannelSerializer, NoneType
+            int, MessageableChannel, serializers.ChannelSerializer, NoneType
         ],
         message: Union[int, discord.Message, serializers.MessageSerializer],
         delay: Optional[float] = None,
@@ -364,7 +383,7 @@ class ReactionAdd(_MessageModify, class_uuid="151cf1a5-73c8-4542-ad17-9b9956d0eb
     def __init__(
         self,
         channel: Union[
-            int, discord.abc.Messageable, serializers.ChannelSerializer, NoneType
+            int, MessageableChannel, serializers.ChannelSerializer, NoneType
         ],
         message: Union[int, discord.Message, serializers.MessageSerializer],
         emoji: Union[
@@ -428,7 +447,7 @@ class ReactionsAdd(_MessageModify, class_uuid="f26bdcb2-8d04-4bf5-82f8-778c7a8af
     def __init__(
         self,
         channel: Union[
-            int, discord.abc.Messageable, serializers.ChannelSerializer, NoneType
+            int, MessageableChannel, serializers.ChannelSerializer, NoneType
         ],
         message: Union[int, discord.Message, serializers.MessageSerializer],
         *emojis: Union[
@@ -519,7 +538,7 @@ class ReactionRemove(_MessageModify, class_uuid="e1c474dd-1c56-43b9-91f4-7b74a1d
     def __init__(
         self,
         channel: Union[
-            int, discord.abc.Messageable, serializers.ChannelSerializer, NoneType
+            int, MessageableChannel, serializers.ChannelSerializer, NoneType
         ],
         message: Union[int, discord.Message, serializers.MessageSerializer],
         emoji: Union[
@@ -597,7 +616,7 @@ class ReactionClearEmoji(
     def __init__(
         self,
         channel: Union[
-            int, discord.abc.Messageable, serializers.ChannelSerializer, NoneType
+            int, MessageableChannel, serializers.ChannelSerializer, NoneType
         ],
         message: Union[int, discord.Message],
         emoji: Union[

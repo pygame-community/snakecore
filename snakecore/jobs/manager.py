@@ -19,9 +19,11 @@ from typing import (
     Optional,
     Type,
     Union,
+    overload,
 )
+from typing_extensions import Self
 
-from snakecore.constants import UNSET, _UnsetType, JobBoolFlags as JF
+from snakecore.constants import UNSET, _UnsetType, JobBoolFlags as JF, NoneType
 
 from snakecore.constants.enums import (
     _JOB_OPS_PRES_CONT,
@@ -85,7 +87,7 @@ class JobManager:
         self._job_id_map: dict[
             str, tuple[jobs.ManagedJobBase, JobPermissionLevels]
         ] = {}
-        self._manager_job = None
+        self._manager_job: Optional[jobs.JobManagerJob] = None
         self._event_waiting_queues: dict[
             str,
             list[
@@ -238,7 +240,7 @@ class JobManager:
 
             self._manager_job = self._get_job_from_proxy(
                 await self.create_and_register_job(
-                    jobs.JobManagerJob, with_permission_level=JobPermissionLevels.SYSTEM
+                    jobs.JobManagerJob, with_permission_level=JobPermissionLevels.SYSTEM  # type: ignore
                 )
             )
             self._manager_job._creator = self._manager_job._proxy
@@ -257,13 +259,13 @@ class JobManager:
     ) -> bool:
 
         if (
-            isinstance(invoker, jobs.JobManagerJob)
+            isinstance(invoker, jobs.JobManagerJob)  # type: ignore
             and invoker._runtime_id in self._job_id_map
         ):
             return True
 
         if target is not None:
-            target_cls = target.__class__
+            target_cls = target.__class__  # type: ignore
             if isinstance(target, proxies.JobProxy):
                 target = self._get_job_from_proxy(target)
 
@@ -273,6 +275,7 @@ class JobManager:
                 )
 
             elif isinstance(target, jobs.JobManagerJob):
+                jobs.JobManagerJob
                 raise JobPermissionError(
                     "argument 'target' cannot be a JobManagerJob instance"
                 )
@@ -403,19 +406,20 @@ class JobManager:
                             f"insufficient permission level of '{invoker._runtime_id}' "
                             f"({invoker_permission_level.name}) "
                             f"for {_JOB_OPS_PRES_CONT[op.name].lower()} "
-                            f"job objects of the specified class '{target_cls.__qualname__}' "
+                            f"job objects of the specified class '{target_cls.__qualname__}' "  # type: ignore
                             "its instance did not create."
                         )
                     return False
 
             elif invoker_permission_level is JobPermissionLevels.HIGH:
+                target_permission_level = self._job_id_map[target._runtime_id][1]
                 if target_permission_level > JobPermissionLevels.HIGH:
                     if raise_exceptions:
                         raise JobPermissionError(
                             f"insufficient permission level of '{invoker._runtime_id}' "
                             f"({invoker_permission_level.name}) "
                             f"for {_JOB_OPS_PRES_CONT[op.name].lower()} "
-                            f"job objects of the specified class '{target_cls.__qualname__}' "
+                            f"job objects of the specified class '{target_cls.__qualname__}' "  # type: ignore
                             f"with permission level '{target_permission_level.name}'"
                         )
                     return False
@@ -452,7 +456,7 @@ class JobManager:
                             f"insufficient permission level of '{invoker._runtime_id}' "
                             f"({invoker_permission_level.name}) "
                             f"for {_JOB_OPS_PRES_CONT[op.name].lower()} "
-                            f"job objects of the specified class '{target_cls.__qualname__}' "
+                            f"job objects of the specified class '{target_cls.__qualname__}' "  # type: ignore
                             f"with permission level '{target_permission_level.name}' "
                             "that it did not create."
                         )
@@ -464,7 +468,7 @@ class JobManager:
                             f"insufficient permission level of '{invoker._runtime_id}' "
                             f"({invoker_permission_level.name}) "
                             f"for {_JOB_OPS_PRES_CONT[op.name].lower()} "
-                            f"job objects of the specified class '{target_cls.__qualname__}' "
+                            f"job objects of the specified class '{target_cls.__qualname__}' "  # type: ignore
                             f"with permission level '{target_permission_level.name}'"
                         )
                     return False
@@ -476,11 +480,31 @@ class JobManager:
                             f"insufficient permission level of '{invoker._runtime_id}' "
                             f"({invoker_permission_level.name}) "
                             f"for {_JOB_OPS_PRES_CONT[op.name].lower()} "
-                            f"job objects of the specified class '{target_cls.__qualname__}' "
+                            f"job objects of the specified class '{target_cls.__qualname__}' "  # type: ignore
                             f"with permission level '{target_permission_level.name}'"
                         )
                     return False
         return True
+
+    @overload
+    def create_job(
+        self,
+        cls: Type[jobs.ManagedJobBase],
+        *args,
+        **kwargs,
+    ) -> "proxies.JobProxy":
+        ...
+
+    @overload
+    def create_job(
+        self,
+        cls: Type[jobs.ManagedJobBase],
+        *args,
+        _return_proxy=True,
+        _iv: Optional[jobs.ManagedJobBase] = None,
+        **kwargs,
+    ) -> jobs.ManagedJobBase:
+        ...
 
     def create_job(
         self,
@@ -522,10 +546,27 @@ class JobManager:
 
     def _get_job_from_proxy(self, job_proxy: "proxies.JobProxy") -> jobs.ManagedJobBase:
         try:
-            job = job_proxy._JobProxy__j
+            job = job_proxy._JobProxy__j  # type: ignore
         except AttributeError:
             raise TypeError("invalid job proxy") from None
         return job
+
+    @overload
+    async def initialize_job(  # type: ignore
+        self,
+        job_proxy: "proxies.JobProxy",
+        raise_exceptions: bool = True,
+    ) -> bool:
+        ...
+
+    @overload
+    async def initialize_job(
+        self,
+        job_proxy: "proxies.JobProxy",
+        raise_exceptions: bool = True,
+        _iv: Optional[jobs.ManagedJobBase] = None,
+    ) -> bool:
+        ...
 
     async def initialize_job(
         self,
@@ -554,9 +595,11 @@ class JobManager:
 
         if isinstance(_iv, jobs.ManagedJobBase):
             self._verify_permissions(_iv, op=JobOps.INITIALIZE, target=job)
-        else:
+        elif _iv:
             self._check_manager_misuse()
             _iv = self._manager_job
+
+        assert _iv
 
         if job._guardian is not None and _iv._proxy is not job._guardian:
             raise JobIsGuarded(
@@ -581,6 +624,25 @@ class JobManager:
                 return False
 
         return bool(job._bools & JF.INITIALIZED)
+
+    @overload
+    async def register_job(  # type: ignore
+        self,
+        job_proxy: "proxies.JobProxy",
+        with_permission_level: Optional[JobPermissionLevels] = None,
+        start: bool = True,
+    ):
+        ...
+
+    @overload
+    async def register_job(
+        self,
+        job_proxy: "proxies.JobProxy",
+        with_permission_level: Optional[JobPermissionLevels] = None,
+        start: bool = True,
+        _iv: Optional[jobs.ManagedJobBase] = None,
+    ):
+        ...
 
     async def register_job(
         self,
@@ -633,6 +695,8 @@ class JobManager:
             self._check_manager_misuse()
             _iv = self._manager_job
 
+        assert _iv
+
         if job._guardian is not None and _iv._proxy is not job._guardian:
             raise JobIsGuarded(
                 "the given target job object is being guarded by another job"
@@ -654,8 +718,30 @@ class JobManager:
                 f" '{job.__class__.__qualname__}' job registered at a time."
             )
 
-        self._add_job(job, with_permission_level=with_permission_level, start=start)
+        self._add_job(job, with_permission_level=with_permission_level, start=start)  # type: ignore
         job._registered_at_ts = time.time()
+
+    @overload
+    async def create_and_register_job(  # type: ignore
+        self,
+        cls: Type[jobs.ManagedJobBase],
+        *args,
+        with_permission_level: Optional[JobPermissionLevels] = None,
+        **kwargs,
+    ) -> "proxies.JobProxy":
+        ...
+
+    @overload
+    async def create_and_register_job(
+        self,
+        cls: Type[jobs.ManagedJobBase],
+        *args,
+        with_permission_level: Optional[JobPermissionLevels] = None,
+        _return_proxy: bool = True,
+        _iv: Optional[jobs.ManagedJobBase] = None,
+        **kwargs,
+    ) -> Union["proxies.JobProxy", jobs.ManagedJobBase]:
+        ...
 
     async def create_and_register_job(
         self,
@@ -665,7 +751,7 @@ class JobManager:
         _return_proxy: bool = True,
         _iv: Optional[jobs.ManagedJobBase] = None,
         **kwargs,
-    ) -> "proxies.JobProxy":
+    ) -> Union["proxies.JobProxy", jobs.ManagedJobBase]:
         """Create an instance of a job class, register it to this job manager,
         and start it.
 
@@ -684,10 +770,10 @@ class JobManager:
         """
         j = self.create_job(cls, *args, _return_proxy=False, _iv=_iv, **kwargs)
         await self.register_job(
-            j._proxy, start=True, with_permission_level=with_permission_level, _iv=_iv
+            j._proxy, start=True, with_permission_level=with_permission_level, _iv=_iv  # type: ignore
         )
         if _return_proxy:
-            return j._proxy
+            return j._proxy  # type: ignore
         return j
 
     def __iter__(self):
@@ -850,21 +936,39 @@ class JobManager:
 
         raise LookupError("could not find the specified job in this job manager")
 
+    @overload
     def find_job(
         self,
         *,
-        identifier: Union[str, _UnsetType] = None,
-        created_at: Union[datetime.datetime, _UnsetType] = None,
-        _return_proxy: bool = True,
+        identifier: Optional[str] = None,
+        created_at: Optional[datetime.datetime] = None,
     ) -> Optional["proxies.JobProxy"]:
+        ...
+
+    @overload
+    def find_job(
+        self,
+        *,
+        identifier: Optional[str] = None,
+        created_at: Optional[datetime.datetime] = None,
+        _return_proxy: bool = True,
+    ) -> Optional[jobs.ManagedJobBase]:
+        ...
+
+    def find_job(
+        self,
+        *,
+        identifier: Optional[str] = None,
+        created_at: Optional[datetime.datetime] = None,
+        _return_proxy: bool = True,
+    ) -> Union["proxies.JobProxy", jobs.ManagedJobBase, NoneType]:
         """Find the first job that matches the given criteria specified as arguments,
         and return a proxy to it, otherwise return `None`.
 
         Args:
-
-            identifier (str, optional): The exact identifier of the job to find. This
+            identifier (Optional[str], optional): The exact identifier of the job to find. This
               argument overrides any other parameter below. Defaults to None.
-            created_at (datetime.datetime, optional): The exact creation date of the
+            created_at (Optional[datetime.datetime], optional): The exact creation date of the
               job to find. Defaults to None.
 
         Returns:
@@ -904,6 +1008,41 @@ class JobManager:
             "the arguments 'identifier' and 'created_at' cannot both be None"
         ) from None
 
+    @overload
+    def find_jobs(  # type: ignore
+        self,
+        *,
+        classes: Optional[
+            Union[
+                Type[jobs.ManagedJobBase],
+                tuple[
+                    Type[jobs.ManagedJobBase],
+                    ...,
+                ],
+            ]
+        ] = tuple(),
+        exact_class_match: bool = False,
+        creator: "proxies.JobProxy" = UNSET,
+        created_before: datetime.datetime = UNSET,
+        created_after: datetime.datetime = UNSET,
+        permission_level: JobPermissionLevels = UNSET,
+        above_permission_level: JobPermissionLevels = UNSET,
+        below_permission_level: JobPermissionLevels = UNSET,
+        alive: bool = UNSET,
+        is_starting: bool = UNSET,
+        is_running: bool = UNSET,
+        is_idling: bool = UNSET,
+        is_being_guarded: bool = UNSET,
+        guardian: "proxies.JobProxy" = UNSET,
+        is_stopping: bool = UNSET,
+        is_restarting: bool = UNSET,
+        is_being_killed: bool = UNSET,
+        is_completing: bool = UNSET,
+        stopped: bool = UNSET,
+        query_match_mode: Literal["ANY", "ALL"] = "ALL",
+    ) -> tuple["proxies.JobProxy", ...]:
+        ...
+
     def find_jobs(
         self,
         *,
@@ -917,26 +1056,26 @@ class JobManager:
             ]
         ] = tuple(),
         exact_class_match: bool = False,
-        creator: Union["proxies.JobProxy", _UnsetType] = UNSET,
-        created_before: Union[datetime.datetime, _UnsetType] = UNSET,
-        created_after: Union[datetime.datetime, _UnsetType] = UNSET,
-        permission_level: Union[JobPermissionLevels, _UnsetType] = UNSET,
-        above_permission_level: Union[JobPermissionLevels, _UnsetType] = UNSET,
-        below_permission_level: Union[JobPermissionLevels, _UnsetType] = UNSET,
-        alive: Union[bool, _UnsetType] = UNSET,
-        is_starting: Union[bool, _UnsetType] = UNSET,
-        is_running: Union[bool, _UnsetType] = UNSET,
-        is_idling: Union[bool, _UnsetType] = UNSET,
-        is_being_guarded: Union[bool, _UnsetType] = UNSET,
-        guardian: Union["proxies.JobProxy", _UnsetType] = UNSET,
-        is_stopping: Union[bool, _UnsetType] = UNSET,
-        is_restarting: Union[bool, _UnsetType] = UNSET,
-        is_being_killed: Union[bool, _UnsetType] = UNSET,
-        is_completing: Union[bool, _UnsetType] = UNSET,
-        stopped: Union[bool, _UnsetType] = UNSET,
+        creator: "proxies.JobProxy" = UNSET,
+        created_before: datetime.datetime = UNSET,
+        created_after: datetime.datetime = UNSET,
+        permission_level: JobPermissionLevels = UNSET,
+        above_permission_level: JobPermissionLevels = UNSET,
+        below_permission_level: JobPermissionLevels = UNSET,
+        alive: bool = UNSET,
+        is_starting: bool = UNSET,
+        is_running: bool = UNSET,
+        is_idling: bool = UNSET,
+        is_being_guarded: bool = UNSET,
+        guardian: "proxies.JobProxy" = UNSET,
+        is_stopping: bool = UNSET,
+        is_restarting: bool = UNSET,
+        is_being_killed: bool = UNSET,
+        is_completing: bool = UNSET,
+        stopped: bool = UNSET,
         query_match_mode: Literal["ANY", "ALL"] = "ALL",
         _return_proxy: bool = True,
-    ) -> tuple["proxies.JobProxy", ...]:
+    ) -> Union[tuple["proxies.JobProxy", ...], tuple[jobs.ManagedJobBase, ...]]:
         """Find jobs that match the given criteria specified as arguments,
         and return a tuple of proxy objects to them.
 
@@ -1182,6 +1321,13 @@ class JobManager:
 
         return tuple(job for job, _ in job_map.values())
 
+    @overload
+    def start_job(  # type: ignore
+        self,
+        job_proxy: "proxies.JobProxy",
+    ) -> bool:
+        ...
+
     def start_job(
         self,
         job_proxy: "proxies.JobProxy",
@@ -1216,6 +1362,8 @@ class JobManager:
             self._check_manager_misuse()
             _iv = self._manager_job
 
+        assert _iv
+
         if job._guardian is not None and _iv._proxy is not job._guardian:
             raise JobIsGuarded(
                 "the given target job object is being guarded by another job"
@@ -1223,9 +1371,17 @@ class JobManager:
 
         return job._START_EXTERNAL()
 
+    @overload
+    def restart_job(  # type: ignore
+        self,
+        job_proxy: "proxies.JobProxy",
+        stopping_timeout: Optional[float] = None,
+    ) -> bool:
+        ...
+
     def restart_job(
         self,
-        job_proxy: Union[jobs.ManagedJobBase, "proxies.JobProxy"],
+        job_proxy: "proxies.JobProxy",
         stopping_timeout: Optional[float] = None,
         _iv: Optional[jobs.ManagedJobBase] = None,
     ) -> bool:
@@ -1263,6 +1419,8 @@ class JobManager:
             self._check_manager_misuse()
             _iv = self._manager_job
 
+        assert _iv
+
         if job._guardian is not None and _iv._proxy is not job._guardian:
             raise JobIsGuarded(
                 "the given target job object is being guarded by another job"
@@ -1270,9 +1428,18 @@ class JobManager:
 
         if stopping_timeout:
             stopping_timeout = float(stopping_timeout)
-            job._manager._job_stop_timeout = stopping_timeout
+            job._manager._job_stop_timeout = stopping_timeout  # type: ignore
 
         return job._RESTART_EXTERNAL()
+
+    @overload
+    def stop_job(  # type: ignore
+        self,
+        job_proxy: "proxies.JobProxy",
+        stopping_timeout: Optional[float] = None,
+        force: bool = False,
+    ) -> bool:
+        ...
 
     def stop_job(
         self,
@@ -1313,6 +1480,8 @@ class JobManager:
             self._check_manager_misuse()
             _iv = self._manager_job
 
+        assert _iv
+
         if job._guardian is not None and _iv._proxy is not job._guardian:
             raise JobIsGuarded(
                 "the given target job object is being guarded by another job"
@@ -1320,7 +1489,7 @@ class JobManager:
 
         if stopping_timeout:
             stopping_timeout = float(stopping_timeout)
-            job._manager._job_stop_timeout = stopping_timeout
+            job._manager._job_stop_timeout = stopping_timeout  # type: ignore
 
         return job._STOP_EXTERNAL(force=force)
 
@@ -1363,6 +1532,8 @@ class JobManager:
             self._check_manager_misuse()
             _iv = self._manager_job
 
+        assert _iv
+
         if job._guardian is not None and _iv._proxy is not job._guardian:
             raise JobIsGuarded(
                 "the given target job object is being guarded by another job"
@@ -1370,7 +1541,7 @@ class JobManager:
 
         if stopping_timeout:
             stopping_timeout = float(stopping_timeout)
-            job._manager._job_stop_timeout = stopping_timeout
+            job._manager._job_stop_timeout = stopping_timeout  # type: ignore
 
         return job._KILL_EXTERNAL(awaken=True)
 
@@ -1404,6 +1575,8 @@ class JobManager:
         else:
             self._check_manager_misuse()
             _iv = self._manager_job
+
+        assert _iv
 
         if job._guardian is not None:
             raise JobIsGuarded(
@@ -1452,6 +1625,8 @@ class JobManager:
             self._check_manager_misuse()
             _iv = self._manager_job
 
+        assert _iv
+
         if job._guardian is None:
             raise JobStateError("the given job object is not being guarded by a job")
 
@@ -1467,7 +1642,7 @@ class JobManager:
         elif _iv is self._manager_job:
             job._guardian = None
 
-            del guardian._guarded_job_proxies_dict[job._runtime_id]
+            del guardian._guarded_job_proxies_dict[job._runtime_id]  # type: ignore
 
         else:
             raise JobStateError(
@@ -1475,11 +1650,11 @@ class JobManager:
                 "being guarded by the invoker job object"
             )
 
-        for fut in job._unguard_futures:
+        for fut in job._unguard_futures:  # type: ignore
             if not fut.done():
                 fut.set_result(True)
 
-        job._unguard_futures.clear()
+        job._unguard_futures.clear()  # type: ignore
 
     @contextmanager
     def guard_on_job(
@@ -1509,6 +1684,8 @@ class JobManager:
 
         if not isinstance(_iv, jobs.ManagedJobBase):
             _iv = self._manager_job
+
+        assert _iv
 
         self.guard_job(job_proxy, _iv=_iv)
         try:
@@ -1599,8 +1776,8 @@ class JobManager:
                     # requesting it from `wait_for_event`
                     continue
                 event_copy = event.copy()
-                if event_job.event_check(event_copy):
-                    event_job._add_event(event_copy)
+                if event_job.event_check(event_copy):  # type: ignore
+                    event_job._add_event(event_copy)  # type: ignore
 
     def wait_for_event(
         self,
@@ -1650,7 +1827,7 @@ class JobManager:
             if event_type._RUNTIME_ID not in self._event_waiting_queues:
                 self._event_waiting_queues[event_type._RUNTIME_ID] = []
 
-            self._event_waiting_queues[event_type._RUNTIME_ID].append(wait_list)
+            self._event_waiting_queues[event_type._RUNTIME_ID].append(wait_list)  # type: ignore
 
         return asyncio.wait_for(future, timeout)
 
@@ -1698,15 +1875,15 @@ class JobManager:
 
         done_awaitables = []
 
-        manager_job_data = self._job_id_map.pop(self._manager_job._runtime_id)
+        manager_job_data = self._job_id_map.pop(self._manager_job._runtime_id)  # type: ignore
         # don't kill job manager's job
 
         for job, _ in self._job_id_map.values():
             done_awaitables.append(job.await_done())
             job._KILL_EXTERNAL(awaken=awaken)
 
-        self._job_id_map[self._manager_job._runtime_id] = manager_job_data
-        self._manager_job._STOP_EXTERNAL(force=True)
+        self._job_id_map[self._manager_job._runtime_id] = manager_job_data  # type: ignore
+        self._manager_job._STOP_EXTERNAL(force=True)  # type: ignore
 
         return asyncio.gather(*done_awaitables, return_exceptions=True)
 
@@ -1721,7 +1898,7 @@ class JobManager:
         if self._is_running:
             raise RuntimeError("this job manager is still running")
 
-        self._manager_job._START_EXTERNAL()
+        self._manager_job._START_EXTERNAL()  # type: ignore
 
         self._is_running = True
 
@@ -1781,26 +1958,26 @@ class JobManager:
                 is_running=False,
                 stopped=False,
                 _return_proxy=False,
-            ),
-            starting=self.find_jobs(is_starting=True, _return_proxy=False),
+            ),  # type: ignore
+            starting=self.find_jobs(is_starting=True, _return_proxy=False),  # type: ignore
             running=self.find_jobs(
                 is_running=True,
                 is_idling=False,
                 is_starting=False,
                 is_restarting=False,
                 _return_proxy=False,
-            ),
-            idling=self.find_jobs(is_idling=True, _return_proxy=False),
+            ),  # type: ignore
+            idling=self.find_jobs(is_idling=True, _return_proxy=False),  # type: ignore
             stopping=self.find_jobs(
                 is_stopping=True,
                 is_restarting=False,
                 is_completing=False,
                 is_being_killed=False,
                 _return_proxy=False,
-            ),
-            completing=self.find_jobs(is_completing=True, _return_proxy=False),
-            being_killed=self.find_jobs(is_being_killed=True, _return_proxy=False),
-            stopped=self.find_jobs(stopped=True, _return_proxy=False),
+            ),  # type: ignore
+            completing=self.find_jobs(is_completing=True, _return_proxy=False),  # type: ignore
+            being_killed=self.find_jobs(is_being_killed=True, _return_proxy=False),  # type: ignore
+            stopped=self.find_jobs(stopped=True, _return_proxy=False),  # type: ignore
         )
 
         categorized_jobs_str = "\n\n".join(

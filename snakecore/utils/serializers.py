@@ -92,7 +92,7 @@ class BaseSerializer:
         Returns:
             dict: The serialized data.
         """
-        return dict(**self._dict)
+        return dict(**self._dict)  # type: ignore
 
     serialized = to_dict
 
@@ -306,7 +306,7 @@ class FileSerializer(DiscordObjectBaseSerializer):
             data = self._dict["data"]
 
             if isinstance(data, str):
-                fp = io.StringIO(data)
+                fp = io.BytesIO(data.encode("utf-8"))
 
             elif isinstance(data, (bytes, bytearray)):
                 fp = io.BytesIO(data)
@@ -406,8 +406,8 @@ class PermissionOverwriteSerializer(DiscordObjectBaseSerializer):
 
     def deserialized(self):
         permission_overwrite = discord.PermissionOverwrite.from_pair(
-            self._dict["permission_overwrite_allow_value"],
-            self._dict["permission_overwrite_deny_value"],
+            discord.Permissions(self._dict["permission_overwrite_allow_value"]),
+            discord.Permissions(self._dict["permission_overwrite_deny_value"]),
         )
         return permission_overwrite
 

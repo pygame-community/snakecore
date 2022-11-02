@@ -274,5 +274,5 @@ class OutputNameRecord(NameRecord):
                 if not name.startswith("_")
                 and isinstance((value := getattr(cls, name, None)), str)
                 and value != "DISABLED"
-            )
+            )  # type: ignore
         )

@@ -255,7 +255,7 @@ class _OnRawReactionToggle(OnRawReactionBase):
         if not channel:
             channel = await client.fetch_channel(self.payload.channel_id)
 
-        message = await channel.fetch_message(self.payload.message_id)
+        message = await channel.fetch_message(self.payload.message_id)  # type: ignore
         partial_emoji = self.payload.emoji
         reaction = None
 
@@ -268,11 +268,11 @@ class _OnRawReactionToggle(OnRawReactionBase):
 
         if self.payload.event_type == "REACTION_ADD":
             return OnReactionAdd(
-                reaction, user, event_created_at=self._event_created_at
+                reaction, user, event_created_at=self._event_created_at  # type: ignore
             )
         elif self.payload.event_type == "REACTION_REMOVE":
             return OnReactionRemove(
-                reaction, user, event_created_at=self._event_created_at
+                reaction, user, event_created_at=self._event_created_at  # type: ignore
             )
 
 

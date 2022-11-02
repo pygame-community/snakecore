@@ -5,7 +5,6 @@ Copyright (c) 2022-present pygame-community
 This file implements the base classes for job objects, which are a core part of the
 asynchronous task execution system.
 """
-
 import asyncio
 import datetime
 import inspect
@@ -17,11 +16,13 @@ from typing import (
     Callable,
     Coroutine,
     Literal,
+    Mapping,
     Optional,
     Sequence,
     Type,
     TypeVar,
     Union,
+    overload,
 )
 
 import discord.utils
@@ -47,6 +48,19 @@ from snakecore.constants import (
 )
 from snakecore.jobs.loops import JobLoop
 from snakecore.utils import FastChainMap
+
+if sys.version_info >= (3, 10):  # type: ignore
+    from typing import ParamSpec
+else:
+    from typing_extensions import ParamSpec, Self
+
+if sys.version_info >= (3, 11):  # type: ignore
+    from typing import Self
+else:
+    from typing_extensions import Self
+
+_P = ParamSpec("_P")
+_T = TypeVar("_T")
 
 _JOB_CLASS_MAP = {}
 # A dictionary of all Job subclasses that were created.
@@ -248,12 +262,26 @@ class JobNamespace(SimpleNamespace):
     __copy__ = copy
 
 
-def singletonjob(cls: Optional[Type["JobBase"]] = None, disabled: bool = False):
+@overload
+def singletonjob(cls: Type[_T]) -> Type[_T]:
+    ...
+
+
+@overload
+def singletonjob(
+    cls: Optional[Type[_T]] = None, disabled: bool = False
+) -> Callable[[Type[_T]], Type[_T]]:
+    ...
+
+
+def singletonjob(
+    cls: Optional[Type[_T]] = None, disabled: bool = False
+) -> Union[Type[_T], Callable[[Type[_T]], Type[_T]]]:
     """A class decorator for (un)marking managed job classes as singletons,
     meaning that their instances can only be running one at a time in a job manager.
     """
 
-    def inner_deco(cls: Type["JobBase"]):
+    def inner_deco(cls: Type[_T]) -> Type[_T]:
         if issubclass(cls, JobBase):
             cls._SINGLE = not disabled
         else:
@@ -267,14 +295,11 @@ def singletonjob(cls: Optional[Type["JobBase"]] = None, disabled: bool = False):
     return inner_deco
 
 
-_MethT = TypeVar("_MethT", bound=Callable[["ManagedJobBase", Any], Any])
-
-
 def publicjobmethod(
-    func: Optional[_MethT] = None,
+    func: Optional[Callable[_P, _T]] = None,
     is_async: Optional[bool] = None,
     disabled: bool = False,
-) -> _MethT:
+) -> Union[Callable[_P, _T], Callable[[Callable[_P, _T]], Callable[_P, _T]]]:
     """A special decorator to expose a managed job class method as public to other managed
     job objects. Can be used as a decorator function with or without extra arguments.
 
@@ -290,16 +315,16 @@ def publicjobmethod(
 
     """
 
-    def inner_deco(func: _MethT) -> _MethT:
+    def inner_deco(func: Callable[_P, _T]) -> Callable[_P, _T]:
         if isinstance(func, FunctionType):
-            func.__public = True
-            func.__disabled = bool(disabled)
-            func.__is_async = (
+            func.__public = True  # type: ignore
+            func.__disabled = bool(disabled)  # type: ignore
+            func.__is_async = (  # type: ignore
                 is_async
                 if isinstance(is_async, bool)
                 else inspect.iscoroutinefunction(func)
             )
-            return func
+            return func  # type: ignore
 
         raise TypeError("The first decorator function argument must be a function")
 
@@ -380,13 +405,13 @@ class _JobCore:
             f"{self.__class__._RUNTIME_ID}:{int(self._created_at_ts*1_000_000_000)}"
         )
 
-        self._interval_secs: int = 0
+        self._interval_secs: float = 0
         self._time = None
         self._count: Optional[int] = None
 
         self._loop_count: int = 0
 
-        self._job_loop: Optional[JobLoop] = None
+        self._job_loop: JobLoop = None  # type: ignore (will be set at runtime)
 
         self._on_start_exception: Optional[Exception] = None
         self._on_run_exception: Optional[Exception] = None
@@ -394,7 +419,9 @@ class _JobCore:
 
         self._bools = 0
 
-        self._stop_futures: Optional[list[asyncio.Future[bool]]] = None
+        self._stop_futures: Optional[
+            list[asyncio.Future[Union[bool, JobStatus]]]
+        ] = None
 
         self._last_stopping_reason: Optional[
             Union[JobStopReasons.Internal, JobStopReasons.External]
@@ -406,20 +433,20 @@ class _JobCore:
         self._stopped_since_ts: Optional[float] = None
 
     @classmethod
-    def get_class_runtime_id(self) -> str:
+    def get_class_runtime_id(cls) -> str:
         """Get the runtime id of this job class.
 
         Returns:
             str: The runtime id.
         """
-        return self._RUNTIME_ID
+        return cls._RUNTIME_ID
 
     @classmethod
-    def get_class_uuid(cls) -> str:
+    def get_class_uuid(cls) -> Optional[str]:
         """Get the UUID of this job class.
 
         Returns:
-            str: The UUID.
+            Optional[str]: The UUID.
         """
         return cls._UUID
 
@@ -1165,7 +1192,7 @@ class JobCore(_JobCore):
     PublicMethods: Optional[Union[Any, "groupings.NameRecord"]] = None
 
     PUBLIC_METHODS_MAP: Optional[dict[str, Callable[..., Any]]] = None
-    PUBLIC_METHODS_CHAINMAP: Optional[FastChainMap[str, Callable[..., Any]]] = None
+    PUBLIC_METHODS_CHAINMAP: Optional[FastChainMap] = None
 
     def __init_subclass__(
         cls,
@@ -1223,7 +1250,7 @@ class JobCore(_JobCore):
                     ),
                 )
                 cls.PublicMethods = type(
-                    "PublicMethods", bases, dict(**cls.PublicMethods.__dict__)
+                    "PublicMethods", bases, dict(**cls.PublicMethods.__dict__)  # type: ignore
                 )
             elif issubclass(cls.PublicMethods, groupings.OutputNameRecord):
                 raise TypeError(
@@ -1262,16 +1289,18 @@ class JobCore(_JobCore):
         self._registered_at_ts: Optional[float] = None
         self._done_since_ts: Optional[float] = None
 
-        self._schedule_identifier: Optional[str] = None
-
         self._done_futures: Optional[list[asyncio.Future]] = None
-        self._done_callbacks: dict[int, Callable[["_JobCore"], Any]] = None
+        self._done_callbacks: Optional[dict[int, Callable[["_JobCore"], Any]]] = None
 
         self._output_fields: Optional[dict[str, Any]] = None
-        self._output_field_futures: Optional[dict[str, asyncio.Future[Any]]] = None
+        self._output_field_futures: Optional[
+            dict[str, list[Union[asyncio.Future[Any], Any]]]
+        ] = None
 
         self._output_queues: Optional[dict[str, list[Any]]] = None
-        self._output_queue_futures: Optional[dict[str, asyncio.Future[Any]]] = None
+        self._output_queue_futures: Optional[
+            dict[str, list[Union[asyncio.Future[Any], Any]]]
+        ] = None
         self._output_queue_proxies: Optional[list["proxies.JobOutputQueueProxy"]] = None
 
         if self.OutputFields is not None:
@@ -1302,7 +1331,7 @@ class JobCore(_JobCore):
 
         self._alive_since_ts: Optional[float] = None
 
-        self._proxy: "proxies.JobProxy" = proxies.JobProxy(self)
+        self._proxy: "proxies.JobProxy" = proxies.JobProxy(self)  # type: ignore
 
     @classmethod
     def singleton(cls) -> bool:
@@ -1335,31 +1364,24 @@ class JobCore(_JobCore):
         return self._manager
 
     @property
-    def creator(self) -> "proxies.JobProxy":
+    def creator(self) -> Optional["proxies.JobProxy"]:
         """The `JobProxy` of the creator of this job object."""
         return self._creator
 
     @property
-    def guardian(self) -> "proxies.JobProxy":
+    def guardian(self) -> Optional["proxies.JobProxy"]:
         """The `JobProxy` of the current guardian of this job object."""
         return self._guardian
 
     @property
-    def guarded_jobs(self) -> MappingProxyType:
+    def guarded_jobs(self) -> Mapping[int, "proxies.JobProxy"]:
         """A mapping of `JobProxy` objects of the jobs guarded by this job."""
-        return MappingProxyType(self._guarded_job_proxies_dict)
+        return MappingProxyType(self._guarded_job_proxies_dict or {})  # type: ignore
 
     @property
     def proxy(self) -> "proxies.JobProxy":
         """The `JobProxy` object bound to this job object."""
         return self._proxy
-
-    @property
-    def schedule_identifier(self) -> Optional[str]:
-        """The identfier of the scheduling operation that instantiated
-        this job object, if that was the case.
-        """
-        return self._schedule_identifier
 
     async def _on_start(self):
         self._on_start_exception = None
@@ -1434,7 +1456,7 @@ class JobCore(_JobCore):
                 self._guarded_job_proxies_dict.clear()
 
             if self.OutputQueues is not None:
-                self._output_queue_proxies.clear()
+                self._output_queue_proxies.clear()  # type: ignore
 
             if self._bools & JF.TOLD_TO_COMPLETE:
                 self._bools &= ~JF.TOLD_TO_COMPLETE  # False
@@ -1451,17 +1473,17 @@ class JobCore(_JobCore):
                     self._done_futures.clear()
 
                 if self.OutputFields is not None:
-                    for fut_list in self._output_field_futures.values():
+                    for fut_list in self._output_field_futures.values():  # type: ignore
                         for fut in fut_list:
                             if not fut.done():
                                 fut.set_result(JobStatus.COMPLETED)
 
                         fut_list.clear()
 
-                    self._output_field_futures.clear()
+                    self._output_field_futures.clear()  # type: ignore
 
                 if self.OutputQueues is not None:
-                    for fut_list in self._output_queue_futures.values():
+                    for fut_list in self._output_queue_futures.values():  # type: ignore
                         for fut, cancel_if_cleared in fut_list:
                             if not fut.done():
                                 fut.set_result(JobStatus.COMPLETED)
@@ -1481,17 +1503,17 @@ class JobCore(_JobCore):
                     self._done_futures.clear()
 
                 if self.OutputFields:
-                    for fut_list in self._output_field_futures.values():
+                    for fut_list in self._output_field_futures.values():  # type: ignore
                         for fut in fut_list:
                             if not fut.done():
                                 fut.set_result(JobStatus.KILLED)
 
                         fut_list.clear()
 
-                    self._output_field_futures.clear()
+                    self._output_field_futures.clear()  # type: ignore
 
                 if self.OutputQueues:
-                    for fut_list in self._output_queue_futures.values():
+                    for fut_list in self._output_queue_futures.values():  # type: ignore
                         for fut, cancel_if_cleared in fut_list:
                             if not fut.done():
                                 fut.set_result(JobStatus.KILLED)
@@ -1541,7 +1563,7 @@ class JobCore(_JobCore):
 
         except asyncio.TimeoutError as exc:
             self._on_stop_exception = exc
-            if not self._stop_by_self:
+            if not self._stop_by_self:  # type: ignore
                 await self.on_stop_error(exc)
             raise
 
@@ -1790,7 +1812,7 @@ class JobCore(_JobCore):
         Returns:
             bool: True/False
         """
-        return (
+        return bool(
             self._manager is not None
             and self._bools & JF.INITIALIZED
             and not self._bools & (JF.KILLED | JF.COMPLETED)  # not any
@@ -2027,8 +2049,8 @@ class JobCore(_JobCore):
         elif self.done():
             raise JobIsDone("this job object is already done")
 
-        if self.OutputQueues is not None:
-            output_queue_proxy = proxies.JobOutputQueueProxy(self)
+        if not (self.OutputQueues is None or self._output_queue_proxies is None):
+            output_queue_proxy = proxies.JobOutputQueueProxy(self)  # type: ignore
             self._output_queue_proxies.append(output_queue_proxy)
             return output_queue_proxy
 
@@ -2164,6 +2186,7 @@ class JobCore(_JobCore):
         """
 
         self.verify_output_field_support(field_name, raise_exceptions=True)
+        assert not (self._output_fields is None or self._output_field_futures is None)
 
         field_value = self._output_fields.get(field_name, UNSET)
 
@@ -2198,10 +2221,14 @@ class JobCore(_JobCore):
         """
 
         self.verify_output_queue_support(queue_name, raise_exceptions=True)
-
+        assert not (
+            self._output_queues is None
+            or self._output_queue_proxies is None
+            or self._output_queue_futures is None
+        )
         if queue_name not in self._output_queues:
             self._output_queues[queue_name] = queue = []
-            for proxy in self._output_queue_proxies:
+            for proxy in self._output_queue_proxies or ():
                 proxy._new_output_queue_alert(queue_name, queue)
 
         queue_entries: list = self._output_queues[queue_name]
@@ -2245,6 +2272,7 @@ class JobCore(_JobCore):
                 self.verify_output_field_support(field_name, raise_exceptions=True)
             return default
 
+        assert self._output_fields is not None
         if field_name not in self._output_fields:
             if default is UNSET:
                 raise JobOutputError(
@@ -2290,6 +2318,7 @@ class JobCore(_JobCore):
 
         self.verify_output_queue_support(queue_name, raise_exceptions=True)
 
+        assert self._output_queues is not None
         if queue_name not in self._output_queues:
             raise JobOutputError(f"The specified output queue '{queue_name}' is empty")
 
@@ -2307,6 +2336,12 @@ class JobCore(_JobCore):
             queue_name (str): The name of the target output field.
         """
         self.verify_output_queue_support(queue_name, raise_exceptions=True)
+
+        assert not (
+            self._output_queues is None
+            or self._output_queue_futures is None
+            or self._output_queue_proxies is None
+        )
 
         if queue_name in self._output_queues:
             for output_queue_proxy in self._output_queue_proxies:
@@ -2405,8 +2440,7 @@ class JobCore(_JobCore):
         """
 
         self.verify_output_field_support(field_name, raise_exceptions=True)
-
-        field_value = self._output_fields.get(field_name, UNSET)
+        field_value = self._output_fields.get(field_name, UNSET)  # type: ignore
 
         return field_value is not UNSET
 
@@ -2427,7 +2461,7 @@ class JobCore(_JobCore):
 
         self.verify_output_queue_support(queue_name, raise_exceptions=True)
 
-        return not self._output_queues.get(queue_name, None)
+        return not self._output_queues.get(queue_name, None)  # type: ignore
 
     def await_output_field(
         self, field_name: str, timeout: Optional[float] = None
@@ -2457,6 +2491,7 @@ class JobCore(_JobCore):
         """
 
         self.verify_output_field_support(field_name, raise_exceptions=True)
+        assert self._output_field_futures is not None
 
         if self.done():
             raise JobIsDone("This job object is already done")
@@ -2516,6 +2551,8 @@ class JobCore(_JobCore):
 
         if self.done():
             raise JobIsDone("This job object is already done")
+
+        assert self._output_queue_futures is not None
 
         if queue_name not in self._output_queue_futures:
             self._output_queue_futures[queue_name] = []
@@ -2649,9 +2686,9 @@ class JobCore(_JobCore):
         `JobStatus` enum.
 
         Returns:
-            str: A status value.
+            JobStatus: A status value.
         """
-        output = None
+        output = JobStatus.FRESH
         if self.alive():
             if self.is_running():
                 if self.is_starting():
@@ -2678,8 +2715,6 @@ class JobCore(_JobCore):
             output = JobStatus.COMPLETED
         elif self.killed():
             output = JobStatus.KILLED
-        else:
-            output = JobStatus.FRESH
 
         return output
 
@@ -2717,7 +2752,7 @@ class JobMixin(JobCore):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-    async def mixin_routine(self):
+    async def mixin_routine(self: Union[Self, "JobBase"]):
         """A function to overload for running job mixin
         functionality.
         """
@@ -2733,7 +2768,7 @@ class JobBase(JobCore):
         super().__init_subclass__(class_uuid)
 
         mixin_classes: list[Type[JobMixin]] = []
-        mro_mixin_supercls_of: set[Type[JobMixin]] = {}
+        mro_mixin_supercls_of: dict[Type[JobMixin], Type[JobMixin]] = {}
 
         if not issubclass(cls.__bases__[-1], JobBase):
             raise TypeError(
@@ -3117,10 +3152,10 @@ class ManagedJobBase(JobBase):
 
     def __init__(
         self,
-        interval: Union[datetime.timedelta, _UnsetType] = UNSET,
-        time: Union[datetime.time, Sequence[datetime.time], _UnsetType] = UNSET,
-        count: Union[int, NoneType, _UnsetType] = UNSET,
-        reconnect: Union[bool, _UnsetType] = UNSET,
+        interval: datetime.timedelta = UNSET,
+        time: Union[datetime.time, Sequence[datetime.time]] = UNSET,
+        count: Union[int, NoneType] = UNSET,
+        reconnect: bool = UNSET,
     ):
         """Create a new `ManagedJobBase` instance."""
 
@@ -3145,16 +3180,16 @@ class ManagedJobBase(JobBase):
             seconds=self._interval_secs,
             hours=0,
             minutes=0,
-            time=self._time or discord.utils.MISSING,
+            time=self._time or discord.utils.MISSING,  # type: ignore
             count=self._count,
             reconnect=reconnect,
         )
 
         self._job_loop.before_loop(self._on_start)
         self._job_loop.after_loop(self._on_stop)
-        self._job_loop.error(self._on_run_error)
+        self._job_loop.error(self._on_run_error)  # type: ignore
 
-    def next_iteration(self):
+    def next_iteration(self) -> Optional[datetime.datetime]:
         """When the next iteration of `.on_run()` will occur.
         If not known, this method will return `None`.
 
@@ -3162,16 +3197,17 @@ class ManagedJobBase(JobBase):
             Optional[datetime.datetime]: The time at which
               the next iteration will occur, if available.
         """
-        return self._job_loop.next_iteration()
+        return self._job_loop.next_iteration
 
-    def get_interval(self):
+    def get_interval(self) -> Optional[tuple[float, float, float]]:
         """Returns a tuple of the seconds, minutes and hours at which this job
-        object is executing its `.on_run()` method.
+        object is executing its `.on_run()` method. This method will return `None`
+        if a time based interval is being used.
 
         Returns:
-            tuple: `(seconds, minutes, hours)`
+            Optional[tuple[int, int, int]]: `(seconds, minutes, hours)`.
         """
-        return self._job_loop.seconds, self._job_loop.minutes, self._job_loop.hours
+        return ((secs := self._job_loop.seconds), (mins := self._job_loop.minutes), (hrs := self._job_loop.hours)) if not (secs is None or mins is None or hrs is None) else None  # type: ignore
 
     def change_interval(
         self,
@@ -3179,7 +3215,7 @@ class ManagedJobBase(JobBase):
         seconds: float = 0,
         minutes: float = 0,
         hours: float = 0,
-        time: Union[datetime.time, Sequence[datetime.time], _UnsetType] = UNSET,
+        time: Union[datetime.time, Sequence[datetime.time]] = UNSET,
     ):
         """Change the interval at which this job will run its `on_run()` method,
         as soon as possible.

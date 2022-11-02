@@ -51,10 +51,10 @@ class MiniJobBase(_JobCore):
 
     def __init__(
         self,
-        interval: Union[datetime.timedelta, _UnsetType] = UNSET,
-        time: Union[datetime.time, Sequence[datetime.time], _UnsetType] = UNSET,
-        count: Union[int, NoneType, _UnsetType] = UNSET,
-        reconnect: Union[bool, _UnsetType] = UNSET,
+        interval: datetime.timedelta = UNSET,
+        time: Union[datetime.time, Sequence[datetime.time]] = UNSET,
+        count: Optional[int] = UNSET,
+        reconnect: bool = UNSET,
     ):
         """Create a new `MiniJobBase` instance."""
 
@@ -88,7 +88,7 @@ class MiniJobBase(_JobCore):
 
         self._job_loop.before_loop(self._on_start)
         self._job_loop.after_loop(self._on_stop)
-        self._job_loop.error(self._on_run_error)
+        self._job_loop.error(self._on_run_error)  # type: ignore
 
     @property
     def external_data(self):
@@ -105,16 +105,16 @@ class MiniJobBase(_JobCore):
             Optional[datetime.datetime]: The time at which
               the next iteration will occur, if available.
         """
-        return self._job_loop.next_iteration()
+        return self._job_loop.next_iteration
 
-    def get_interval(self):
+    def get_interval(self) -> Optional[tuple[float, float, float]]:
         """Returns a tuple of the seconds, minutes and hours at which this job
         object is executing its `.on_run()` method.
 
         Returns:
             tuple: `(seconds, minutes, hours)`
         """
-        return self._job_loop.seconds, self._job_loop.minutes, self._job_loop.hours
+        return ((secs := self._job_loop.seconds), (mins := self._job_loop.minutes), (hrs := self._job_loop.hours)) if not (secs is None or mins is None or hrs is None) else None  # type: ignore
 
     def change_interval(
         self,
@@ -122,7 +122,7 @@ class MiniJobBase(_JobCore):
         seconds: float = 0,
         minutes: float = 0,
         hours: float = 0,
-        time: Union[datetime.time, Sequence[datetime.time], _UnsetType] = UNSET,
+        time: Union[datetime.time, Sequence[datetime.time]] = UNSET,
     ):
         """Change the interval at which this job will run its `on_run()` method,
         as soon as possible.

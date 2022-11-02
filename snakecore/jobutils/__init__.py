@@ -35,27 +35,27 @@ class GenericManagedJob(jobs.ManagedJobBase):
             Callable[[jobs.ManagedJobBase], Coroutine[Any, Any, None]]
         ] = None,
         on_start_error: Optional[
-            Callable[[jobs.ManagedJobBase], Coroutine[Any, Any, None]]
+            Callable[[jobs.ManagedJobBase, Exception], Coroutine[Any, Any, None]]
         ] = None,
         on_run: Optional[
             Callable[[jobs.ManagedJobBase], Coroutine[Any, Any, None]]
         ] = None,
         on_run_error: Optional[
-            Callable[[jobs.ManagedJobBase], Coroutine[Any, Any, None]]
+            Callable[[jobs.ManagedJobBase, Exception], Coroutine[Any, Any, None]]
         ] = None,
         on_stop: Optional[
             Callable[[jobs.ManagedJobBase], Coroutine[Any, Any, None]]
         ] = None,
         on_stop_error: Optional[
-            Callable[[jobs.ManagedJobBase], Coroutine[Any, Any, None]]
+            Callable[[jobs.ManagedJobBase, Exception], Coroutine[Any, Any, None]]
         ] = None,
-        interval: Union[datetime.timedelta, _UnsetType] = UNSET,
-        time: Union[datetime.time, Sequence[datetime.time], _UnsetType] = UNSET,
-        count: Union[int, NoneType, _UnsetType] = UNSET,
-        reconnect: Union[bool, _UnsetType] = UNSET,
+        interval: datetime.timedelta = UNSET,
+        time: Union[datetime.time, Sequence[datetime.time]] = UNSET,
+        count: Union[int, NoneType] = UNSET,
+        reconnect: bool = UNSET,
     ):
         supercls = jobs.ManagedJobBase
-        supercls.__init__(interval, time, count, reconnect)
+        supercls.__init__(self, interval, time, count, reconnect)
         self._on_init_func = on_init or supercls.on_init
         self._on_start_func = on_start or supercls.on_start
         self._on_start_error_func = on_start_error or supercls.on_start_error
@@ -70,20 +70,20 @@ class GenericManagedJob(jobs.ManagedJobBase):
     async def on_start(self):
         return await self._on_start_func(self)
 
-    async def on_start_error(self):
-        return await self._on_start_error_func(self)
+    async def on_start_error(self, exc: Exception):
+        return await self._on_start_error_func(self, exc)
 
     async def on_run(self):
         return await self._on_run_func(self)
 
-    async def on_run_error(self):
-        return await self._on_run_error_func(self)
+    async def on_run_error(self, exc: Exception):
+        return await self._on_run_error_func(self, exc)
 
     async def on_stop(self):
         return await self._on_stop_func(self)
 
-    async def on_stop_error(self):
-        return await self._on_stop_error_func(self)
+    async def on_stop_error(self, exc: Exception):
+        return await self._on_stop_error_func(self, exc)
 
 
 class SingleRunJob(jobs.ManagedJobBase):

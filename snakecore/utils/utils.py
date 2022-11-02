@@ -187,7 +187,7 @@ def format_time_by_units(
             if value or (not result and unit_value == 1):
                 dt -= value * unit_value
                 if full_unit_names and value == 1:
-                    name = name[:-1]
+                    name = name[:-1]  # type: ignore
                 result.append(f"{value}{space}{name}")
 
         return join_readable(result)
@@ -452,11 +452,16 @@ def have_permissions_in_channels(
     members_or_roles: Union[
         discord.Member, discord.Role, Sequence[Union[discord.Member, discord.Role]]
     ],
-    channels: Union[discord.abc.GuildChannel, Sequence[discord.abc.GuildChannel]],
+    channels: Union[
+        discord.abc.GuildChannel,
+        discord.DMChannel,
+        discord.Thread,
+        Sequence[Union[discord.abc.GuildChannel, discord.DMChannel, discord.Thread]],
+    ],
     *permissions: str,
-    member_role_bool_func: Callable[[Iterable[bool]], bool] = all,
-    permission_bool_func: Callable[[Iterable[bool]], bool] = all,
-    channel_bool_func: Callable[[Iterable[bool]], bool] = all,
+    member_role_bool_func: Callable[[Iterable[Any]], bool] = all,
+    permission_bool_func: Callable[[Iterable[Any]], bool] = all,
+    channel_bool_func: Callable[[Iterable[Any]], bool] = all,
 ) -> bool:
     """Checks if the given permission(s) apply to the given member(s) or role in the
     given Discord channel(s) and returns a boolean value. This function allows you
@@ -468,28 +473,33 @@ def have_permissions_in_channels(
             discord.Member, discord.Role, Sequence[Union[discord.Member, discord.Role]]
         ]):
           The target Discord member(s) or role(s).
-        channels (Union[discord.abc.GuildChannel, Sequence[discord.abc.GuildChannel]]):
-          The target guild channel(s) to check permissions on.
+        channels (Union[
+            discord.abc.GuildChannel,
+            discord.DMChannel,
+            Sequence[Union[discord.abc.GuildChannel, discord.DMChannel]],
+        ]):
+          The target channel(s) to check permissions on.
         *permissions (str): The lowercase attribute name(s) to check for
           the `discord.Permissions` data class, which represent the different available
           permissions.
-        member_role_bool_func (Callable[[Iterable[bool]], bool], optional): A function
+        member_role_bool_func (Callable[[Iterable[Any]], bool], optional): A function
           that takes in the result of `channel_bool_func()` for every of the given
-          role(s) or member(s) as an iterable and returns a boolean value. Defaults to
-          the built-in `all()` function.
-        permission_bool_func (Callable[[Iterable[bool]], bool], optional): A function
+          role(s) or member(s) as an iterable and returns a boolean value.
+          Defaults to `all`.
+        permission_bool_func (Callable[[Iterable[Any]], bool], optional): A function
           that takes in an iterable of the boolean values for every permission
-          and returns a boolean value. Defaults to the built-in `all()` function.
-        channel_bool_func (Callable[[Iterable[bool]], bool], optional): A function
+          and returns a boolean value. Defaults to `all`.
+        channel_bool_func (Callable[[Iterable[Any]], bool], optional): A function
           that takes in the result of `permission_bool_func()` for every of the given
-          channel(s) as an iterable and returns a boolean value. Defaults to
-          the built-in `all()` function.
+          channel(s) as an iterable and returns a boolean value. Defaults to `all`.
 
     Returns:
         bool: True/False
     """
 
-    if isinstance(channels, discord.abc.Messageable):
+    if isinstance(
+        channels, (discord.abc.GuildChannel, discord.DMChannel, discord.Thread)
+    ):
         channels = (channels,)
 
     if isinstance(members_or_roles, (discord.Member, discord.Role)):
@@ -578,7 +588,7 @@ def recursive_mapping_update(
     old_mapping: MutableMapping,
     update_mapping: Mapping,
     add_new_keys: bool = True,
-    skip_value: Union[str, _UnsetType] = UNSET,
+    skip_value: str = UNSET,
 ):
     """
     Update one mapping with another, similar to `dict.update()`,
@@ -612,7 +622,7 @@ def recursive_mapping_update(
 def recursive_mapping_delete(
     old_mapping: MutableMapping,
     update_mapping: Mapping,
-    skip_value: Union[str, _UnsetType] = UNSET,
+    skip_value: str = UNSET,
     inverse: bool = False,
 ):
     """
@@ -624,7 +634,7 @@ def recursive_mapping_delete(
     if inverse:
         for k, v in tuple(old_mapping.items()):
             if isinstance(v, MutableMapping):
-                lower_update_dict = None
+                lower_update_dict = {}
                 if isinstance(update_mapping, MutableMapping):
                     lower_update_dict = update_mapping.get(
                         k, update_mapping.__class__()
@@ -692,7 +702,7 @@ def recursive_mapping_cast(
 
     if not isinstance(old_mapping, MutableMapping):
         raise TypeError(
-            f"'old_mapping' must be a MutableMapping, not {cast_from.__name__}"
+            f"'old_mapping' must be a MutableMapping, not {old_mapping.__class__.__name__}"
         )
     if cast_from is None:
         cast_from = old_mapping.__class__
@@ -701,17 +711,15 @@ def recursive_mapping_cast(
         isinstance(c, type) for c in cast_from
     ):
         raise TypeError(
-            f"'cast_from' must be a MutableMapping subclass or a tuple containing them, not {cast_from.__name__}"
+            f"'cast_from' must be a MutableMapping subclass or a tuple containing them, not {cast_from.__class__.__name__}"
         )
     elif not isinstance(cast_from, tuple):
         if not isinstance(cast_from, type) or not issubclass(cast_from, MutableMapping):
             raise TypeError(
                 f"'cast_from' must be a MutableMapping subclass or a tuple containing them, not {cast_from.__name__}"
             )
-    elif not isinstance(cast_to, Mapping):
-        raise TypeError(
-            f"'cast_to' must be a Mapping subclass, not {cast_from.__name__}"
-        )
+    elif not issubclass(cast_to, Mapping):
+        raise TypeError(f"'cast_to' must be a Mapping subclass, not {cast_to.__name__}")
 
     return _recursive_mapping_cast(old_mapping, cast_to, cast_from)
 
@@ -724,7 +732,7 @@ def _recursive_mapping_cast(
     for k in old_mapping:
         if isinstance(old_mapping[k], cast_from):
             old_mapping[k] = _recursive_mapping_cast(old_mapping[k], cast_to, cast_from)
-    return cast_to(old_mapping)
+    return cast_to(old_mapping)  # type: ignore
 
 
 class FastChainMap(collections.ChainMap):
@@ -774,10 +782,9 @@ def class_getattr_unique(
     name: str,
     filter_func: Callable[[Any], bool] = lambda obj: True,
     check_dicts_only: bool = False,
-    return_as_dict: bool = False,
     _id_set=None,
-) -> Union[list[Any], dict[type, Any]]:
-    values = [] if return_as_dict else {}
+) -> list[Any]:
+    values = []
     value_obj = UNSET
 
     if _id_set is None:
@@ -795,35 +802,60 @@ def class_getattr_unique(
         and id(value_obj) not in _id_set
         and filter_func(value_obj)
     ):
-        if return_as_dict:
-            values[cls] = value_obj
-        else:
-            values.append(value_obj)
+        values.append(value_obj)
         _id_set.add(id(value_obj))
 
     for base_cls in cls.__mro__[1:]:
-        if return_as_dict:
-            values.extend(
-                class_getattr_unique(
-                    base_cls,
-                    name,
-                    filter_func=filter_func,
-                    check_dicts_only=check_dicts_only,
-                    return_as_dict=return_as_dict,
-                    _id_set=_id_set,
-                )
+        values.extend(
+            class_getattr_unique(
+                base_cls,
+                name,
+                filter_func=filter_func,
+                check_dicts_only=check_dicts_only,
+                _id_set=_id_set,
             )
-        else:
-            values.update(
-                class_getattr_unique(
-                    base_cls,
-                    name,
-                    filter_func=filter_func,
-                    check_dicts_only=check_dicts_only,
-                    return_as_dict=return_as_dict,
-                    _id_set=_id_set,
-                )
+        )
+    return values
+
+
+def class_getattr_unique_mapping(
+    cls: type,
+    name: str,
+    filter_func: Optional[Callable[[Any], bool]] = None,
+    check_dicts_only: bool = False,
+    _id_set=None,
+) -> dict[type, Any]:
+    values = {}
+    value_obj = UNSET
+
+    if _id_set is None:
+        _id_set = set()
+
+    if check_dicts_only:
+        if name in cls.__dict__:
+            value_obj = cls.__dict__[name]
+    else:
+        if hasattr(cls, name):
+            value_obj = getattr(cls, name)
+
+    if (
+        value_obj is not UNSET
+        and id(value_obj) not in _id_set
+        and (filter_func(value_obj) if filter_func else True)
+    ):
+        values[cls] = value_obj
+        _id_set.add(id(value_obj))
+
+    for base_cls in cls.__mro__[1:]:
+        values.update(
+            class_getattr_unique_mapping(
+                base_cls,
+                name,
+                filter_func=filter_func,
+                check_dicts_only=check_dicts_only,
+                _id_set=_id_set,
             )
+        )
 
     return values
 
@@ -870,7 +902,7 @@ _T = TypeVar("_T")
 
 
 class DequeProxy(MutableSequence[_T], Generic[_T]):
-    __slots__ = "__deque"
+    __slots__ = ("__deque",)
 
     def __init__(self, deque_obj: deque[_T]):
         self.__deque = deque_obj
@@ -905,14 +937,14 @@ class DequeProxy(MutableSequence[_T], Generic[_T]):
     def __ge__(self, __other: deque, /):
         return self.__deque.__ge__(__other)
 
-    def __eq__(self, __o: object, /) -> bool:
+    def __eq__(self, __o: object, /):
         return self.__deque.__eq__(__o)
 
-    def __ne__(self, __o: object, /) -> bool:
+    def __ne__(self, __o: object, /):
         return self.__deque.__ne__(__o)
 
-    def __bool__(self):
-        return self.__deque.__bool__()
+    def __bool__(self) -> bool:
+        return bool(self.__deque)
 
     def __contains__(self, __o: object):
         return self.__deque.__contains__(__o)
@@ -934,12 +966,6 @@ class DequeProxy(MutableSequence[_T], Generic[_T]):
 
     def __mul__(self, __other: int, /):
         return self.__deque.__mul__(__other)
-
-    def __rmul__(self, __other: int, /):
-        return self.__deque.__rmul__(__other)
-
-    def __add__(self, __other: deque, /):
-        return self.__deque.__add__(__other)
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.__deque!r})"
