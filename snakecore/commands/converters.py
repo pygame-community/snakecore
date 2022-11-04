@@ -11,11 +11,13 @@ import sys
 import types
 from typing import (
     TYPE_CHECKING,
+    Annotated,
     Any,
     Generic,
     Iterator,
     Literal,
     Optional,
+    Sequence,
     SupportsIndex,
     Tuple,
     TypeVar,
@@ -24,6 +26,7 @@ from typing import (
 )
 from typing_extensions import Self, TypeVarTuple, Unpack
 
+import discord.app_commands
 import discord
 from discord.ext import commands
 from discord.ext.commands import flags as _flags
@@ -36,18 +39,21 @@ from .bot import Bot, AutoShardedBot
 _T = TypeVar("_T")
 _T_co = TypeVar("_T_co", covariant=True)
 _PT = TypeVarTuple("_PT")
-BotT = Union[Bot, AutoShardedBot]
+DECBotT = Union[Bot, AutoShardedBot]
+DECDECBotT = Union[commands.Bot, commands.AutoShardedBot]
 
 
-class DateTime(commands.Converter[datetime.datetime]):
-    """A converter that parses UNIX/ISO timestamps to `datetime.datetime` objects.
+class DateTimeConverter(commands.Converter[datetime.datetime]):
+    """A converter that parses UNIX/ISO timestamps to `datetime` objects.
 
     Syntax:
-        - `<t:{6969...}[:t|T|d|D|f|F|R]> -> datetime.datetime(seconds=6969...)`
-        - `YYYY-MM-DD[*HH[:MM[:SS[.fff[fff]]]][+HH:MM[:SS[.ffffff]]]] -> datetime.datetime`
+        - `<t:{6969...}[:t|T|d|D|f|F|R]> -> datetime(seconds=6969...)`
+        - `YYYY-MM-DD[*HH[:MM[:SS[.fff[fff]]]][+HH:MM[:SS[.ffffff]]]] -> datetime`
     """
 
-    async def convert(self, ctx: commands.Context, argument: str) -> datetime.datetime:
+    async def convert(
+        self, ctx: commands.Context[DECBotT], argument: str
+    ) -> datetime.datetime:
         arg = argument.strip()
 
         if snakecore.utils.is_markdown_timestamp(arg):
@@ -69,29 +75,138 @@ class DateTime(commands.Converter[datetime.datetime]):
             ) from v
 
 
-class RangeObject(commands.Converter[range]):
-    """A converter that parses integer range values to `range` objects.
+class IntervalConverter(commands.Converter[range]):
+    """A converter that parses closed integer intervals to Python `range` objects.
+    Both a hyphen-based notation is supported (as used in English phrases) which always
+    includes endpoints, as well as a mathematical notation using comparison operators.
 
     Syntax:
-        - `[start:stop] -> range(start, stop)`
-        - `[start:stop:step] -> range(start, stop, step)`
+        - `start-stop -> range(start, stop+1)`
+        - `start-stop|[+]step -> range(start, stop+1, +step)` *
+        - `start-stop|-step -> range(start, stop+1, -step)` *
+
+        - `start>|>=|≥x>|>=|≥stop -> range(start[+1], stop[+1])`
+        - `start>|>=|≥x>|>=|≥stop|[+]step -> range(start[+1], stop[+1], +step)` *
+        - `start>|>=|≥x>|>=|≥stop|-step -> range(start[+1], stop[+1], -step)` *
+
+    *The last '|' is considered as part of the syntax.
     """
 
-    async def convert(self, ctx: commands.Context, argument: str) -> range:
-        if not argument.startswith("[") or not argument.endswith("]"):
-            raise commands.BadArgument("ranges must begin and end with square brackets")
+    COMPARISON_NOTATION = re.compile(
+        r"(-?\d+)([<>]=?|[≤≥])[a-zA-Z]([<>]=?|[≤≥])(-?\d+)(?:\|([-+]?\d+))?"
+    )
+    HYPHEN_NOTATION = re.compile(r"(-?\d+)-(-?\d+)(?:\|([-+]?\d+))?")
+
+    _comparison_inverses = {
+        ">": "<",
+        "<": ">",
+        "<=": ">=",
+        ">=": "<=",
+        "≤": "≥",
+        "≥": "≤",
+    }
+
+    async def convert(self, ctx: commands.Context[DECBotT], argument: str) -> range:
+        hyphen_match = self.HYPHEN_NOTATION.match(argument)
+        comparison_match = self.COMPARISON_NOTATION.match(argument)
+
+        if not (hyphen_match or comparison_match):
+            raise commands.BadArgument(
+                "failed to construct closed integer interval from argument "
+                f"{argument!r}\n\n"
+                "Hyphen syntax:\n"
+                "- `start-stop`"
+                "- `start-stop|[+]step` *"
+                "- `start-stop|-step` *\n\n"
+                "Mathematical syntax:\n"
+                "- `start>|>=|≥x>|>=|≥stop`\n"
+                "- `start>|>=|≥x>|>=|≥stop|[+]step` *\n"
+                "- `start>|>=|≥x>|>=|≥stop|-step` *\n\n"
+                "*The last '|' is considered as part of the syntax."
+            )
+
+        start = stop = step = 0
+        if hyphen_match:
+            raw_start = start = int(hyphen_match.group(1))
+            raw_stop = stop = int(hyphen_match.group(2))
+            raw_step = step = int(hyphen_match.group(3) or "1")
+            step_specified = bool(hyphen_match.group(3))
+
+            if raw_start <= raw_stop:
+                stop += 1
+
+            elif raw_start >= raw_stop:
+                stop -= 1
+                if not hyphen_match.group(3) and raw_step > 0:
+                    step *= -1
+
+        elif comparison_match:
+            raw_start = start = int(comparison_match.group(1))
+            start_comp = comparison_match.group(2)
+
+            stop_comp = comparison_match.group(3)
+            raw_stop = stop = int(comparison_match.group(4))
+
+            raw_step = step = int(comparison_match.group(5) or "1")
+
+            if raw_start <= raw_stop:
+                if start_comp == "<":
+                    start += 1
+                elif start_comp not in ("<=", "≤"):  # default used in range class
+                    raise commands.BadArgument(
+                        f"argument {argument!r} is not a valid closed integer interval"
+                    )
+
+                if stop_comp in ("<=", "≤"):
+                    stop += 1
+                elif stop_comp != "<":  # default used in range class
+                    raise commands.BadArgument(
+                        f"argument {argument!r} is not a valid closed integer interval"
+                    )
+
+            elif raw_start >= raw_stop:
+                if start_comp == ">":
+                    start -= 1
+                elif start_comp not in (">=", "≥"):  # default used in range class
+                    raise commands.BadArgument(
+                        f"argument {argument!r} is not a valid closed integer interval"
+                    )
+
+                if stop_comp in (">=", "≥"):  # default used in range class
+                    stop -= 1
+                elif stop_comp != ">":
+                    raise commands.BadArgument(
+                        f"argument {argument!r} is not a valid closed integer interval"
+                    )
+
+                if not comparison_match.group(5) and raw_step > 0:
+                    step *= -1
 
         try:
-            splits = [int(i.strip()) for i in argument[6:-1].split(":")]
-
-            if splits and len(splits) <= 3:
-                return range(*splits)
-        except (ValueError, TypeError) as v:
+            interval = range(
+                start,
+                stop,
+                step,
+            )
+        except (ValueError, TypeError):
             raise commands.BadArgument(
-                f"failed to construct range: {argument!r}"
-            ) from v
+                "failed to construct closed integer interval from argument "
+                f"{argument!r}\n\n"
+                "Hyphen syntax:\n"
+                "- `start-stop`"
+                "- `start-stop|[+]step` *"
+                "- `start-stop|-step` *\n\n"
+                "Mathematical syntax:\n"
+                "- `start>|>=|≥x>|>=|≥stop`\n"
+                "- `start>|>=|≥x>|>=|≥stop|[+]step` *\n"
+                "- `start>|>=|≥x>|>=|≥stop|-step` *\n\n"
+                "*The last '|' is considered as part of the syntax."
+            )
 
-        raise commands.BadArgument(f"invalid range string: {argument!r}")
+        if not interval:
+            raise commands.BadArgument(f"Integer interval {argument!r} is empty.")
+
+        return interval
 
 
 class CodeBlock:
@@ -119,9 +234,8 @@ class CodeBlock:
         self.inline = inline if inline is not None else not (language or "\n" in code)
 
     @classmethod
-    async def convert(cls, ctx: commands.Context, argument: str) -> Self:
-
-        view: StringView = getattr(ctx, "_custom_view", ctx.view)
+    async def convert(cls, ctx: commands.Context[DECBotT], argument: str) -> Self:
+        view: StringView = getattr(ctx, "_current_view", ctx.view)
 
         if argument.startswith("```"):
 
@@ -174,7 +288,7 @@ class CodeBlock:
             )
         elif not (markdown.startswith("`") and markdown.endswith("`")):
             raise ValueError(
-                "argument 'markdown' does not contain a markdown code blockx"
+                "argument 'markdown' does not contain a markdown code block"
             )
 
         language = None
@@ -206,31 +320,26 @@ class CodeBlock:
         return (
             f"`{self.code}`"
             if self.inline
-            else f"```{self.language or ''}\n{self.code}\n```"
+            else (
+                f"```{self.language or ''}\n"
+                + self.code.replace("```", "\\```")
+                + "\n```"
+            )
         )
 
 
-class String(str):
+class StringConverter:
     """A converter that parses string literals to string objects,
     thereby handling escaped characters and removing trailing quotes.
+
+    Can be used over the default `str` converter for less greedy argument
+    parsing.
 
     Syntax:
         - `"'abc'" -> 'abc'`
         - `'"ab\\"c"' -> 'ab"c'`
     """
 
-    _ESCAPES: dict[str, str]
-
-    @classmethod
-    async def convert(cls, ctx: commands.Context, argument: str) -> str:
-        ...
-
-    @classmethod
-    def escape(cls, string: str) -> str:
-        ...
-
-
-class _String:
     _ESCAPES = {
         "0": "\0",
         "n": "\n",
@@ -262,7 +371,7 @@ class _String:
     }
 
     @classmethod
-    async def convert(cls, ctx: commands.Context, argument: str) -> str:
+    async def convert(cls, ctx: commands.Context[DECBotT], argument: str) -> str:
         try:
             s = cls.escape(argument)
         except ValueError as verr:
@@ -283,7 +392,7 @@ class _String:
         Convert a "raw" string to one where characters are escaped
         """
         index = 0
-        newstr = ""
+        newstr = []
         while index < len(string):
             char = string[index]
             index += 1
@@ -303,7 +412,7 @@ class _String:
                             n = len(var)
                             raise ValueError("invalid quoted string")
 
-                        newstr += chr(int(var, base=16))
+                        newstr.append(chr(int(var, base=16)))
                     except (ValueError, OverflowError):
                         esc = string[index - 2 : index + n]
                         raise ValueError(
@@ -314,38 +423,19 @@ class _String:
 
                 elif char in cls._ESCAPES:
                     # general escapes
-                    newstr += cls._ESCAPES[char]
+                    newstr.append(cls._ESCAPES[char])
                 else:
                     raise ValueError(
                         "Invalid escape character",
                         f"Unknown escape `\\{char}`",
                     )
             else:
-                newstr += char
+                newstr.append(char)
 
-        return newstr
-
-
-def find_parenthesized_region(string: str, opening: str = "(", closing: str = ")"):
-    bstart = 0
-    bend = 0
-    scope_level = -1
-    if string.startswith(closing):
-        return slice(bstart, bend)
-    for i, s in enumerate(string):
-        if s == opening:
-            scope_level += 1
-            if scope_level == 0:
-                bstart = i
-        elif s == closing:
-            if scope_level == 0:
-                bend = i + 1
-                return slice(bstart, bend)
-            scope_level -= 1
-    return slice(bstart, bend)
+        return "".join(newstr)
 
 
-class Parens(Generic[_T_co, Unpack[_PT]]):
+class ParensConverter(commands.Converter[tuple]):
     """A special converter that establishes its own scope of arguments
     and parses argument tuples.
 
@@ -370,36 +460,6 @@ class Parens(Generic[_T_co, Unpack[_PT]]):
         - `'( 1 ( 4 ) () ( ( 6 ( "a" ) ) ) 0 )' -> (1, (4,), (), ((6,("a",),),), 0)`
     """
 
-    def __init__(self, converters: tuple[_T_co, Unpack[_PT]]) -> None:
-        ...
-
-    def __iter__(self) -> Iterator[_T_co]:
-        ...
-
-    def __class_getitem__(
-        cls, params: tuple[_T_co, Unpack[_PT]]
-    ) -> "Parens[_T_co, Unpack[_PT]]":
-        ...
-
-    @overload
-    def __getitem__(self, __x: SupportsIndex) -> _T_co:
-        ...
-
-    @overload
-    def __getitem__(self, __x: slice) -> tuple[_T_co, ...]:
-        ...
-
-    def __getitem__(self, __x) -> Union[_T_co, tuple[_T_co, ...]]:
-        ...
-
-    async def convert(self, ctx: commands.Context, argument: str) -> tuple[Any, ...]:
-        ...
-
-    def __call__(self, *args: Any, **kwds: Any) -> Any:
-        ...
-
-
-class _Parens(commands.Converter[tuple]):
     OPENING = "("
     CLOSING = ")"
 
@@ -483,7 +543,9 @@ class _Parens(commands.Converter[tuple]):
                 scope_level -= 1
         return slice(bstart, bend)
 
-    async def convert(self, ctx: commands.Context, argument: str) -> tuple[Any, ...]:
+    async def convert(
+        self, ctx: commands.Context[DECBotT], argument: str
+    ) -> tuple[Any, ...]:
         if not argument.startswith(self.OPENING):
             raise commands.BadArgument(
                 "Parsing parenthesized argument failed "
@@ -500,7 +562,7 @@ class _Parens(commands.Converter[tuple]):
                 "region must be surrounded by whitespace"
             )
 
-        view: StringView = getattr(ctx, "_custom_view", ctx.view)
+        view: StringView = getattr(ctx, "_current_view", ctx.view)
 
         parsed_argument = argument.strip("\n").strip()
         parens_slice = self._find_parenthesized_region(
@@ -675,40 +737,24 @@ class _Parens(commands.Converter[tuple]):
         return repr(obj)
 
 
-if not TYPE_CHECKING:
-    _Parens.__name__ = Parens.__name__
-    _Parens.__qualname__ = Parens.__qualname__
-    _Parens.__doc__ = Parens.__doc__
-    Parens = _Parens
+DateTime = Annotated[datetime.datetime, DateTimeConverter]
+Interval = Annotated[range, IntervalConverter]
 
-    _String.__name__ = String.__name__
-    _String.__qualname__ = String.__qualname__
-    _String.__doc__ = String.__doc__
-    String = _String
-
-
-class SingleQuotedString(commands.Converter[str]):
-    """A simple converter that enforces a single-quoted string as an argument.
-    Syntax:
-        - `'abc' -> str('abc')`
-    """
-
-    async def convert(self, ctx: commands.Context, argument: str) -> str:
-        if not (argument.startswith("'") and argument.endswith("'")):
-            raise commands.BadArgument(
-                'argument string is not properly quoted with "\'"'
-            )
-
-        return argument[1:-1]
+if TYPE_CHECKING:
+    String = str
+    Parens = tuple
+else:
+    String = StringConverter
+    Parens = ParensConverter
 
 
 async def tuple_convert_all(
-    ctx: commands.Context[BotT], argument: str, flag: commands.Flag, converter: Any
+    ctx: commands.Context[DECBotT], argument: str, flag: commands.Flag, converter: Any
 ) -> Tuple[Any, ...]:
     view = StringView(argument)
     results = []
     param: commands.Parameter = ctx.current_parameter  # type: ignore
-    ctx._custom_view = view  # type: ignore # store temporary StringView,
+    setattr(ctx, "_current_view", view)  # store temporary StringView,
     # to implement support for flag annotation 'tuple[T, ...]', where T is CodeBlock/Parens
     while not view.eof:
         view.skip_ws()
@@ -722,23 +768,23 @@ async def tuple_convert_all(
         try:
             converted = await commands.run_converters(ctx, converter, word, param)
         except Exception as e:
-            del ctx._custom_view  # type: ignore
+            delattr(ctx, "_current_view")  # type: ignore
             raise commands.BadFlagArgument(flag, word, e) from e
         else:
             results.append(converted)
 
-    del ctx._custom_view  # type: ignore
+    delattr(ctx, "_current_view")  # type: ignore
 
     return tuple(results)
 
 
 async def tuple_convert_flag(
-    ctx: commands.Context[BotT], argument: str, flag: commands.Flag, converters: Any
+    ctx: commands.Context[DECBotT], argument: str, flag: commands.Flag, converters: Any
 ) -> Tuple[Any, ...]:
     view = StringView(argument)
     results = []
     param: commands.Parameter = ctx.current_parameter  # type: ignore
-    ctx._custom_view = view  # type: ignore # store temporary StringView,
+    setattr(ctx, "_current_view", view)  # store temporary StringView,
     # to implement support for flag annotation 'tuple[T, ...]', where T is CodeBlock/Parens
     for converter in converters:
         view.skip_ws()
@@ -752,12 +798,12 @@ async def tuple_convert_flag(
         try:
             converted = await commands.run_converters(ctx, converter, word, param)
         except Exception as e:
-            del ctx._custom_view  # type: ignore
+            delattr(ctx, "_current_view")  # type: ignore
             raise commands.BadFlagArgument(flag, word, e) from e
         else:
             results.append(converted)
 
-    del ctx._custom_view  # type: ignore
+    delattr(ctx, "_current_view")
 
     if len(results) != len(converters):
         raise commands.MissingFlagArgument(flag)
@@ -766,7 +812,7 @@ async def tuple_convert_flag(
 
 
 async def convert_flag(
-    ctx: commands.Context[BotT],
+    ctx: commands.Context[DECBotT],
     argument: str,
     flag: commands.Flag,
     annotation: Any = None,
@@ -806,13 +852,13 @@ async def convert_flag(
 
 
 class FlagConverter(commands.FlagConverter):
-    """A drop-in replacement of the subclass of `FlagConverter` from
+    """A drop-in replacement of `FlagConverter` from
     `discord.ext.commands`, which adds support for parsing `CodeBlock`
     and `Parens` inside of `tuple` annotations of `discord.ext.commands.flags.Flag`.
     """
 
     @classmethod
-    async def convert(cls, ctx: commands.Context[BotT], argument: str) -> Self:
+    async def convert(cls, ctx: commands.Context[DECBotT], argument: str) -> Self:
         arguments = cls.parse_flags(argument)
         flags = cls.__commands_flags__
 
