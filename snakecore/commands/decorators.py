@@ -178,6 +178,7 @@ def flagconverter_kwargs(
             commands.Parameter(  # add generated FlagConverter class as parameter
                 "__flags__",
                 inspect.Parameter.KEYWORD_ONLY,
+                default=None,
                 annotation=flags_cls,
             )
         )
@@ -193,7 +194,7 @@ def flagconverter_kwargs(
         flagconverter_kwargs_wrapper: Callable[_P, _T] = types.FunctionType(
             wrapper.__code__,
             func.__globals__,
-            name=wrapper.__name__,
+            name=func.__name__,
             argdefs=wrapper.__defaults__,
             closure=wrapper.__closure__,
         )  # type: ignore
@@ -207,6 +208,7 @@ def flagconverter_kwargs(
         flagconverter_kwargs_wrapper.__signature__ = (
             new_sig  # fake signature for wrapper function
         )
+        flagconverter_kwargs_wrapper.__kwdefaults__ = wrapper.__kwdefaults__
         flagconverter_kwargs_wrapper.__wrapped_func__ = func
         flagconverter_kwargs_wrapper.__wrapped_func_signature__ = sig
         flagconverter_kwargs_wrapper.KeywordOnlyFlags = flags_cls
