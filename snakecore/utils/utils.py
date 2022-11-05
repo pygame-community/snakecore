@@ -454,19 +454,18 @@ def have_permissions_in_channels(
     ],
     channels: Union[
         discord.abc.GuildChannel,
-        discord.DMChannel,
         discord.Thread,
-        Sequence[Union[discord.abc.GuildChannel, discord.DMChannel, discord.Thread]],
+        Sequence[Union[discord.abc.GuildChannel, discord.Thread]],
     ],
     *permissions: str,
     member_role_bool_func: Callable[[Iterable[Any]], bool] = all,
     permission_bool_func: Callable[[Iterable[Any]], bool] = all,
     channel_bool_func: Callable[[Iterable[Any]], bool] = all,
 ) -> bool:
-    """Checks if the given permission(s) apply to the given member(s) or role in the
-    given Discord channel(s) and returns a boolean value. This function allows you
-    to evaluate this kind of query: Does ... of the given member(s) or role(s) have ...
-    of the given permissions in ... of the given channels?
+    """Checks if the given permission(s) apply/applies to the given member(s) or role(s) in the
+    given channel(s) and returns a boolean value. This function allows you
+    to evaluate this kind of query: Do/Does ... the given member(s) or role(s) have ...
+    the given permission(s) in ... the given channel(s)?
 
     Args:
         members_or_roles (Union[
