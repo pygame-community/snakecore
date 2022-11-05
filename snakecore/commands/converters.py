@@ -130,7 +130,6 @@ class IntervalConverter(commands.Converter[range]):
             raw_start = start = int(hyphen_match.group(1))
             raw_stop = stop = int(hyphen_match.group(2))
             raw_step = step = int(hyphen_match.group(3) or "1")
-            step_specified = bool(hyphen_match.group(3))
 
             if raw_start <= raw_stop:
                 stop += 1
