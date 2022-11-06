@@ -542,7 +542,11 @@ def parse_args(cmd_str: str):
     return args, kwargs
 
 
-async def cast_basic_arg(ctx: commands.Context, anno: str, arg: Any) -> Any:
+async def cast_basic_arg(
+    ctx: commands.Context[Union[commands.Bot, commands.AutoShardedBot]],
+    anno: str,
+    arg: Any,
+) -> Any:
     """
     Helper to cast an argument to the type mentioned by the parameter
     annotation. This casts an argument in its "basic" form, where both argument
@@ -652,6 +656,9 @@ async def cast_basic_arg(ctx: commands.Context, anno: str, arg: Any) -> Any:
             else:
                 role_id = int(arg)
 
+            if not ctx.guild:
+                raise ValueError()
+
             role = ctx.guild.get_role(role_id)
             if role is None:
                 raise ValueError()
@@ -663,6 +670,10 @@ async def cast_basic_arg(ctx: commands.Context, anno: str, arg: Any) -> Any:
                 member_id = snakecore.utils.extract_markdown_mention_id(arg)
             else:
                 member_id = int(arg)
+
+            if not ctx.guild:
+                raise ValueError()
+
             try:
                 return await ctx.guild.fetch_member(member_id)
             except discord.errors.NotFound:
@@ -694,18 +705,21 @@ async def cast_basic_arg(ctx: commands.Context, anno: str, arg: Any) -> Any:
             "discord.threads.Thread",
         ):
             guild = ctx.guild
-
             ch_id = None
             if snakecore.utils.is_markdown_mention(arg):
                 ch_id = snakecore.utils.extract_markdown_mention_id(arg)
             else:
-                ch_id = int(snakecore.utils.format_discord_link(arg, guild.id))
+                ch_id = int(
+                    snakecore.utils.format_discord_link(
+                        arg, guild.id if guild else "@me"
+                    )
+                )
 
-            chan = guild.get_channel_or_thread(ch_id)
+            chan = ctx.bot.get_channel(ch_id)
 
             if chan is None:
                 try:
-                    chan = await guild.fetch_channel(ch_id)
+                    chan = await ctx.bot.fetch_channel(ch_id)
                 except (discord.errors.NotFound, discord.errors.Forbidden):
                     raise ValueError()
 
@@ -725,20 +739,30 @@ async def cast_basic_arg(ctx: commands.Context, anno: str, arg: Any) -> Any:
 
         elif anno in ("discord.Message", "discord.message.Message"):
             guild = ctx.guild
-            formatted = snakecore.utils.format_discord_link(arg, guild.id)
+            formatted = snakecore.utils.format_discord_link(
+                arg, guild.id if guild else "@me"
+            )
 
             a, b, c = formatted.partition("/")
             if b:
                 msg = int(c)
                 ch_id = int(a)
-                chan = guild.get_channel_or_thread(ch_id)
+                chan = ctx.bot.get_channel(ch_id)
                 if chan is None:
                     try:
-                        chan = await guild.fetch_channel(ch_id)
+                        chan = await ctx.bot.fetch_channel(ch_id)
                     except (discord.errors.NotFound, discord.errors.Forbidden):
                         raise ValueError()
 
-                if not isinstance(chan, (discord.TextChannel, discord.Thread)):
+                if not isinstance(
+                    chan,
+                    (
+                        discord.TextChannel,
+                        discord.VoiceChannel,
+                        discord.Thread,
+                        discord.DMChannel,
+                    ),
+                ):
                     raise ValueError()
             else:
                 msg = int(a)
@@ -751,20 +775,30 @@ async def cast_basic_arg(ctx: commands.Context, anno: str, arg: Any) -> Any:
 
         elif anno in ("discord.PartialMessage", "discord.message.PartialMessage"):
             guild = ctx.guild
-            formatted = snakecore.utils.format_discord_link(arg, guild.id)
+            formatted = snakecore.utils.format_discord_link(
+                arg, guild.id if guild else "@me"
+            )
 
             a, b, c = formatted.partition("/")
             if b:
                 msg = int(c)
                 ch_id = int(a)
-                chan = guild.get_channel_or_thread(ch_id)
+                chan = ctx.bot.get_channel(ch_id)
                 if chan is None:
                     try:
-                        chan = await guild.fetch_channel(ch_id)
+                        chan = await ctx.bot.fetch_channel(ch_id)
                     except (discord.errors.NotFound, discord.errors.Forbidden):
                         raise ValueError()
 
-                if not isinstance(chan, (discord.TextChannel, discord.Thread)):
+                if not isinstance(
+                    chan,
+                    (
+                        discord.TextChannel,
+                        discord.VoiceChannel,
+                        discord.Thread,
+                        discord.DMChannel,
+                    ),
+                ):
                     raise ValueError()
             else:
                 msg = int(a)

@@ -21,6 +21,7 @@ from typing import (
     Callable,
     Generic,
     Iterable,
+    Literal,
     MutableSequence,
     Optional,
     Sequence,
@@ -76,15 +77,15 @@ def is_emoji_equal(
     return str(partial_emoji) == emoji
 
 
-def format_discord_link(link: str, guild_id: int):
+def format_discord_link(link: str, guild_id_or_me: Union[int, Literal["@me"]]):
     """
     Format a discord link to a channel or message
     """
     link = link.lstrip("<").rstrip(">").rstrip("/")
 
     for prefix in (
-        f"https://discord.com/channels/{guild_id}/",
-        f"https://www.discord.com/channels/{guild_id}/",
+        f"https://discord.com/channels/{guild_id_or_me}/",
+        f"https://www.discord.com/channels/{guild_id_or_me}/",
     ):
         if link.startswith(prefix):
             link = link[len(prefix) :]
