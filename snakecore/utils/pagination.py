@@ -11,49 +11,50 @@ import time
 from typing import Iterable, Optional, Sequence, Union
 
 import discord
-from snakecore import config, constants
+from snakecore import config
+import snakecore
 from snakecore.constants import UNSET
-
-from snakecore.utils import embeds
 
 
 class EmbedPaginator:
-    """An asynchronous paginator class for browsing through embeds using
-    a Discord message.
+    """An asynchronous paginator class for navigating through embeds in a Discord guild,
+    using a message and reactions as controls.
     """
 
     def __init__(
         self,
         message: discord.Message,
         *pages: discord.Embed,
-        caller: Optional[Union[discord.Member, Sequence[discord.Member]]] = None,
-        whitelisted_role_ids: Optional[Iterable[int]] = None,
+        member: Union[discord.Member, Sequence[discord.Member]],
+        roles: Optional[Iterable[Union[discord.Role, int]]] = None,
         start_page_number: int = 1,
-        inactivity_timeout: Optional[int] = None,
-        theme_color: int = 0,
+        inactivity_timeout: Optional[float] = None,
+        theme_color: Union[int, discord.Color] = 0,
     ):
         """
         Create an embed paginator that can paginate between the given embed pages,
-        using the given Discord message in a guild. The message must have remaining
+        using the given Discord message in a guild. The input message must have remaining
         space for at least 2 embeds, otherwise the last 2 will be overwritten.
 
         Args:
-            message (discord.Message): The message to use for pagination.
+            message (discord.Message): The bot message to use for pagination.
             *pages (discord.Embed): The embed pages.
-            caller (Optional[Union[discord.Member, Sequence[discord.Member]]], optional):
-              The member(s) that can control the embed. A value of `None` means that
-              everyone can control it. Defaults to None.
-            whitelisted_role_ids (Optional[Sequence[discord.Role]], optional): The
-              IDs of the guild roles that are always granted control over this embed
+            member (Union[discord.Member, Sequence[discord.Member]]):
+              The member(s) that can control the paginator.
+            roles (Optional[Iterable[Union[discord.Role, int]]], optional): The
+              IDs of the guild roles that are additionally granted control over this embed
               paginator.
             start_page_number (int): The number of the page to start from (1-based).
               Defaults to 1.
-            inactivity_timeout (Optional[int], optional): The maximum time period
+            inactivity_timeout (Optional[float], optional): The maximum time period
               for this paginator to wait for a reaction to occur, before aborting.
               Defaults to None.
-            theme_color (int): The theme color integer to use for all extra embeds
-              used by the paginator. Defaults to 0.
+            theme_color (Union[int, discord.Color]): The theme color to use
+              for all extra embeds used by the paginator. Defaults to 0 (black).
         """
+
+        if not message.guild:
+            raise ValueError("argument 'message' must be from a guild")
 
         self._message = message
         self._pages = list(pages)
@@ -63,34 +64,33 @@ class EmbedPaginator:
         self._inactivity_timeout = None
 
         if inactivity_timeout:
-            self._inactivity_timeout = int(inactivity_timeout)
+            self._inactivity_timeout = float(inactivity_timeout)
 
-        self._paginator_info_embed = embeds.create_embed(
-            color=self._theme_color,
-            footer_text=f"Page {self._current_page_index+1} of {len(self._pages)}.",
+        self._paginator_info_embed = discord.Embed.from_dict(
+            dict(
+                color=self._theme_color,
+                footer=dict(
+                    text=f"Page {self._current_page_index+1} of {len(self._pages)}."
+                ),
+            ),
         )
         self._show_tutorial = False
 
-        self._control_emojis = {
-            "prev": ("◀️", "Go to the previous page"),
-            "stop": ("⏹️", "Deactivate the buttons"),
-            "info": ("ℹ️", "Show this information page"),
-            "next": ("▶️", "Go to the next page"),
-        }
-
-        if len(self._pages) >= 3:
+        if len(self._pages) > 2:
             self._control_emojis = {
+                "delete": ("🗑", "Delete message"),
                 "first": ("⏪", "Go to the first page"),
                 "prev": ("◀️", "Go to the previous page"),
-                "stop": ("⏹️", "Deactivate the buttons"),
+                "stop": ("⏹️", "Quit paginator"),
                 "info": ("ℹ️", "Show this information page"),
                 "next": ("▶️", "Go to the next page"),
                 "last": ("⏩", "Go to the last page"),
             }
         else:
             self._control_emojis = {
+                "delete": ("🗑", "Delete message"),
                 "prev": ("◀️", "Go to the previous page"),
-                "stop": ("⏹️", "Deactivate the buttons"),
+                "stop": ("⏹️", "Quit paginator"),
                 "info": ("ℹ️", "Show this information page"),
                 "next": ("▶️", "Go to the next page"),
             }
@@ -111,15 +111,23 @@ class EmbedPaginator:
         self._stopped = False
         self._told_to_stop = False
 
-        self._callers = None
+        if isinstance(member, discord.Member):
+            self._members = (member,)
+        elif isinstance(member, Sequence):
+            self._members = tuple(member)
+        else:
+            raise TypeError(
+                "argument 'member' must be an instance of discord.Member "
+                "or an iterable sequence of them"
+            )
 
-        if isinstance(caller, discord.Member):
-            self._callers = (caller,)
-        elif isinstance(caller, Sequence):
-            self._callers = tuple(caller)
-
-        self._whitelisted_role_ids = (
-            set(whitelisted_role_ids) if whitelisted_role_ids is not None else None
+        self._roles = (
+            {
+                role.id if isinstance(role, discord.Role) else role: None
+                for role in roles
+            }
+            if roles
+            else None
         )
 
         self._stop_futures: list[asyncio.Future[bool]] = []
@@ -133,12 +141,16 @@ class EmbedPaginator:
         return self._pages
 
     @property
-    def callers(self):
-        return self._callers
+    def member(self):
+        return self._members[0]
 
     @property
-    def whitelisted_role_ids(self):
-        return self._whitelisted_role_ids
+    def members(self):
+        return self._members
+
+    @property
+    def roles(self):
+        return tuple(self._roles.keys()) if self._roles else None
 
     @property
     def current_page_number(self):
@@ -193,9 +205,8 @@ class EmbedPaginator:
         """Toggle the information page visiblity."""
         self._show_tutorial = not self._show_tutorial
         if self._show_tutorial:
-            embeds.edit_embed(
-                self._paginator_info_embed,
-                footer_text=f"Page {self._current_page_index+1} of {len(self._pages)}.",
+            self._paginator_info_embed.set_footer(
+                text=f"Page {self._current_page_index+1} of {len(self._pages)}."
             )
             msg_embeds = self._message.embeds.copy()
             msg_embeds[9:] = [self._tutorial_embed, self._paginator_info_embed]
@@ -210,9 +221,8 @@ class EmbedPaginator:
 
     async def present_page(self):
         """Present the currently set page."""
-        embeds.edit_embed(
-            self._paginator_info_embed,
-            footer_text=f"Page {self._current_page_index+1} of {len(self._pages)}.",
+        self._paginator_info_embed.set_footer(
+            text=f"Page {self._current_page_index+1} of {len(self._pages)}.",
         )
         msg_embeds = self._message.embeds.copy()
         msg_embeds[9:] = [
@@ -244,14 +254,14 @@ class EmbedPaginator:
         ):
             return False
 
-        if self._callers:
-            for member in self._callers:
+        if self._members:
+            for member in self._members:
                 if member.id == event.user_id:
                     return True
 
-        if self._whitelisted_role_ids is not None:
+        if self._roles is not None:
             for role in event.member.roles if event.member else ():
-                if role.id in self._whitelisted_role_ids:
+                if role.id in self._roles:
                     return True
 
         return False
@@ -259,40 +269,90 @@ class EmbedPaginator:
     def update(
         self,
         *pages: discord.Embed,
-        callers: Optional[Union[discord.Member, Sequence[discord.Member]]] = UNSET,
-        whitelisted_role_ids: Optional[Sequence[int]] = UNSET,
+        member: Optional[Union[discord.Member, Sequence[discord.Member]]] = UNSET,
+        roles: Optional[Sequence[int]] = UNSET,
         page_number: int = UNSET,
-        inactivity_timeout: Optional[int] = UNSET,
+        inactivity_timeout: Optional[float] = UNSET,
         theme_color: int = UNSET,
     ):
         """Update the paginator."""
-        self._pages = tuple(pages) if pages else self._pages
-        self._current_page_index = min(self._current_page_index, len(self._pages) - 1)
 
-        if inactivity_timeout is not UNSET:
-            if inactivity_timeout is None:
-                self._inactivity_timeout = inactivity_timeout
+        update_info_embed = False
+
+        if pages:
+            self._pages = list(pages)
+            if len(self._pages) > 2:
+                self._control_emojis = {
+                    "delete": ("🗑", "Delete message"),
+                    "first": ("⏪", "Go to the first page"),
+                    "prev": ("◀️", "Go to the previous page"),
+                    "stop": ("⏹️", "Quit paginator"),
+                    "info": ("ℹ️", "Show this information page"),
+                    "next": ("▶️", "Go to the next page"),
+                    "last": ("⏩", "Go to the last page"),
+                }
             else:
-                self._inactivity_timeout = float(inactivity_timeout)
-
-        if callers is not UNSET:
-            if isinstance(callers, discord.Member):
-                self._callers = (callers,)
-            elif isinstance(callers, Sequence):
-                self._callers = tuple(callers)
-            elif callers is None:
-                self._callers = None
-
-        if whitelisted_role_ids is not UNSET:
-            self._whitelisted_role_ids = (
-                set(whitelisted_role_ids) if whitelisted_role_ids is not None else None
-            )
+                self._control_emojis = {
+                    "delete": ("🗑", "Delete message"),
+                    "prev": ("◀️", "Go to the previous page"),
+                    "stop": ("⏹️", "Quit paginator"),
+                    "info": ("ℹ️", "Show this information page"),
+                    "next": ("▶️", "Go to the next page"),
+                }
+            update_info_embed = True
 
         if theme_color is not UNSET:
             self._theme_color = min(max(0, int(theme_color)), 0xFFFFFF)
+            update_info_embed = True
 
-        if page_number is not None:
-            self.set_page_number(int(page_number))
+        if page_number is not UNSET:
+            self.set_page_number(page_number)
+            update_info_embed = True
+
+        if update_info_embed:
+            self._paginator_info_embed = discord.Embed.from_dict(
+                dict(
+                    color=self._theme_color,
+                    footer=dict(
+                        text=f"Page {self._current_page_index+1} of {len(self._pages)}."
+                    ),
+                ),
+            )
+
+        if inactivity_timeout is not UNSET:
+            self._inactivity_timeout = (
+                inactivity_timeout
+                if isinstance(inactivity_timeout, (float, type(None)))
+                else float(inactivity_timeout)
+            )
+
+        self._tutorial_embed = discord.Embed(
+            title="Rich Embed Paginator",
+            description="".join(
+                f"{emoji}: {desc}\n" for emoji, desc in self._control_emojis.values()
+            ),
+            color=self._theme_color,
+        )
+
+        if member is not UNSET:
+            if isinstance(member, discord.Member):
+                self._members = (member,)
+            elif isinstance(member, Sequence):
+                self._members = tuple(member)
+            else:
+                raise TypeError(
+                    "argument 'member' must be an instance of discord.Member "
+                    "or an iterable sequence of them"
+                )
+        if roles is not UNSET:
+            self._roles = (
+                {
+                    role.id if isinstance(role, discord.Role) else role: None
+                    for role in roles
+                }
+                if roles
+                else None
+            )
 
     def is_running(self):
         """Whether the paginator is currently running."""
@@ -338,6 +398,8 @@ class EmbedPaginator:
             self._stopped = True
             return
 
+        delete_message = False
+
         while self._is_running:
             listening_start = time.time()
             try:
@@ -348,11 +410,28 @@ class EmbedPaginator:
                         check=self.check_event,
                     )
                 )
-
                 event = await self._current_event_task
+                if self._roles and not event.member:
+                    assert self._message.guild
+                    try:
+                        member = self._message.guild.get_member(
+                            event.user_id
+                        ) or await self._message.guild.fetch_member(event.user_id)
+                    except discord.HTTPException:
+                        continue
+                    else:
+                        for role in member.roles:
+                            if role.id in self._roles:
+                                break
+                        else:
+                            continue
+
+                elif event.emoji.name == "🗑":
+                    self._told_to_stop = True
+                    delete_message = True
 
                 await self._message.remove_reaction(
-                    str(event.emoji), discord.Object(event.user_id)
+                    event.emoji, discord.Object(event.user_id)
                 )
 
                 if self.check_event(event):
@@ -374,7 +453,10 @@ class EmbedPaginator:
         self._told_to_stop = False
 
         try:
-            await self._message.clear_reactions()
+            if delete_message:
+                await self._message.delete()
+            else:
+                await self._message.clear_reactions()
         except (discord.HTTPException, asyncio.CancelledError):
             pass
 

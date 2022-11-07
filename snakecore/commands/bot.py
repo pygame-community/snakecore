@@ -10,7 +10,7 @@ import importlib
 import inspect
 import sys
 import types
-from typing import Any, Mapping, Optional, Union
+from typing import TYPE_CHECKING, Any, Mapping, Optional, Union
 from discord.ext import commands
 from discord.ext.commands import errors
 
@@ -29,9 +29,13 @@ def _is_submodule(parent: str, child: str) -> bool:
 
 
 class ExtBotBase(commands.bot.BotBase):
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self._extension_configs: dict[str, Mapping[str, Any]] = {}
+    if TYPE_CHECKING:  # reuse constructor of superclass
+        _extension_configs: dict[str, Mapping[str, Any]]
+    else:
+
+        def __init__(self, *args, **kwargs) -> None:
+            super().__init__(*args, **kwargs)
+            self._extension_configs: dict[str, Mapping[str, Any]] = {}
 
     def set_extension_config(self, qualified_name: str, config: Mapping[str, Any]):
         """Set a configuration mapping that an extension should be loaded with, under
