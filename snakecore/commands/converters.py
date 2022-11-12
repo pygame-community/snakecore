@@ -8,6 +8,7 @@ This file defines some converters for command argument parsing.
 import datetime
 import re
 import sys
+from time import perf_counter
 import types
 from typing import (
     TYPE_CHECKING,
@@ -24,17 +25,20 @@ from typing import (
     Union,
     overload,
 )
-from typing_extensions import Self, TypeVarTuple, Unpack
 
-import discord.app_commands
+import dateutil.parser
+import dateutil.tz
 import discord
+import discord.app_commands
 from discord.ext import commands
 from discord.ext.commands import flags as _flags
 from discord.ext.commands.view import StringView
+from typing_extensions import Self, TypeVarTuple, Unpack
 
 import snakecore
 from snakecore.utils import regex_patterns
-from .bot import Bot, AutoShardedBot
+
+from .bot import AutoShardedBot, Bot
 
 _T = TypeVar("_T")
 _T_co = TypeVar("_T_co", covariant=True)
@@ -43,12 +47,44 @@ DECBotT = Union[Bot, AutoShardedBot]
 DECDECBotT = Union[commands.Bot, commands.AutoShardedBot]
 
 
+_ESCAPES = {
+    "0": "\0",
+    "n": "\n",
+    "r": "\r",
+    "t": "\t",
+    "v": "\v",
+    "b": "\b",
+    "f": "\f",
+    "\\": "\\",
+    '"': '"',
+    "'": "'",
+    "`": "`",
+    "‘": "’",
+    "‚": "‛",
+    "“": "”",
+    "„": "‟",
+    "⹂": "⹂",
+    "「": "」",
+    "『": "』",
+    "〝": "〞",
+    "﹁": "﹂",
+    "﹃": "﹄",
+    "＂": "＂",
+    "｢": "｣",
+    "«": "»",
+    "‹": "›",
+    "《": "》",
+    "〈": "〉",
+}
+
+
 class DateTimeConverter(commands.Converter[datetime.datetime]):
-    """A converter that parses UNIX/ISO timestamps to `datetime` objects.
+    """A converter that parses timestamps to `datetime` objects.
 
     Syntax:
         - `<t:{6969...}[:t|T|d|D|f|F|R]> -> datetime(seconds=6969...)`
         - `YYYY-MM-DD[*HH[:MM[:SS[.fff[fff]]]][+HH:MM[:SS[.ffffff]]]] -> datetime`
+        - `November 18th, 2069 12:30:30.55 am; -3 -> datetime.datetime(2029, 11, 18, 0, 30, 30, 550000, tzinfo=tzoffset(None, 10800))
     """
 
     async def convert(
@@ -59,24 +95,167 @@ class DateTimeConverter(commands.Converter[datetime.datetime]):
         if snakecore.utils.is_markdown_timestamp(arg):
             arg = snakecore.utils.extract_markdown_timestamp(arg)
             try:
-                return datetime.datetime.fromtimestamp(arg)
-            except ValueError as v:
+                return datetime.datetime.fromtimestamp(arg, tz=datetime.timezone.utc)
+            except (ValueError, OverflowError) as v:
                 raise commands.BadArgument(
                     f"failed to construct datetime: {v.__class__.__name__}:{v!s}"
                 ) from v
-        else:
-            arg = arg.removesuffix("Z")
 
         try:
-            return datetime.datetime.fromisoformat(arg)
-        except ValueError as v:
+            dt = datetime.datetime.fromisoformat(arg)
+            if arg.upper().endswith("Z"):
+                dt = dt.astimezone(datetime.timezone.utc)
+            return dt
+        except (ValueError, OverflowError) as v:
+            try:
+                return dateutil.parser.parse(arg)  # slowest but most accurate
+            except (ValueError, OverflowError) as v:
+                pass
+                raise commands.BadArgument(
+                    f"failed to construct datetime: {v.__class__.__name__}:{v!s}"
+                ) from v
+
+
+class TimeConverter(commands.Converter[datetime.time]):
+    """A converter that parses time to `time` objects.
+
+    Syntax:
+        - `<t:{6969...}[:t|T|d|D|f|F|R]> -> time`
+        - `HH[:MM[:SS]][+HH:MM[:SS]] -> time`
+        - `12:30:30 am; -3 -> datetime.time(0, 30, 30, 550000, tzinfo=tzoffset(None, -10800))
+    """
+
+    async def convert(
+        self, ctx: commands.Context[DECBotT], argument: str
+    ) -> datetime.time:
+
+        arg = argument.strip()
+        if snakecore.utils.is_markdown_timestamp(arg):
+            arg = snakecore.utils.extract_markdown_timestamp(arg)
+            try:
+                return datetime.datetime.fromtimestamp(
+                    arg, tz=datetime.timezone.utc
+                ).timetz()
+            except (ValueError, OverflowError) as v:
+                raise commands.BadArgument(
+                    f"failed to construct time: {v.__class__.__name__}:{v!s}"
+                ) from v
+
+        try:
+            t = datetime.time.fromisoformat(arg)
+            if arg.upper().endswith("Z"):
+                t = t.replace(tzinfo=datetime.timezone.utc)
+            return t
+        except (ValueError, OverflowError) as v:
+            try:
+                if not (m := re.fullmatch(regex_patterns.TIME, arg)):
+                    raise ValueError(
+                        f"Failed to parse time: {arg!r} is not a parsable time"
+                    )
+
+                hours = int(m.group(1))
+                minutes = int(m.group(2) or "0")
+                seconds = int(m.group(3) or "0")
+                am_pm = m.group(4) or ""
+                if am_pm.lower() == "am":
+                    if hours == 12:
+                        hours = 0
+
+                elif am_pm.lower() == "pm":
+                    if hours < 12:
+                        hours += 12
+
+                tzinfo = datetime.timezone.utc
+
+                if tzinfo_str := m.group(5):
+                    if (
+                        tzinfo_name := m.group(6)
+                    ) and not tzinfo_name.upper().startswith(("Z", "UTC", "GMT")):
+                        raise ValueError("only explicit UTC/GMT offsets are supported.")
+
+                    offset_sign = m.group(7)
+                    offset_hours = int(m.group(8) or "0") % 24
+                    offset_minutes = int(m.group(9) or "0") % 60
+                    offset_seconds = int(m.group(10) or "0") % 60
+
+                    final_tzoffset_seconds = (1 if offset_sign == "+" else -1) * (
+                        offset_hours * 3600 + offset_minutes * 60 + offset_seconds
+                    )
+                    if final_tzoffset_seconds:
+                        tzinfo = datetime.timezone(
+                            datetime.timedelta(seconds=final_tzoffset_seconds)
+                        )
+
+                return datetime.time(
+                    hour=hours, minute=minutes, second=seconds, tzinfo=tzinfo
+                )
+
+            except (ValueError, OverflowError) as v:
+                raise commands.BadArgument(
+                    f"failed to construct time: {v.__class__.__name__}:{v!s}"
+                ) from v
+
+
+class TimeDeltaConverter(commands.Converter[datetime.timedelta]):
+    """A converter that parses time intervals to `timedelta` objects.
+
+    Syntax:
+        - `<t:{6969...}[:t|T|d|D|f|F|R]> -> datetime(second=6969...) - datetime.now(timezone.utc)`
+        - `HH[:MM[:SS[.fff[fff]]]][+HH:MM[:SS[.ffffff]]] -> time`
+        - `300d[ay[s]] 40m[in[ute[s]|s]] -> timedelta(days=30, minutes=40)``
+        - `6:30:05 -> timedelta(hours=6, minutes=30, seconds=5)`
+    """
+
+    async def convert(
+        self, ctx: commands.Context[DECBotT], argument: str
+    ) -> datetime.timedelta:
+
+        arg = argument.strip()
+        if snakecore.utils.is_markdown_timestamp(arg):
+            arg = snakecore.utils.extract_markdown_timestamp(arg)
+            try:
+                return datetime.datetime.fromtimestamp(
+                    arg, tz=datetime.timezone.utc
+                ) - datetime.datetime.now(datetime.timezone.utc)
+            except (ValueError, OverflowError) as v:
+                raise commands.BadArgument(
+                    f"failed to construct time interval: {v.__class__.__name__}:{v!s}"
+                ) from v
+        try:
+            if m := re.fullmatch(regex_patterns.TIME_INTERVAL, arg):
+                weeks = 0
+                days = int(m.group(1) or "0")
+                hours = int(m.group(2) or "0")
+                minutes = int(m.group(3) or "0")
+                seconds = int(m.group(4) or "0")
+
+            elif m := re.fullmatch(regex_patterns.TIME_INTERVAL_PHRASE, arg):
+                weeks = int(m.group(1) or "0")
+                days = int(m.group(2) or "0")
+                hours = int(m.group(3) or "0")
+                minutes = int(m.group(4) or "0")
+                seconds = int(m.group(5) or "0")
+            else:
+                raise ValueError(
+                    f"Failed to parse time: {arg!r} is not a parsable time interval"
+                )
+
+            return datetime.timedelta(
+                seconds=weeks * 86400 * 7
+                + days * 86400
+                + hours * 3600
+                + minutes * 60
+                + seconds
+            )
+
+        except (ValueError, OverflowError) as v:
             raise commands.BadArgument(
-                f"failed to construct datetime: {v.__class__.__name__}:{v!s}"
+                f"failed to construct time interval: {v.__class__.__name__}:{v!s}"
             ) from v
 
 
-class IntervalConverter(commands.Converter[range]):
-    """A converter that parses closed integer intervals to Python `range` objects.
+class ClosedRangeConverter(commands.Converter[range]):
+    """A converter that parses closed integer ranges to Python `range` objects.
     Both a hyphen-based notation is supported (as used in English phrases) which always
     includes endpoints, as well as a mathematical notation using comparison operators.
 
@@ -97,22 +276,13 @@ class IntervalConverter(commands.Converter[range]):
     )
     HYPHEN_NOTATION = re.compile(r"(-?\d+)-(-?\d+)(?:\|([-+]?\d+))?")
 
-    _comparison_inverses = {
-        ">": "<",
-        "<": ">",
-        "<=": ">=",
-        ">=": "<=",
-        "≤": "≥",
-        "≥": "≤",
-    }
-
     async def convert(self, ctx: commands.Context[DECBotT], argument: str) -> range:
         hyphen_match = self.HYPHEN_NOTATION.match(argument)
         comparison_match = self.COMPARISON_NOTATION.match(argument)
 
         if not (hyphen_match or comparison_match):
             raise commands.BadArgument(
-                "failed to construct closed integer interval from argument "
+                "failed to construct closed integer range from argument "
                 f"{argument!r}\n\n"
                 "Hyphen syntax:\n"
                 "- `start-stop`"
@@ -153,14 +323,14 @@ class IntervalConverter(commands.Converter[range]):
                     start += 1
                 elif start_comp not in ("<=", "≤"):  # default used in range class
                     raise commands.BadArgument(
-                        f"argument {argument!r} is not a valid closed integer interval"
+                        f"argument {argument!r} is not a valid closed integer range"
                     )
 
                 if stop_comp in ("<=", "≤"):
                     stop += 1
                 elif stop_comp != "<":  # default used in range class
                     raise commands.BadArgument(
-                        f"argument {argument!r} is not a valid closed integer interval"
+                        f"argument {argument!r} is not a valid closed integer range"
                     )
 
             elif raw_start >= raw_stop:
@@ -168,14 +338,14 @@ class IntervalConverter(commands.Converter[range]):
                     start -= 1
                 elif start_comp not in (">=", "≥"):  # default used in range class
                     raise commands.BadArgument(
-                        f"argument {argument!r} is not a valid closed integer interval"
+                        f"argument {argument!r} is not a valid closed integer range"
                     )
 
                 if stop_comp in (">=", "≥"):  # default used in range class
                     stop -= 1
                 elif stop_comp != ">":
                     raise commands.BadArgument(
-                        f"argument {argument!r} is not a valid closed integer interval"
+                        f"argument {argument!r} is not a valid closed integer range"
                     )
 
                 if not comparison_match.group(5) and raw_step > 0:
@@ -189,7 +359,7 @@ class IntervalConverter(commands.Converter[range]):
             )
         except (ValueError, TypeError):
             raise commands.BadArgument(
-                "failed to construct closed integer interval from argument "
+                "failed to construct closed integer range from argument "
                 f"{argument!r}\n\n"
                 "Hyphen syntax:\n"
                 "- `start-stop`"
@@ -339,36 +509,6 @@ class StringConverter:
         - `'"ab\\"c"' -> 'ab"c'`
     """
 
-    _ESCAPES = {
-        "0": "\0",
-        "n": "\n",
-        "r": "\r",
-        "t": "\t",
-        "v": "\v",
-        "b": "\b",
-        "f": "\f",
-        "\\": "\\",
-        '"': '"',
-        "'": "'",
-        "`": "`",
-        "‘": "’",
-        "‚": "‛",
-        "“": "”",
-        "„": "‟",
-        "⹂": "⹂",
-        "「": "」",
-        "『": "』",
-        "〝": "〞",
-        "﹁": "﹂",
-        "﹃": "﹄",
-        "＂": "＂",
-        "｢": "｣",
-        "«": "»",
-        "‹": "›",
-        "《": "》",
-        "〈": "〉",
-    }
-
     @classmethod
     async def convert(cls, ctx: commands.Context[DECBotT], argument: str) -> str:
         try:
@@ -420,9 +560,9 @@ class StringConverter:
                         )
                     index += n
 
-                elif char in cls._ESCAPES:
+                elif char in _ESCAPES:
                     # general escapes
-                    newstr.append(cls._ESCAPES[char])
+                    newstr.append(_ESCAPES[char])
                 else:
                     raise ValueError(
                         "Invalid escape character",
@@ -529,7 +669,7 @@ class ParensConverter(commands.Converter[tuple]):
         bend = 0
         scope_level = -1
         if string.startswith(closing):
-            return slice(bstart, bend)
+            return slice(bstart, bend, 1)
         for i, s in enumerate(string):
             if s == opening:
                 scope_level += 1
@@ -538,9 +678,9 @@ class ParensConverter(commands.Converter[tuple]):
             elif s == closing:
                 if scope_level == 0:
                     bend = i + 1
-                    return slice(bstart, bend)
+                    return slice(bstart, bend, 1)
                 scope_level -= 1
-        return slice(bstart, bend)
+        return None
 
     async def convert(
         self, ctx: commands.Context[DECBotT], argument: str
@@ -551,25 +691,36 @@ class ParensConverter(commands.Converter[tuple]):
                 f"(at depth {self.parens_depth}): Failed to find parenthesized region, must be enclosed as "
                 f"'{self.OPENING} ... {self.CLOSING}'"
             )
-        elif argument == f"{self.OPENING}{self.CLOSING}":
+        elif (
+            argument.startswith(self.OPENING)
+            and argument.endswith(self.CLOSING)
+            and (not argument[1:-1] or argument[1:-1].isspace())
+        ):
             return ()
-
-        if len(argument) > 1 and not argument[1].isspace():
-            raise commands.BadArgument(
-                "Parsing parenthesized argument failed "
-                f"(at depth {self.parens_depth}): Content of parenthesized "
-                "region must be surrounded by whitespace"
-            )
 
         view: StringView = getattr(ctx, "_current_view", ctx.view)
 
-        parsed_argument = argument.strip("\n").strip()
-        parens_slice = self._find_parenthesized_region(
-            view.buffer[view.index - len(parsed_argument) :],
-            self.OPENING,
-            self.CLOSING,
-        )
-        if parens_slice.start == parens_slice.stop == 0:
+        parsed_argument = argument
+
+        splintered = False
+
+        if (
+            not (
+                parens_slice := self._find_parenthesized_region(  # assume that inital parsed argument is parenthesized
+                    parsed_argument,
+                    self.OPENING,
+                    self.CLOSING,
+                )
+            )
+            and (splintered := True)
+            and not (
+                parens_slice := self._find_parenthesized_region(  # if it isn't, assume that it at least starts with self.OPENING and try to find full region
+                    view.buffer[view.index - len(argument) :],
+                    self.OPENING,
+                    self.CLOSING,
+                )
+            )
+        ):
             raise commands.BadArgument(
                 "Parsing parenthesized argument failed "
                 f"(at depth {self.parens_depth}): Could not find parenthesized "
@@ -577,18 +728,30 @@ class ParensConverter(commands.Converter[tuple]):
                 f"'{self.OPENING} ... {self.CLOSING}'"
             )
 
-        parens_slice = slice(
-            parens_slice.start + view.index,
-            parens_slice.stop + view.index,
-        )  # offset slice to match the view's buffer string
-        parsed_argument = view.buffer[parens_slice]
-
         old_previous = view.previous
         old_index = view.index
         original_parameter = ctx.current_parameter
         fake_parameter = commands.parameter()
 
-        view.index -= len(argument)
+        if splintered:
+
+            parens_slice = slice(
+                parens_slice.start + view.index - len(argument),
+                parens_slice.stop + view.index - len(argument),
+            )  # offset slice to match the view's buffer string
+
+            view.index -= len(argument)
+        else:
+
+            parens_slice = slice(
+                parens_slice.start + view.index - len(argument) - 1,
+                parens_slice.stop + view.index - len(argument) - 1,
+            )  # offset slice to match the view's buffer string (excluding quotes)
+
+            view.index -= len(argument) + 1
+
+        parsed_argument = view.buffer[parens_slice]
+
         view.read(1)  # move right after starting bracket '('
 
         outputs = []
@@ -597,6 +760,7 @@ class ParensConverter(commands.Converter[tuple]):
         is_variadic = self.converters[-1] is Ellipsis
 
         while True:
+
             if view.index >= parens_slice.stop - 1:
                 break
 
@@ -650,9 +814,17 @@ class ParensConverter(commands.Converter[tuple]):
             previous_previous = view.previous
             previous_index = view.index
             try:
-                ctx.current_argument = fake_argument = view.get_quoted_word()
 
-            except commands.ArgumentParsingError:
+                temp_previous = view.previous
+                temp_index = view.index
+                try:
+                    ctx.current_argument = fake_argument = view.get_quoted_word()
+                except commands.UnexpectedQuoteError as u:
+                    view.previous = temp_previous
+                    view.index = temp_index
+                    ctx.current_argument = fake_argument = view.get_word()
+
+            except commands.ArgumentParsingError as a:
 
                 ctx.current_parameter = original_parameter
                 ctx.current_argument = argument
@@ -667,9 +839,17 @@ class ParensConverter(commands.Converter[tuple]):
             ctx.current_parameter = fake_parameter
 
             try:
+                if view.index >= parens_slice.stop - 1:
+                    assert fake_argument  # fake_argument won't become None
+                    if fake_argument.endswith(self.CLOSING):
+                        fake_argument = fake_argument[:-1]
+                        # catch last argument ... that ended with ')':  "...)"
+                    elif fake_argument.endswith(tuple(_ESCAPES.values())):
+                        fake_argument = fake_argument[:-2]
+                        # catch last argument ... that ended with ')' followed by '"' (or any other quote):  '...)"'
                 transformed = await commands.run_converters(
                     ctx, converter, fake_argument, fake_parameter  # type: ignore
-                )  # fake_argument won't become None
+                )
                 outputs.append(transformed)
 
             except commands.UserInputError as err:
@@ -737,7 +917,9 @@ class ParensConverter(commands.Converter[tuple]):
 
 
 DateTime = Annotated[datetime.datetime, DateTimeConverter]
-Interval = Annotated[range, IntervalConverter]
+Time = Annotated[datetime.time, TimeConverter]
+TimeDelta = Annotated[datetime.timedelta, TimeDeltaConverter]
+ClosedRange = Annotated[range, ClosedRangeConverter]
 
 if TYPE_CHECKING:
     String = str

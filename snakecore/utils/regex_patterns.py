@@ -25,28 +25,142 @@ def url_with_protocols(*protocols: str) -> str:
 
 
 CODE_BLOCK = r"```([^`\s]*)\n(((?!```).|\s|(?<=\\)```)+)```"
-"Matches a fenced code block."
+"""Matches a Discord fenced code block. Triple backticks are supported
+in text content if preceded by a backslash.
+
+Groups:
+  1. The language.
+  2. The text content.
+"""
+
 INLINE_CODE_BLOCK = r"`((?:(?<=\\)`|[^`\n])+)`"
-"Matches an inline code block (`...`)."
+"""Matches a Discord inline code block. Backticks are supported
+in text content if preceded by a backslash.
+
+Groups:
+  1. The text content.
+"""
+
 USER_ROLE_MENTION = r"<@[&!]?(\d+)>"
 """Matches a Discord user or role mention ('<@[!]6969...>'  
 or '<@&6969...>').
+
+Groups:
+  1. The mentioned target's integer ID.
 """
+
 USER_ROLE_CHANNEL_MENTION = r"<(?:@[&!]?|\#)(\d+)>"
 """Matches a Discord user, role or channel mention ('<@[!]6969...>', 
 '<@&6969...>' or '<#6969...>').
+
+Groups:
+  1. The mentioned target's integer ID.
 """
+
 USER_MENTION = r"<@!?(\d+)>"
-"Matches a Discord user mention ('<@[!]6969...>')."
+"""Matches a Discord user mention ('<@[!]6969...>').
+
+Groups:
+  1. The mentioned target's integer ID.
+"""
+
 ROLE_MENTION = r"<@&(\d+)>"
-"Matches a Discord role mention ('<@&6969...>')."
+"""Matches a Discord role mention ('<@&6969...>').
+
+Groups:
+  1. The mentioned target's integer ID.
+"""
+
 CHANNEL_MENTION = r"<#(\d+)>"
-"Matches a Discord channel mention ('<#6969...>')."
+"""Matches a Discord channel mention ('<#6969...>').
+
+Groups:
+  1. The mentioned target's integer ID.
+"""
+
 CUSTOM_EMOJI = r"<(a?):(\S+):(\d+)>"
-"Matches a Discord custom emoji ('<[a]:emoji_name:emoji_id>')."
+"""Matches a Discord custom emoji ('<[a]:emoji_name:emoji_id>').
+
+Groups:
+  1. The 'a' character indicating that an emoji is animated, if present.
+  2. The emoji name.
+  3. The emoji integer ID.
+"""
+
 EMOJI_SHORTCODE = r"\s*:(\S+):\s*"
-"Matches a Discord emoji shortcode. (':emoji_name:')."
+"""Matches a Discord emoji shortcode. (':emoji_name:').
+
+Groups:
+  1. The shortcode name.
+"""
+
 UNIX_TIMESTAMP = r"<t:(-?\d+)(?::([tTdDfFR]))?>"
-"Matches a Discord UNIX timestamp. ('<t:6969...[:t|T|d|D|f|F|R]>')."
-SLASH_COMMAND = APP_COMMAND = r"</.+:(\d+)>"
-"Matches a Discord UNIX timestamp. ('<t:6969...[:t|T|d|D|f|F|R]>')."
+"""Matches a Discord UNIX timestamp in seconds ('<t:6969...[:t|T|d|D|f|F|R]>').
+
+Groups:
+  1. The UNIX timestamp integer in seconds.
+  2. The timestamp formatting used on Discord. Can be t, T, d, D, f, F, or R .
+"""
+SLASH_COMMAND = APP_COMMAND = r"</(.+):(\d+)>"
+"""Matches a Discord slash command mention. ('</lol:6969...>').
+
+Groups:
+  1. The slash command name.
+  2. The slash command integer ID.
+"""
+TIME = r"[Tt]?(?:([0-2]?\d)(?<!2[4-9])(?::([0-5]\d))?(?::([0-5]\d))?\s*([AaPp][Mm])?)(?:,|;)?\s*((\w{0,10})?(?:([+-])([0-2]?\d)(?<!2[4-9])(?::([0-5]\d))?(?::([0-5]\d)(?:\.(\d+))?)?)?)?"
+"""Matches a string denoting time, with(out) time zone information.
+
+Examples:
+  - 6 pm
+  - 8:29PM +03
+  - 23:59 GMT-5:30
+  - 9:45:59 AM PST
+  - 13:30:01 BST
+  - 0:33:09 CEST
+
+Groups:
+  1. The hour(s) (0-23).
+  2. The minute(s) (0-59). Can be empty.
+  3. The second(s) (0-59). Can be empty.
+  4. AM or PM (case insensitive). Can be empty.
+  5. Full time zone information (e.g. "UTC-5:30"). Contains groups 6 and above. Can be empty.
+  6. The time zone name (e.g. PST). Can be empty.
+  7. The time zone offset direction, as "+" or "-". Is required for groups 8 and above to be non-empty. Can be empty.
+  8. The hour of the time-zone offset.
+  9. The minute(s) of the time-zone offset. Can be empty.
+  10. The second(s) of the time-zone offset. Can be empty.
+"""
+
+TIME_INTERVAL = (
+    r"(?:(?:(\d+)\:)?(?:([0-2]?\d)(?<!2[4-9])\:))?(?:([0-5]?\d)\:)(?:([0-5]?\d))"
+)
+"""Matches a string denoting a time interval using colon separated numbers.
+
+Examples:
+  - 1:30 (1m 30s)
+  - 245:23:00:59 (245d 23h 59s)
+
+Groups:
+  1. The days. Can be empty.
+  2. The hours (0-24). Can be empty.
+  3. The minutes (0-59).
+  4. The seconds (0-59).
+"""
+
+TIME_INTERVAL_PHRASE = r"[Pp]?[Tt]?(?=\d)(?:(?:(\d+)\s{0,3}(?:[Ww](?:ks?|eeks?)?\.?))?\s*(?:(\d+)\s{0,3}(?:[Dd](?:ays?)?\.?))?\s*(?:(\d+)\s{0,3}(?:[Hh](?:rs?|ours?)?\.?))?\s*(?:(\d+)\s{0,3}(?:[Mm](?:in(?:s|utes?)?)?\.?))?\s*(?:(\d+)\s{0,3}(?:[Ss](?:ec(?:s|onds?)?)?\.?))?)(?<=[sSrmMnhHdDwW])"
+"""Matches a string denoting a time interval using numbers followed by their time
+specifiers.
+
+Examples:
+  - 1:30 1m 30s
+  - 245d 23h 59s
+  - 420w69s
+
+Groups:
+  1. The weeks. Can be empty.
+  2. The days. Can be empty.
+  3. The hours. Can be empty.
+  4. The minutes.
+  5. The seconds.
+"""
