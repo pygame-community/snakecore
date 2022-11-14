@@ -70,7 +70,7 @@ class LocalStorage(AbstractStorage[_T]):
         self.name = name
 
         if isinstance(obj_type, GenericAlias):
-            obj_type = obj_type.__origin__
+            obj_type = obj_type.__origin__  # type: ignore
 
         # init temp object with the constructor
         self._temp_obj: _T = obj_type()

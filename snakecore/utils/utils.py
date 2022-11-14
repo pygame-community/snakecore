@@ -6,11 +6,12 @@ This file defines some important utility functions for the library.
 """
 
 import asyncio
-from collections import defaultdict, deque
+from collections import OrderedDict, defaultdict, deque
 from collections.abc import Mapping, MutableMapping
 import collections
 import datetime
 import itertools
+from numbers import Number
 import os
 import platform
 import re
@@ -24,16 +25,20 @@ from typing import (
     Literal,
     MutableSequence,
     Optional,
+    Reversible,
     Sequence,
     Type,
     TypeVar,
     Union,
+    overload,
 )
 
 import discord
 
 from snakecore.constants import UNSET, _UnsetType
 from . import regex_patterns
+
+from typing_extensions import Self
 
 
 def join_readable(joins: list[str]):
@@ -899,9 +904,67 @@ def class_getattr(
 
 
 _T = TypeVar("_T")
+_KT = TypeVar("_KT")
+_VT = TypeVar("_VT")
 
 
-class DequeProxy(MutableSequence[_T], Generic[_T]):
+class BoundedOrderedDict(OrderedDict[_KT, _VT]):
+    """A subclass of `OrderedDict` that pops its oldest items
+    if a maximum length was set for it, similar to `deque`.
+    """
+
+    def __init__(self, *args: Any, maxlen: Optional[int] = None, **kwds: Any):
+        super().__init__(*args, **kwds)
+        if maxlen is not None:
+            if not isinstance(maxlen, int):
+                raise TypeError(
+                    "argument 'maxlen' must be a nonzero integer of type 'int', not "
+                    f"'{maxlen.__class__.__name__}'"
+                )
+
+            elif maxlen < 1:
+                raise TypeError(
+                    f"argument 'maxlen' must be a nonzero integer of type 'int'"
+                )
+
+            self.__maxlen = maxlen
+        else:
+            self.__maxlen = None
+
+        if self:
+            self._check_maxlen_reached()
+
+    @property
+    def maxlen(self):
+        return self.__maxlen
+
+    def __setitem__(self, __key: _KT, __value: _VT) -> None:
+        super().__setitem__(__key, __value)
+        self._check_maxlen_reached()
+        return None
+
+    def setdefault(
+        self, key: _KT, default: Optional[_T] = None
+    ) -> Optional[Union[_T, _VT]]:
+        """Insert key with a value of default if key is not in the dictionary.
+
+        Return the value for key if key is in the dictionary, else default.
+        """
+        value = super().setdefault(key, default=default)  # type: ignore
+        if value is not default:
+            self._check_maxlen_reached()
+
+        return value
+
+    def _check_maxlen_reached(self):
+        length = len(self)
+        maxlen = self.__maxlen
+        if maxlen is not None and length > maxlen:
+            for _ in range(length - maxlen):
+                self.popitem(last=False)
+
+
+class DequeProxy(Sequence[_T], Generic[_T]):
     __slots__ = ("__deque",)
 
     def __init__(self, deque_obj: deque[_T]):

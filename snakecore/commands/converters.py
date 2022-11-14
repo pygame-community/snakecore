@@ -8,8 +8,8 @@ This file defines some converters for command argument parsing.
 import datetime
 import re
 import sys
-from time import perf_counter
 import types
+from time import perf_counter
 from typing import (
     TYPE_CHECKING,
     Annotated,
@@ -41,11 +41,10 @@ from snakecore.utils import regex_patterns
 from .bot import AutoShardedBot, Bot
 
 _T = TypeVar("_T")
-_T_co = TypeVar("_T_co", covariant=True)
-_PT = TypeVarTuple("_PT")
-DECBotT = Union[Bot, AutoShardedBot]
-DECDECBotT = Union[commands.Bot, commands.AutoShardedBot]
+BotT = Union[Bot, AutoShardedBot]
+DECBotT = Union[commands.Bot, commands.AutoShardedBot]
 
+ellipsis = type(Ellipsis)
 
 _ESCAPES = {
     "0": "\0",
@@ -56,6 +55,28 @@ _ESCAPES = {
     "b": "\b",
     "f": "\f",
     "\\": "\\",
+    '"': '"',
+    "'": "'",
+    "`": "`",
+    "‘": "’",
+    "‚": "‛",
+    "“": "”",
+    "„": "‟",
+    "⹂": "⹂",
+    "「": "」",
+    "『": "』",
+    "〝": "〞",
+    "﹁": "﹂",
+    "﹃": "﹄",
+    "＂": "＂",
+    "｢": "｣",
+    "«": "»",
+    "‹": "›",
+    "《": "》",
+    "〈": "〉",
+}
+
+_QUOTES = {
     '"': '"',
     "'": "'",
     "`": "`",
@@ -497,7 +518,7 @@ class CodeBlock:
         )
 
 
-class StringConverter:
+class StringConverter(commands.Converter[str]):
     """A converter that parses string literals to string objects,
     thereby handling escaped characters and removing trailing quotes.
 
@@ -509,24 +530,25 @@ class StringConverter:
         - `'"ab\\"c"' -> 'ab"c'`
     """
 
-    @classmethod
-    async def convert(cls, ctx: commands.Context[DECBotT], argument: str) -> str:
+    async def convert(self, ctx: commands.Context[DECBotT], argument: str) -> str:
         try:
-            s = cls.escape(argument)
+            string = self.escape(argument)
         except ValueError as verr:
             raise commands.BadArgument(
                 f"Escaping input argument failed: {verr}"
             ) from verr
-        s = s.strip()
 
-        if (s.startswith('"') and s.endswith('"')) or (
-            s.startswith("'") and s.endswith("'")
+        if (
+            len(string) > 1
+            and string[0] in _QUOTES
+            and string.endswith(_QUOTES[string[0]])
         ):
-            s = s[1:-1]
-        return s
+            return string[1:-1]
 
-    @classmethod
-    def escape(cls, string: str) -> str:
+        return string
+
+    @staticmethod
+    def escape(string: str) -> str:
         """
         Convert a "raw" string to one where characters are escaped
         """
@@ -555,7 +577,6 @@ class StringConverter:
                     except (ValueError, OverflowError):
                         esc = string[index - 2 : index + n]
                         raise ValueError(
-                            "Invalid escape character",
                             f"Invalid unicode escape: `{esc}` in string",
                         )
                     index += n
@@ -572,6 +593,210 @@ class StringConverter:
                 newstr.append(char)
 
         return "".join(newstr)
+
+
+VST = TypeVar("VST", int, range, ellipsis)
+VSTT = TypeVar("VSTT", tuple[int, int], tuple[int, ellipsis], tuple[ellipsis, int])
+
+
+class CharConverter(StringConverter, Generic[_T]):  # type: ignore
+    """A subclass of `StringConverter` that enforces the length of arguments to match
+    the parameterized integer literal given via subscripting this class. Without passing
+    a subscript integer literal, the required argument size will be exactly 1.
+
+    Note that some Unicode glyphs, e.g. emojis, may consist of 2 or more characters.
+    """
+
+    def __init__(self, size: Any = None) -> None:
+        super().__init__()
+        self.size: tuple = (1, 1) if size is None else size
+
+    def __class_getitem__(cls, size: int) -> Self:
+        size_tuple = (1, 1)
+
+        if getattr(size, "__origin__", None) is Literal:
+            if size.__args__ and len(size.__args__) == 1:  # type: ignore
+                size = (int(size.__args__[0]),) * 2  # type: ignore
+            else:
+                raise ValueError(
+                    "'Literal' type argument must contain one positive integer"
+                )
+
+        if isinstance(size, int):
+            if size < 0:
+                raise ValueError(
+                    f"integer type argument for '{cls.__name__}' must be positive"
+                )
+
+            size_tuple = (size, size)
+        else:
+            raise ValueError(
+                f"type argument for '{cls.__name__}' must be of type 'int'"
+            )
+
+        return cls(size=size_tuple)
+
+    async def convert(self, ctx: commands.Context[DECBotT], argument: str) -> str:
+        s = await super().convert(ctx, argument)
+
+        if not len(s) == self.size[0]:
+            raise commands.BadArgument(
+                f"string argument must be {self.size[0]} character(s) long."
+            )
+
+        return s
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}[{self.size[0]}]"  # type: ignore
+
+
+class VarCharConverter(CharConverter, Generic[_T]):  # type: ignore
+    """A subclass of `StringConverter` that enforces the length of arguments to be within
+    the range of parameterized integer literals given via subscripting this class.
+    Without passing subscript integer literals, this class will behave exactly like
+    `StringConverter`.
+
+    Note that some Unicode glyphs, e.g. emojis, may consist of 2 or more characters.
+    """
+
+    def __init__(self, size: Any = None) -> None:
+        super().__init__()
+        self.size: tuple = (..., ...) if size is None else size
+
+    def __class_getitem__(cls, size: Union[VST, VSTT]) -> Self:
+        size_tuple = (..., ...)
+
+        if getattr(size, "__origin__", None) is Literal:
+            if size.__args__ and len(size.__args__) == 1:  # type: ignore
+                size = (..., int(size.__args__[0]))  # type: ignore
+            else:
+                raise ValueError(
+                    "'Literal' type argument must contain one positive integer"
+                )
+
+        if isinstance(size, int):
+            if size < 0:
+                raise ValueError(
+                    f"integer type argument for '{cls.__name__}' must be positive"
+                )
+
+            size_tuple = (..., size)
+
+        elif isinstance(size, tuple):
+            if not len(size) == 2:
+                raise ValueError(
+                    f"tuple type argument for '{cls.__name__}' must have length 2"
+                )
+
+            if getattr(size[0], "__origin__", None) is Literal:
+                if size[0].__args__ and len(size.__args__) == 1:  # type: ignore
+                    size = (int(size[0].__args__[0]), size[1])  # type: ignore
+                else:
+                    raise ValueError(
+                        "First and second 'Literal' type arguments must contain one positive integer"
+                    )
+                assert isinstance(size, tuple)
+
+            if getattr(size[1], "__origin__", None) is Literal:  # type: ignore
+                if size[1].__args__ and len(size[1].__args__) == 1:  # type: ignore
+                    size = (size[0], int(size[1].__args__[0]))  # type: ignore
+                else:
+                    raise ValueError(
+                        "First and second 'Literal' type arguments must contain one positive integer"
+                    )
+                assert isinstance(size, tuple)
+
+            min_size, max_size = ..., ...
+
+            if isinstance(size[0], int) and isinstance(size[1], int):
+                if not 0 < size[0] <= size[1]:
+                    raise ValueError(
+                        f"tuple type argument for '{cls.__name__}' must have the structure"
+                        " (m, n), (m, ...), or (..., n), where 'm' and 'n' are positive "
+                        "integers and 0 < m <= n"
+                    )
+
+                min_size, max_size = size
+
+            elif isinstance(size[0], int) and isinstance(size[1], ellipsis):
+                if size[0] < 0:
+                    raise ValueError(
+                        f"tuple type argument for '{cls.__name__}' must have the structure"
+                        " (m, n), (m, ...), or (..., n), where 'm' and 'n' are positive "
+                        "integers and 0 < m <= n"
+                    )
+
+                min_size = size[0]
+
+            elif isinstance(size[0], ellipsis) and isinstance(size[1], int):
+                if size[1] < 0:
+                    raise ValueError(
+                        f"tuple type argument for '{cls.__name__}' must have the structure"
+                        " (m, n), (m, ...), or (..., n), where 'm' and 'n' are positive "
+                        "integers and 0 < m <= n"
+                    )
+
+                max_size = size[1]
+            else:
+                raise ValueError(
+                    f"tuple type argument for '{cls.__name__}' must have the structure"
+                    " (m, n), (m, ...), or (..., n), where 'm' and 'n' are positive "
+                    "integers and 0 < m <= n"
+                )
+
+            size_tuple = min_size, max_size
+
+        elif isinstance(size, range):
+            if not 0 < size.start <= size.stop:
+                raise ValueError(
+                    f"range object type argument for '{cls.__name__}' must be a positive range"
+                )
+
+            size_tuple = size.start, size.stop - 1
+
+        elif not isinstance(size, ellipsis):
+            raise ValueError(
+                f"type argument for '{cls.__name__}' must be literal instances of "
+                "'int', 'range', 'tuple' or 'ellipsis' ('...')"
+            )
+
+        return cls(size=size_tuple)
+
+    async def convert(self, ctx: commands.Context[DECBotT], argument: str) -> str:
+        s = await super().convert(ctx, argument)
+
+        if (
+            isinstance(self.size[0], int)
+            and isinstance(self.size[1], int)
+            and not self.size[0] <= len(s) <= self.size[1]
+        ):
+            raise commands.BadArgument(
+                f"string argument must be {self.size[0]} character(s) long."
+                if self.size[0] == self.size[1]
+                else f"string argument must be {self.size[0]}-{self.size[1]} "
+                "character(s) long."
+            )
+        elif (
+            isinstance(self.size[0], ellipsis)
+            and isinstance(self.size[1], int)
+            and not len(s) <= self.size[1]
+        ):
+            raise commands.BadArgument(
+                f"string argument must be {self.size[1]} or less characters long."
+            )
+        elif (
+            isinstance(self.size[0], int)
+            and isinstance(self.size[1], ellipsis)
+            and not self.size[0] <= len(s)
+        ):
+            raise commands.BadArgument(
+                f"string argument must be {self.size[0]} or more characters long."
+            )
+
+        return s
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}[{', '.join(self.size)}]"  # type: ignore
 
 
 class ParensConverter(commands.Converter[tuple]):
@@ -924,9 +1149,35 @@ ClosedRange = Annotated[range, ClosedRangeConverter]
 if TYPE_CHECKING:
     String = str
     Parens = tuple
+
+    class Char(String):  # type: ignore
+        """A converter that enforces the length of arguments to match
+        the parameterized integer literal given via subscripting this class. Without passing
+        a subscript integer literal, the required argument size will be exactly 1.
+
+        Note that some Unicode glyphs, e.g. emojis, may consist of 2 or more characters.
+        """
+
+        def __class_getitem__(cls, size: int):
+            ...
+
+    class VarChar(Char):  # type: ignore
+        """A converter that enforces the length of arguments to be within
+        the range of parameterized integer literals given via subscripting this class.
+        Without passing subscript integer literals, this class will behave exactly like
+        `String`.
+
+        Note that some Unicode glyphs, e.g. emojis, may consist of 2 or more characters.
+        """
+
+        def __class_getitem__(cls, size: Union[VST, VSTT]):
+            ...
+
 else:
     String = StringConverter
     Parens = ParensConverter
+    Char = CharConverter
+    VarChar = VarCharConverter
 
 
 async def tuple_convert_all(
