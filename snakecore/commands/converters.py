@@ -111,8 +111,7 @@ class DateTimeConverter(commands.Converter[datetime.datetime]):
     async def convert(
         self, ctx: commands.Context[DECBotT], argument: str
     ) -> datetime.datetime:
-        arg = argument.strip()
-
+        arg = argument.strip().replace("`", "")
         if snakecore.utils.is_markdown_timestamp(arg):
             arg = snakecore.utils.extract_markdown_timestamp(arg)
             try:
@@ -150,7 +149,7 @@ class TimeConverter(commands.Converter[datetime.time]):
         self, ctx: commands.Context[DECBotT], argument: str
     ) -> datetime.time:
 
-        arg = argument.strip()
+        arg = argument.strip().replace("`", "")
         if snakecore.utils.is_markdown_timestamp(arg):
             arg = snakecore.utils.extract_markdown_timestamp(arg)
             try:
@@ -231,7 +230,7 @@ class TimeDeltaConverter(commands.Converter[datetime.timedelta]):
         self, ctx: commands.Context[DECBotT], argument: str
     ) -> datetime.timedelta:
 
-        arg = argument.strip()
+        arg = argument.strip().replace("`", "")
         if snakecore.utils.is_markdown_timestamp(arg):
             arg = snakecore.utils.extract_markdown_timestamp(arg)
             try:
