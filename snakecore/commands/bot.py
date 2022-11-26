@@ -6,8 +6,10 @@ This file defines a customized drop-in replacement for `discord.ext.commands.Bot
 and `discord.ext.commands.AutoShardedBot` with more features.
 """
 
+import asyncio
 import importlib
 import inspect
+import logging
 import sys
 import types
 from typing import TYPE_CHECKING, Any, Mapping, Optional, Union
@@ -23,6 +25,8 @@ __all__ = (
     "AutoShardedBot",
 )
 
+_logger = logging.getLogger(__name__)
+
 
 def _is_submodule(parent: str, child: str) -> bool:
     return parent == child or child.startswith(parent + ".")
@@ -36,6 +40,7 @@ class ExtBotBase(commands.bot.BotBase):
         def __init__(self, *args, **kwargs) -> None:
             super().__init__(*args, **kwargs)
             self._extension_configs: dict[str, Mapping[str, Any]] = {}
+            self._is_closing: bool = False
 
     def set_extension_config(self, qualified_name: str, config: Mapping[str, Any]):
         """Set a configuration mapping that an extension should be loaded with, under
@@ -130,13 +135,76 @@ class ExtBotBase(commands.bot.BotBase):
 
     async def teardown_hook(self) -> None:
         """An analogue to `.setup_hook()` that is called only once, within `.close()`.
-        Useful for calling asynchronous teardown code.
+        Useful for calling asynchronous teardown code before the bot disconnects.
         """
         pass
 
-    async def close(self) -> None:
+    async def close(self):
+        self._is_closing = True
         await self.teardown_hook()
-        return await super().close()
+        ret = await super().close()
+        self._is_closing = False
+        return ret
+
+    def is_closing(self) -> bool:
+        """Whether the bot is closing.
+
+        Returns:
+            bool: True/False
+        """
+        return self._is_closing
+
+    def dispatch(
+        self, event_name: str, /, *args: Any, **kwargs: Any
+    ) -> list[asyncio.Task]:
+        """Dispatches the specified event and returns all `asyncio.Task` objects
+        generated in the process.
+        """
+        _logger.debug("Dispatching event %s", event_name)
+        method = "on_" + event_name
+
+        listeners = self._listeners.get(event_name)  # type: ignore
+        tsks = []
+        if listeners:
+            removed = []
+            for i, (future, condition) in enumerate(listeners):
+                if future.cancelled():
+                    removed.append(i)
+                    continue
+
+                try:
+                    result = condition(*args)
+                except Exception as exc:
+                    future.set_exception(exc)
+                    removed.append(i)
+                else:
+                    if result:
+                        if len(args) == 0:
+                            future.set_result(None)
+                        elif len(args) == 1:
+                            future.set_result(args[0])
+                        else:
+                            future.set_result(args)
+                        removed.append(i)
+
+            if len(removed) == len(listeners):
+                self._listeners.pop(event_name)  # type: ignore
+            else:
+                for idx in reversed(removed):
+                    del listeners[idx]
+
+        try:
+            coro = getattr(self, method)
+        except AttributeError:
+            pass
+        else:
+            tsks.append(self._schedule_event(coro, method, *args, **kwargs))  # type: ignore
+
+        tsks.extend(
+            self._schedule_event(event, ev, *args, **kwargs)  # type: ignore
+            for event in self.extra_events.get(method, [])
+        )  # type: ignore
+        return tsks
 
 
 class ExtBot(ExtBotBase, commands.Bot):
