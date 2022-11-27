@@ -176,7 +176,7 @@ def flagconverter_kwargs(
 
         new_param_list.append(
             commands.Parameter(  # add generated FlagConverter class as parameter
-                "__flags__",
+                "_flags_",
                 inspect.Parameter.KEYWORD_ONLY,
                 default=None,
                 annotation=flags_cls,
@@ -187,8 +187,8 @@ def flagconverter_kwargs(
             parameters=new_param_list, return_annotation=sig.return_annotation
         )
 
-        async def wrapper(*args, __flags__: flags_cls = None, **kwargs):  # type: ignore
-            return await func(*args, **(__flags__.__dict__ if __flags__ is not None else {} | kwargs))  # type: ignore
+        async def wrapper(*args, _flags_: flags_cls = None, **kwargs):  # type: ignore
+            return await func(*args, **(_flags_.__dict__ if _flags_ is not None else {} | kwargs))  # type: ignore
 
         # shallow-copy wrapper function to override __globals__
         flagconverter_kwargs_wrapper: Callable[_P, _T] = types.FunctionType(

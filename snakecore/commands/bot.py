@@ -201,7 +201,7 @@ class ExtBotBase(commands.bot.BotBase):
             tsks.append(self._schedule_event(coro, method, *args, **kwargs))  # type: ignore
 
         tsks.extend(
-            self._schedule_event(event, ev, *args, **kwargs)  # type: ignore
+            self._schedule_event(event, method, *args, **kwargs)  # type: ignore
             for event in self.extra_events.get(method, [])
         )  # type: ignore
         return tsks
