@@ -140,11 +140,11 @@ class ExtBotBase(commands.bot.BotBase):
         pass
 
     async def close(self):
-        self._is_closing = True
-        await self.teardown_hook()
-        ret = await super().close()
-        self._is_closing = False
-        return ret
+        if not self.is_closed():  # type: ignore
+            self._is_closing = True
+            await self.teardown_hook()
+            await super().close()
+            self._is_closing = False
 
     def is_closing(self) -> bool:
         """Whether the bot is closing.
