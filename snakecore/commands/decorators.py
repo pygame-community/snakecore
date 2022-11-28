@@ -42,8 +42,12 @@ def flagconverter_kwargs(
 ) -> Callable[[Callable[_P, _T]], Callable[_P, _T]]:
     """Wraps a `discord.ext.commands` command function using a wrapper function
     that fakes its signature, whilst mapping the `.__dict__`s key-value pairs from
-    an implicitly generated FlagConverter subclass's instance to its
-    keyword-only arguments. Variable keyword arguments are ignored.
+    an implicitly generated `FlagConverter` subclass's instance to its keyword-only
+    arguments. In essence, this allows you to define keyword-only arguments
+    in your command callback, which will automatically be treated as `FlagConverter`
+    flags.
+
+    Variable keyword arguments (`**kwargs`) are ignored.
 
     This decorator must be applied as the very first decorator when defining a command.
 
@@ -178,7 +182,6 @@ def flagconverter_kwargs(
             commands.Parameter(  # add generated FlagConverter class as parameter
                 "_flags_",
                 inspect.Parameter.KEYWORD_ONLY,
-                default=None,
                 annotation=flags_cls,
             )
         )
