@@ -108,7 +108,7 @@ Groups:
   1. The slash command name.
   2. The slash command integer ID.
 """
-TIME = r"[Tt]?(?:([0-2]?\d)(?<!2[4-9])(?::([0-5]\d))?(?::([0-5]\d))?\s*([AaPp][Mm])?)(?:,|;)?\s*((\w{0,10})?(?:([+-])([0-2]?\d)(?<!2[4-9])(?::([0-5]\d))?(?::([0-5]\d)(?:\.(\d+))?)?)?)?"
+TIME = r"[Tt]?(?:([0-2]?\d)(?<!2[4-9])(?::([0-5]\d))?(?::([0-5]\d)(?:\.(\d+))?)?\s*([AaPp][Mm])?)(?:,|;)?\s*((\w{0,10})?(?:([+-])([0-2]?\d)(?<!2[4-9])(?::([0-5]\d))?(?::([0-5]\d)(?:\.(\d+))?)?)?)?"
 """Matches a string denoting time, with(out) time zone information.
 
 Examples:
@@ -123,19 +123,19 @@ Groups:
   1. The hour(s) (0-23).
   2. The minute(s) (0-59). Can be empty.
   3. The second(s) (0-59). Can be empty.
-  4. AM or PM (case insensitive). Can be empty.
-  5. Full time zone information (e.g. "UTC-5:30"). Contains groups 6 and above. Can be empty.
-  6. The time zone name (e.g. PST). Can be empty.
-  7. The time zone offset direction, as "+" or "-". Is required for groups 8 and above to be non-empty. Can be empty.
-  8. The hour of the time-zone offset.
-  9. The minute(s) of the time-zone offset. Can be empty.
-  10. The second(s) of the time-zone offset. Can be empty.
+  4. The microseconds(s). Can be empty.
+  5. AM or PM (case insensitive). Can be empty.
+  6. Full time zone information (e.g. "UTC-5:30"). Contains groups 6 and above. Can be empty.
+  7. The time zone name (e.g. PST). Can be empty.
+  8. The time zone offset direction, as "+" or "-". Is required for groups 9 and above to be non-empty. Can be empty.
+  9. The hour(s) (0-23)  of the time-zone offset.
+  10. The minute(s) (0-59) of the time-zone offset. Can be empty.
+  11. The second(s) (0-59) of the time-zone offset. Can be empty.
+  12. The microsecond(s) of the time-zone offset. Can be empty.
 """
 
-TIME_INTERVAL = (
-    r"(?:(?:(\d+)\:)?(?:([0-2]?\d)(?<!2[4-9])\:))?(?:([0-5]?\d)\:)(?:([0-5]?\d))"
-)
-"""Matches a string denoting a time interval using colon separated numbers.
+TIME_INTERVAL = r"(?:(?:(\d+)\:)?(?:([0-2]?\d)(?<!2[4-9])\:))?(?:([0-5]?\d)\:)(?:([0-5]?\d)(?:.(\d+))?)"
+"""Matches a string denoting a time interval using colon-separated integers.
 
 Examples:
   - 1:30 (1m 30s)
@@ -146,16 +146,18 @@ Groups:
   2. The hours (0-24). Can be empty.
   3. The minutes (0-59).
   4. The seconds (0-59).
+  5. The microseconds.
 """
 
-TIME_INTERVAL_PHRASE = r"[Pp]?[Tt]?(?=\d)(?:(?:(\d+)\s{0,3}(?:[Ww](?:ks?|eeks?)?\.?))?\s*(?:(\d+)\s{0,3}(?:[Dd](?:ays?)?\.?))?\s*(?:(\d+)\s{0,3}(?:[Hh](?:rs?|ours?)?\.?))?\s*(?:(\d+)\s{0,3}(?:[Mm](?:in(?:s|utes?)?)?\.?))?\s*(?:(\d+)\s{0,3}(?:[Ss](?:ec(?:s|onds?)?)?\.?))?)(?<=[sSrmMnhHdDwW])"
+TIME_INTERVAL_PHRASE = r"[Pp]?[Tt]?(?=\d)(?:(?:(\d+\.?\d+)\s{0,3}(?:[Ww](?:ks?|eeks?)?\.?))?\s*(?:(\d+\.?\d+)\s{0,3}(?:[Dd](?:ays?)?\.?))?\s*(?:(\d+\.?\d+)\s{0,3}(?:[Hh](?:rs?|ours?)?\.?))?\s*(?:(\d+\.?\d+)\s{0,3}(?:[Mm](?:in(?:s|utes?)?)?\.?))?\s*(?:(\d+\.?\d+)\s{0,3}(?:[Ss](?:ec(?:s|onds?)?)?\.?))?)(?<=[sSrmMnhHdDwW])"
 """Matches a string denoting a time interval using numbers followed by their time
-specifiers.
+specifiers. Floating point numbers are supported.
 
 Examples:
   - 1:30 1m 30s
   - 245d 23h 59s
   - 420w69s
+  - 3.234 seconds
 
 Groups:
   1. The weeks. Can be empty.

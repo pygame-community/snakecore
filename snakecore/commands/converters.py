@@ -176,7 +176,8 @@ class TimeConverter(commands.Converter[datetime.time]):
                 hours = int(m.group(1))
                 minutes = int(m.group(2) or "0")
                 seconds = int(m.group(3) or "0")
-                am_pm = m.group(4) or ""
+                microseconds = int(m.group(4) or "0")
+                am_pm = m.group(5) or ""
                 if am_pm.lower() == "am":
                     if hours == 12:
                         hours = 0
@@ -187,19 +188,23 @@ class TimeConverter(commands.Converter[datetime.time]):
 
                 tzinfo = datetime.timezone.utc
 
-                if tzinfo_str := m.group(5):
+                if tzinfo_str := m.group(6):
                     if (
-                        tzinfo_name := m.group(6)
+                        tzinfo_name := m.group(7)
                     ) and not tzinfo_name.upper().startswith(("Z", "UTC", "GMT")):
                         raise ValueError("only explicit UTC/GMT offsets are supported.")
 
-                    offset_sign = m.group(7)
-                    offset_hours = int(m.group(8) or "0") % 24
-                    offset_minutes = int(m.group(9) or "0") % 60
-                    offset_seconds = int(m.group(10) or "0") % 60
+                    offset_sign = m.group(8)
+                    offset_hours = int(m.group(9) or "0") % 24
+                    offset_minutes = int(m.group(10) or "0") % 60
+                    offset_seconds = int(m.group(11) or "0") % 60
+                    offset_microseconds = int(m.group(12) or "0") % 60
 
                     final_tzoffset_seconds = (1 if offset_sign == "+" else -1) * (
-                        offset_hours * 3600 + offset_minutes * 60 + offset_seconds
+                        offset_hours * 3600
+                        + offset_minutes * 60
+                        + offset_seconds
+                        + offset_microseconds * 1e-06
                     )
                     if final_tzoffset_seconds:
                         tzinfo = datetime.timezone(
@@ -207,7 +212,11 @@ class TimeConverter(commands.Converter[datetime.time]):
                         )
 
                 return datetime.time(
-                    hour=hours, minute=minutes, second=seconds, tzinfo=tzinfo
+                    hour=hours,
+                    minute=minutes,
+                    second=seconds,
+                    microsecond=microseconds,
+                    tzinfo=tzinfo,
                 )
 
             except (ValueError, OverflowError) as v:
@@ -248,24 +257,27 @@ class TimeDeltaConverter(commands.Converter[datetime.timedelta]):
                 hours = int(m.group(2) or "0")
                 minutes = int(m.group(3) or "0")
                 seconds = int(m.group(4) or "0")
+                microseconds = int(m.group(5) or "0")
 
             elif m := re.fullmatch(regex_patterns.TIME_INTERVAL_PHRASE, arg):
-                weeks = int(m.group(1) or "0")
-                days = int(m.group(2) or "0")
-                hours = int(m.group(3) or "0")
-                minutes = int(m.group(4) or "0")
-                seconds = int(m.group(5) or "0")
+                weeks = float(m.group(1) or "0")
+                days = float(m.group(2) or "0")
+                hours = float(m.group(3) or "0")
+                minutes = float(m.group(4) or "0")
+                seconds = float(m.group(5) or "0")
+                microseconds = 0.0
             else:
                 raise ValueError(
                     f"Failed to parse time: {arg!r} is not a parsable time interval"
                 )
 
             return datetime.timedelta(
-                seconds=weeks * 86400 * 7
-                + days * 86400
-                + hours * 3600
-                + minutes * 60
-                + seconds
+                weeks=weeks,
+                days=days,
+                hours=hours,
+                minutes=minutes,
+                seconds=seconds,
+                microseconds=microseconds,
             )
 
         except (ValueError, OverflowError) as v:
