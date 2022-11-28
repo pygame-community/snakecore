@@ -748,7 +748,7 @@ class JobManagerProxy:
         job = self.__mgr._get_job_from_proxy(job_proxy)
 
         if job is self.__j:
-            job.RESTART()
+            job.restart()
 
         return self.__mgr.restart_job(
             job_proxy, stopping_timeout=stopping_timeout, _iv=self.__j  # type: ignore
@@ -771,7 +771,7 @@ class JobManagerProxy:
         job = self.__mgr._get_job_from_proxy(job_proxy)
 
         if job is self.__j:
-            job.STOP(force=force)
+            job.stop(force=force)
 
         return self.__mgr.stop_job(
             job_proxy, stopping_timeout=stopping_timeout, force=force, _iv=self.__j
@@ -782,7 +782,7 @@ class JobManagerProxy:
         job = self.__mgr._get_job_from_proxy(job_proxy)
 
         if job is self.__j:
-            job.KILL()
+            job.kill()
 
         return self.__mgr.kill_job(
             job_proxy, stopping_timeout=stopping_timeout, _iv=self.__j  # type: ignore

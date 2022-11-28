@@ -177,9 +177,9 @@ class MessageSend(
     async def on_stop(self):
         if self.run_failed():
             if self.data.kill_if_failed:
-                self.KILL()
+                self.kill()
         else:
-            self.COMPLETE()
+            self.complete()
 
 
 messageable_channels = (
@@ -262,9 +262,9 @@ class _MessageModify(jobs.ManagedJobBase):
     async def on_stop(self):
         if self.run_failed():
             if self.data.kill_if_failed:
-                self.KILL()
+                self.kill()
         else:
-            self.COMPLETE()
+            self.complete()
 
 
 class MessageEdit(

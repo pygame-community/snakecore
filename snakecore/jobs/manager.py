@@ -240,7 +240,7 @@ class JobManager:
 
             self._manager_job = self._get_job_from_proxy(
                 await self.create_and_register_job(
-                    jobs.JobManagerJob, with_permission_level=JobPermissionLevels.SYSTEM  # type: ignore
+                    jobs.JobManagerJob, permission_level=JobPermissionLevels.SYSTEM  # type: ignore
                 )
             )
             self._manager_job._creator = self._manager_job._proxy
@@ -291,7 +291,7 @@ class JobManager:
                 or register_permission_level >= JobPermissionLevels.SYSTEM
             ):
                 raise TypeError(
-                    "argument 'with_permission_level' must be a usable enum value "
+                    "argument 'permission_level' must be a usable enum value "
                     "defined in the 'JobPermissionLevels' enum"
                 )
 
@@ -343,7 +343,7 @@ class JobManager:
 
             if register_permission_level is None:
                 raise TypeError(
-                    "argument 'with_permission_level'"
+                    "argument 'register_permission_level'"
                     " cannot be None if enum 'op' is 'REGISTER'"
                 )
 
@@ -608,7 +608,7 @@ class JobManager:
 
         if not job._bools & JF.INITIALIZED:
             try:
-                await job._INITIALIZE_EXTERNAL()
+                await job._initialize_external()
                 job._bools |= JF.INITIALIZED  # True
 
             except Exception as e:
@@ -629,7 +629,7 @@ class JobManager:
     async def register_job(  # type: ignore
         self,
         job_proxy: "proxies.JobProxy",
-        with_permission_level: Optional[JobPermissionLevels] = None,
+        permission_level: Optional[JobPermissionLevels] = None,
         start: bool = True,
     ):
         ...
@@ -638,7 +638,7 @@ class JobManager:
     async def register_job(
         self,
         job_proxy: "proxies.JobProxy",
-        with_permission_level: Optional[JobPermissionLevels] = None,
+        permission_level: Optional[JobPermissionLevels] = None,
         start: bool = True,
         _iv: Optional[jobs.ManagedJobBase] = None,
     ):
@@ -647,7 +647,7 @@ class JobManager:
     async def register_job(
         self,
         job_proxy: "proxies.JobProxy",
-        with_permission_level: Optional[JobPermissionLevels] = None,
+        permission_level: Optional[JobPermissionLevels] = None,
         start: bool = True,
         _iv: Optional[jobs.ManagedJobBase] = None,
     ):
@@ -658,7 +658,7 @@ class JobManager:
             job (JobProxy): The job object to be registered.
             start (bool): Whether the given job object should start automatically
               upon registration.
-            with_permission_level (Optional[JobPermissionLevels], optional)
+            permission_level (Optional[JobPermissionLevels], optional)
               The permission level under which the job object should be registered.
               If set to `None`, the default job manager permission level will be
               chosen. Defaults to None.
@@ -675,12 +675,12 @@ class JobManager:
 
         job = self._get_job_from_proxy(job_proxy)
 
-        if with_permission_level is None:
-            with_permission_level = self._default_job_permission_level
+        if permission_level is None:
+            permission_level = self._default_job_permission_level
 
-        elif not isinstance(with_permission_level, JobPermissionLevels):
+        elif not isinstance(permission_level, JobPermissionLevels):
             raise TypeError(
-                "argument 'with_permission_level' must be None or a usable enum value "
+                "argument 'permission_level' must be None or a usable enum value "
                 "defined in the 'JobPermissionLevels' enum"
             )
 
@@ -689,7 +689,7 @@ class JobManager:
                 _iv,
                 op=JobOps.REGISTER,
                 target=job,
-                register_permission_level=with_permission_level,
+                register_permission_level=permission_level,
             )
         else:
             self._check_manager_misuse()
@@ -718,7 +718,7 @@ class JobManager:
                 f" '{job.__class__.__qualname__}' job registered at a time."
             )
 
-        self._add_job(job, with_permission_level=with_permission_level, start=start)  # type: ignore
+        self._add_job(job, permission_level=permission_level, start=start)  # type: ignore
         job._registered_at_ts = time.time()
 
     @overload
@@ -726,7 +726,7 @@ class JobManager:
         self,
         cls: Type[jobs.ManagedJobBase],
         *args,
-        with_permission_level: Optional[JobPermissionLevels] = None,
+        permission_level: Optional[JobPermissionLevels] = None,
         **kwargs,
     ) -> "proxies.JobProxy":
         ...
@@ -736,7 +736,7 @@ class JobManager:
         self,
         cls: Type[jobs.ManagedJobBase],
         *args,
-        with_permission_level: Optional[JobPermissionLevels] = None,
+        permission_level: Optional[JobPermissionLevels] = None,
         _return_proxy: bool = True,
         _iv: Optional[jobs.ManagedJobBase] = None,
         **kwargs,
@@ -747,7 +747,7 @@ class JobManager:
         self,
         cls: Type[jobs.ManagedJobBase],
         *args,
-        with_permission_level: Optional[JobPermissionLevels] = None,
+        permission_level: Optional[JobPermissionLevels] = None,
         _return_proxy: bool = True,
         _iv: Optional[jobs.ManagedJobBase] = None,
         **kwargs,
@@ -758,19 +758,19 @@ class JobManager:
         Args:
             cls (Type[jobs.ManagedJobBase]): The job class to instantiate.
             *args (Any): Positional arguments for the job constructor.
-            with_permission_level (Optional[JobPermissionLevels], optional)
+            permission_level (Optional[JobPermissionLevels], optional)
               The permission level under which the job object should be registered.
               If set to `None`, the default job manager permission level will be
               chosen. Defaults to None.
             **kwargs (Any): Keyword arguments for the job constructor
-              (excluding `with_permission_level`).
+              (excluding `permission_level`).
 
         Returns:
             JobProxy: A job proxy object.
         """
         j = self.create_job(cls, *args, _return_proxy=False, _iv=_iv, **kwargs)
         await self.register_job(
-            j._proxy, start=True, with_permission_level=with_permission_level, _iv=_iv  # type: ignore
+            j._proxy, start=True, permission_level=permission_level, _iv=_iv  # type: ignore
         )
         if _return_proxy:
             return j._proxy  # type: ignore
@@ -782,7 +782,7 @@ class JobManager:
     def _add_job(
         self,
         job: jobs.ManagedJobBase,
-        with_permission_level: JobPermissionLevels,
+        permission_level: JobPermissionLevels,
         start: bool = True,
     ):
         """THIS METHOD IS ONLY MEANT FOR INTERNAL USE BY THIS CLASS.
@@ -792,7 +792,7 @@ class JobManager:
         Args:
             job: jobs.ManagedJobBase:
                 The job to add.
-            with_permission_level (JobPermissionLevels)
+            permission_level (JobPermissionLevels)
               The permission level under which the job object should be added.
             start (bool, optional):
                 Whether a given interval job object should start immediately
@@ -829,14 +829,14 @@ class JobManager:
 
         self._job_class_data[job.__class__._RUNTIME_ID]["instances"][
             job._runtime_id
-        ] = (job, with_permission_level)
+        ] = (job, permission_level)
 
-        self._job_id_map[job._runtime_id] = (job, with_permission_level)
+        self._job_id_map[job._runtime_id] = (job, permission_level)
 
-        job._permission_level = with_permission_level
+        job._permission_level = permission_level
 
         if start:
-            job._START_EXTERNAL()
+            job._start_external()
 
     def _remove_job(self, job: jobs.ManagedJobBase):
         """THIS METHOD IS ONLY MEANT FOR INTERNAL USE BY THIS CLASS and job manager
@@ -1369,7 +1369,7 @@ class JobManager:
                 "the given target job object is being guarded by another job"
             ) from None
 
-        return job._START_EXTERNAL()
+        return job._start_external()
 
     @overload
     def restart_job(  # type: ignore
@@ -1430,7 +1430,7 @@ class JobManager:
             stopping_timeout = float(stopping_timeout)
             job._manager._job_stop_timeout = stopping_timeout  # type: ignore
 
-        return job._RESTART_EXTERNAL()
+        return job._restart_external()
 
     @overload
     def stop_job(  # type: ignore
@@ -1491,7 +1491,7 @@ class JobManager:
             stopping_timeout = float(stopping_timeout)
             job._manager._job_stop_timeout = stopping_timeout  # type: ignore
 
-        return job._STOP_EXTERNAL(force=force)
+        return job._stop_external(force=force)
 
     def kill_job(
         self,
@@ -1543,7 +1543,7 @@ class JobManager:
             stopping_timeout = float(stopping_timeout)
             job._manager._job_stop_timeout = stopping_timeout  # type: ignore
 
-        return job._KILL_EXTERNAL(awaken=True)
+        return job._kill_external(awaken=True)
 
     def guard_job(
         self,
@@ -1854,7 +1854,7 @@ class JobManager:
         for job, _ in self._job_id_map.values():
             if job.is_running():
                 stop_awaitables.append(job.await_stop())
-            job._STOP_EXTERNAL(force=force)
+            job._stop_external(force=force)
 
         return asyncio.gather(*stop_awaitables, return_exceptions=True)
 
@@ -1880,10 +1880,10 @@ class JobManager:
 
         for job, _ in self._job_id_map.values():
             done_awaitables.append(job.await_done())
-            job._KILL_EXTERNAL(awaken=awaken)
+            job._kill_external(awaken=awaken)
 
         self._job_id_map[self._manager_job._runtime_id] = manager_job_data  # type: ignore
-        self._manager_job._STOP_EXTERNAL(force=True)  # type: ignore
+        self._manager_job._stop_external(force=True)  # type: ignore
 
         return asyncio.gather(*done_awaitables, return_exceptions=True)
 
@@ -1898,7 +1898,7 @@ class JobManager:
         if self._is_running:
             raise RuntimeError("this job manager is still running")
 
-        self._manager_job._START_EXTERNAL()  # type: ignore
+        self._manager_job._start_external()  # type: ignore
 
         self._is_running = True
 

@@ -20,7 +20,7 @@ from snakecore.constants import (
     JobStopReasons,
 )
 
-from snakecore.utils.utils import DequeProxy
+from snakecore.utils import DequeProxy
 from . import jobs
 from .jobs import JobMixin
 from snakecore import events
@@ -147,7 +147,7 @@ class BaseEventJobMixin(JobMixin):
         self._event_queue.append(event)
 
         if not is_running and self._bools & JF.START_ON_EVENT_DISPATCH:
-            self._START()
+            self._start()
 
         elif self._event_queue_futures:
             for fut in self._event_queue_futures:
@@ -183,7 +183,7 @@ class BaseEventJobMixin(JobMixin):
     async def mixin_routine(self):
         if not self._event_queue and self._bools & JF.STOP_ON_EMPTY_EVENT_QUEUE:
             self._bools |= JF.STOPPING_BY_EMPTY_EVENT_QUEUE  # True
-            self.STOP()
+            self.stop()
             return
 
     @contextmanager
@@ -383,14 +383,14 @@ class EventJobMixin(BaseEventJobMixin):
             except asyncio.TimeoutError:
                 if self._bools & JF.STOP_ON_EVENT_DISPATCH_TIMEOUT:
                     self._bools |= JF.STOPPING_BY_EVENT_DISPATCH_TIMEOUT  # True
-                    self.STOP()
+                    self.stop()
 
         return event
 
     async def mixin_routine(self):
         if not self._event_queue and self._bools & JF.STOP_ON_EMPTY_EVENT_QUEUE:
             self._bools |= JF.STOPPING_BY_EMPTY_EVENT_QUEUE  # True
-            self.STOP()
+            self.stop()
             return
 
         max_event_handlings = self._oe_max_event_handlings
@@ -681,7 +681,7 @@ class MultiEventJobMixin(EventJobMixin):
     async def mixin_routine(self):
         if not self._event_queue and self._bools & JF.STOP_ON_EMPTY_EVENT_QUEUE:
             self._bools |= JF.STOPPING_BY_EMPTY_EVENT_QUEUE  # True
-            self.STOP()
+            self.stop()
             return
 
         max_event_handlings = self._oe_max_event_handlings

@@ -814,7 +814,7 @@ class _JobCore:
         """
         return self._on_stop_exception
 
-    async def _INITIALIZE_EXTERNAL(self) -> bool:
+    async def _initialize_external(self) -> bool:
         """DO NOT CALL THIS METHOD MANUALLY.
         This method to initializes a job using the `_on_init` method
         of the base class.
@@ -825,17 +825,17 @@ class _JobCore:
 
         return False
 
-    def _START(self) -> bool:
+    def _start(self) -> bool:
         if not self.is_running():
             self._job_loop.start()
             return True
 
         return False
 
-    def _START_EXTERNAL(self) -> bool:
-        return self._START()
+    def _start_external(self) -> bool:
+        return self._start()
 
-    def STOP(self, force=False) -> bool:
+    def stop(self, force=False) -> bool:
         """DO NOT CALL THIS METHOD FROM OUTSIDE YOUR JOB SUBCLASS.
         Stop this job object.
         Args:
@@ -872,20 +872,20 @@ class _JobCore:
 
         return False
 
-    def _STOP_EXTERNAL(self, force=False) -> bool:
+    def _stop_external(self, force=False) -> bool:
         """DO NOT CALL THIS METHOD MANUALLY.
         See `STOP()`.
         Returns:
             bool: Whether the call was successful.
         """
 
-        if self.STOP(force=force):
+        if self.stop(force=force):
             self._bools |= JF.TOLD_TO_STOP_BY_SELF  # True
             return True
 
         return False
 
-    def RESTART(self) -> bool:
+    def restart(self) -> bool:
         """DO NOT CALL THIS METHOD FROM OUTSIDE YOUR JOB SUBCLASS.
         Restart this job object by forcefully stopping it, before
         starting it again automatically. Restarting a job object is
@@ -906,11 +906,11 @@ class _JobCore:
 
             def restart_when_over(fut):
                 task.remove_done_callback(restart_when_over)
-                self._START()
+                self._start()
 
             if not self._bools & (JF.TOLD_TO_STOP | JF.IS_STOPPING):  # not any
                 # forceful restart
-                self.STOP(force=True)
+                self.stop(force=True)
 
             task.add_done_callback(restart_when_over)
             self._bools |= JF.TOLD_TO_RESTART  # True
@@ -918,7 +918,7 @@ class _JobCore:
 
         return False
 
-    def _RESTART_EXTERNAL(self) -> bool:
+    def _restart_external(self) -> bool:
         """DO NOT CALL THIS METHOD MANUALLY.
         See `RESTART()`.
         """
@@ -932,11 +932,11 @@ class _JobCore:
 
             def restart_when_over(fut):
                 task.remove_done_callback(restart_when_over)
-                self._START_EXTERNAL()
+                self._start_external()
 
             if not self._bools & (JF.TOLD_TO_STOP | JF.IS_STOPPING):  # not any
                 # forceful restart
-                self._STOP_EXTERNAL(force=True)
+                self._stop_external(force=True)
 
             task.add_done_callback(restart_when_over)
             self._bools |= JF.TOLD_TO_RESTART  # True
@@ -1149,13 +1149,11 @@ class _JobCore:
         return output_str
 
     def __str__(self):
-        output_str = (
+        return (
             f"<{self.__class__.__qualname__} "
-            + f"(id={self._runtime_id} ctd={self.created_at} "
-            + f"stat={self.status().name})>"
+            + f"(id={self._runtime_id} created_at={self.created_at} "
+            + f"status={self.status().name})>"
         )
-
-        return output_str
 
 
 class JobCore(_JobCore):
@@ -1626,7 +1624,7 @@ class JobCore(_JobCore):
             else:
                 return JobStopReasons.External.UNKNOWN
 
-    def _START(self) -> bool:
+    def _start(self) -> bool:
         if self.done():
             raise JobIsDone("This job object is already done.")
 
@@ -1636,7 +1634,7 @@ class JobCore(_JobCore):
 
         return False
 
-    async def _INITIALIZE_EXTERNAL(self) -> bool:
+    async def _initialize_external(self) -> bool:
         """DO NOT CALL THIS METHOD MANUALLY.
 
         This method to initializes a job using the `_on_init` method
@@ -1651,7 +1649,7 @@ class JobCore(_JobCore):
 
         return False
 
-    def RESTART(self) -> bool:
+    def restart(self) -> bool:
         task = self._job_loop.get_task()
         if (
             not self._bools
@@ -1667,11 +1665,11 @@ class JobCore(_JobCore):
 
             def restart_when_over(fut):
                 task.remove_done_callback(restart_when_over)
-                self._START()
+                self._start()
 
             if not self._bools & (JF.TOLD_TO_STOP | JF.IS_STOPPING):  # not any
                 # forceful restart
-                self.STOP(force=True)
+                self.stop(force=True)
 
             task.add_done_callback(restart_when_over)
             self._bools |= JF.TOLD_TO_RESTART  # True
@@ -1679,7 +1677,7 @@ class JobCore(_JobCore):
 
         return False
 
-    def _RESTART_EXTERNAL(self) -> bool:
+    def _restart_external(self) -> bool:
         task = self._job_loop.get_task()
         if (
             not self._bools
@@ -1695,11 +1693,11 @@ class JobCore(_JobCore):
 
             def restart_when_over(fut):
                 task.remove_done_callback(restart_when_over)
-                self._START_EXTERNAL()
+                self._start_external()
 
             if not self._bools & (JF.TOLD_TO_STOP | JF.IS_STOPPING):  # not any
                 # forceful restart
-                self._STOP_EXTERNAL(force=True)
+                self._stop_external(force=True)
 
             task.add_done_callback(restart_when_over)
             self._bools |= JF.TOLD_TO_RESTART  # True
@@ -1707,7 +1705,7 @@ class JobCore(_JobCore):
 
         return False
 
-    def COMPLETE(self) -> bool:
+    def complete(self) -> bool:
         """DO NOT CALL THIS METHOD FROM OUTSIDE YOUR JOB SUBCLASS.
 
         Stops this job object forcefully, before removing it
@@ -1723,14 +1721,14 @@ class JobCore(_JobCore):
 
         if not self._bools & (JF.TOLD_TO_BE_KILLED | JF.TOLD_TO_COMPLETE):  # not any
             if not self._bools & JF.IS_STOPPING:
-                self.STOP(force=True)
+                self.stop(force=True)
 
             self._bools |= JF.TOLD_TO_COMPLETE  # True
             return True
 
         return False
 
-    def KILL(self) -> bool:
+    def kill(self) -> bool:
         """
         DO NOT CALL THIS METHOD FROM OUTSIDE YOUR JOB SUBCLASS.
 
@@ -1741,13 +1739,13 @@ class JobCore(_JobCore):
         """
 
         if not self._bools & (JF.TOLD_TO_BE_KILLED | JF.TOLD_TO_COMPLETE):  # not any
-            if self._KILL_RAW():
+            if self._kill_raw():
                 self._bools |= JF.TOLD_TO_BE_KILLED  # True
                 return True
 
         return False
 
-    def _KILL_RAW(self):
+    def _kill_raw(self):
         success = False
         if self._bools & JF.IS_STARTING:
             # ensure that a job will always
@@ -1757,11 +1755,11 @@ class JobCore(_JobCore):
             success = True
 
         elif not self._bools & JF.IS_STOPPING:
-            success = self.STOP(force=True)
+            success = self.stop(force=True)
 
         return success
 
-    def _KILL_EXTERNAL(self, awaken=True) -> bool:
+    def _kill_external(self, awaken=True) -> bool:
         """DO NOT CALL THIS METHOD MANUALLY.
 
         Stops this job object forcefully, before removing it from its job manager.
@@ -1778,23 +1776,23 @@ class JobCore(_JobCore):
         """
 
         if not self._bools & (JF.TOLD_TO_BE_KILLED | JF.TOLD_TO_COMPLETE):  # not any
-            if self._KILL_EXTERNAL_RAW(awaken=awaken):
+            if self._kill_external_raw(awaken=awaken):
                 self._bools |= JF.TOLD_TO_BE_KILLED  # True
                 return True
 
         return False
 
-    def _KILL_EXTERNAL_RAW(self, awaken=True):
+    def _kill_external_raw(self, awaken=True):
         success = False
         if self.is_running():
             if not self._bools & JF.IS_STOPPING:
-                success = self._STOP_EXTERNAL(force=True)
+                success = self._stop_external(force=True)
 
         elif awaken:
             self._bools |= (
                 JF.EXTERNAL_STARTUP_KILL
             )  # True  # start and kill as fast as possible
-            success = self._START_EXTERNAL()
+            success = self._start_external()
             # don't set `_told_to_be_killed` to True so that this method
             # can be called again to perform the actual kill
 
@@ -2719,18 +2717,16 @@ class JobCore(_JobCore):
         return output
 
     def __str__(self):
-        output_str = (
+        return (
             f"<{self.__class__.__qualname__} "
-            + f"(id={self._runtime_id} ctd_at={self.created_at} "
+            + f"(id={self._runtime_id} created_at={self.created_at} "
             + (
-                f"perm_lvl={self._permission_level.name} "
+                f"permission_level={self._permission_level.name} "
                 if self._permission_level is not None
                 else ""
             )
             + f"status={self.status().name})>"
         )
-
-        return output_str
 
 
 class JobMixin(JobCore):
@@ -3091,8 +3087,8 @@ class JobBase(JobCore):
 
     def get_mixin_routine_tasks(self):
         """Get a dictionary that maps all supported mixin classes to the `asyncio.Task` objects
-        used to run their routine functions. If some of the tasks are not done, JobStatError is
-        raised.
+        used to run their routine functions. If some of the tasks are not done, a JobStateError
+        exception is raised.
 
         Raises:
             JobStateError: Some mixin routine tasks are not done.
@@ -3244,11 +3240,11 @@ class ManagedJobBase(JobBase):
 
     async def _on_run(self):
         if self._bools & JF.EXTERNAL_STARTUP_KILL:
-            self._KILL_EXTERNAL_RAW()
+            self._kill_external_raw()
             return
 
         elif self._bools & JF.INTERNAL_STARTUP_KILL:
-            self._KILL_RAW()
+            self._kill_raw()
             return
 
         elif self._bools & JF.SKIP_NEXT_RUN:

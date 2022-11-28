@@ -25,7 +25,7 @@ class MiniJobBase(_JobCore):
     A mini job is a stripped-down version of a job that doesn't run in a job manager.
     This class supports only some of the API of `JobBase` subclasses, which are
     initialization, starting, running, stopping and restarting. However, it is not a
-    subclass of `JobBase`.
+    subclass of `JobCore`.
 
     Mini jobs can run on their own and can be used in cases where the advanced features
     a job manager provides are not needed, or where a job wants to manage the execution
@@ -203,7 +203,7 @@ async def initialize_minijob(job: MiniJobBase) -> bool:
         )
 
     try:
-        return await job._INITIALIZE_EXTERNAL()
+        return await job._initialize_external()
     except Exception as e:
         raise JobInitializationError(
             "job initialization failed due to an error: " f"{e.__class__.__name__}: {e}"
@@ -231,7 +231,7 @@ def start_minijob(job: MiniJobBase) -> bool:
     elif not job._bools & JF.INITIALIZED:
         raise JobInitializationError("The given mini job was not initialized.")
 
-    return job._START_EXTERNAL()
+    return job._start_external()
 
 
 def stop_minijob(job: MiniJobBase, force: bool = False) -> bool:
@@ -253,7 +253,7 @@ def stop_minijob(job: MiniJobBase, force: bool = False) -> bool:
             "argument 'job' must be an instance of "
             f"MiniJobBase, not {job.__class__.__name__}"
         )
-    return job._STOP_EXTERNAL(force=force)
+    return job._stop_external(force=force)
 
 
 def restart_minijob(job: MiniJobBase) -> bool:
@@ -273,4 +273,4 @@ def restart_minijob(job: MiniJobBase) -> bool:
             "argument 'job' must be an instance of "
             f"MiniJobBase, not {job.__class__.__name__}"
         )
-    return job._RESTART_EXTERNAL()
+    return job._restart_external()
