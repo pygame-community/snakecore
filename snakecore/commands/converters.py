@@ -793,7 +793,8 @@ class StringExprConverter(_StringConverter, Generic[TVT]):  # type: ignore
             raise commands.BadArgument(
                 f"argument {argument!r} has an invalid structure/format"
                 + (
-                    ". Example formats: " + ", ".join(repr(exp) for exp in self.examples)
+                    ". Example formats: "
+                    + ", ".join(repr(exp) for exp in self.examples)
                     if self.examples
                     else ""
                 )
@@ -811,7 +812,8 @@ class StringExprMatchConverter(StringExprConverter, Generic[TVT]):  # type: igno
             raise commands.BadArgument(
                 f"argument {argument:r} has an invalid structure/format"
                 + (
-                    ". Example formats: " + ", ".join(repr(exp) for exp in self.examples)
+                    ". Example formats: "
+                    + ", ".join(repr(exp) for exp in self.examples)
                     if self.examples
                     else ""
                 )

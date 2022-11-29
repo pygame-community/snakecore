@@ -616,7 +616,7 @@ def split_embed_dict(
                             ] = f'{description[: EMBED_CHAR_LIMITS["description"] - 3]}```'
 
                             next_embed_dict["description"] = (
-                                f'```{code_match.group(1)}\n{description[EMBED_CHAR_LIMITS["description"] - 1 :]}'  # group 1 is the code language
+                                f'```{code_match.group(1)}\n{description[EMBED_CHAR_LIMITS["description"] - 3 :]}'  # group 1 is the code language
                                 + f' {next_embed_dict["description"]}'
                             )
                             normal_split = False
@@ -748,12 +748,13 @@ def split_embed_dict(
                                 if divide_code_blocks:
                                     field[
                                         "name"
-                                    ] = f'{field_name[: EMBED_CHAR_LIMITS["field.name"] - 1]}`'
+                                    ] = f'{field_name[: EMBED_CHAR_LIMITS["field.name"] - 2]}`'
 
                                     field["value"] = (
-                                        f'`{field_name[EMBED_CHAR_LIMITS["field.name"] - 1 :]}'
+                                        f'`{field_name[EMBED_CHAR_LIMITS["field.name"] - 2 :]}'
                                         f' {field["value"]}'
                                     ).strip()
+                                    normal_split = False
                                 elif (
                                     (
                                         (match_span := inline_code_match.span())[1]
@@ -849,7 +850,7 @@ def split_embed_dict(
                                     ] = f'{field_value[: EMBED_CHAR_LIMITS["field.value"] - 3]}```'
 
                                     next_field["value"] = (
-                                        f'```{code_match.group(1)}\n{field_value[EMBED_CHAR_LIMITS["field.value"] - 1 :]}'  # group 1 is the code language
+                                        f'```{code_match.group(1)}\n{field_value[EMBED_CHAR_LIMITS["field.value"] - 3 :]}'  # group 1 is the code language
                                         f' {next_field["field.value"]}'
                                     ).split()
                                     normal_split = False
