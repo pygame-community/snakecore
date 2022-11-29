@@ -529,18 +529,13 @@ class CodeBlock:
         )
 
 
-class StringConverter(commands.Converter[str]):
-    """A converter that parses string literals to string objects,
-    thereby handling escaped characters and removing trailing quotes.
+StringParams = TypeVar("StringParams", int, range, ellipsis)
+StringParamsTuple = TypeVar(
+    "StringParamsTuple", tuple[int, int], tuple[int, ellipsis], tuple[ellipsis, int]
+)
 
-    Can be used over the default `str` converter for less greedy argument
-    parsing.
 
-    Syntax:
-        - `"'abc'" -> 'abc'`
-        - `'"ab\\"c"' -> 'ab"c'`
-    """
-
+class _StringConverter(commands.Converter[str]):
     async def convert(self, ctx: commands.Context[DECBotT], argument: str) -> str:
         try:
             string = self.escape(argument)
@@ -554,9 +549,12 @@ class StringConverter(commands.Converter[str]):
             and string[0] in _QUOTES
             and string.endswith(_QUOTES[string[0]])
         ):
-            return string[1:-1]
+            string = string[1:-1]
 
         return string
+
+    def __call__(self, *args: Any, **kwds: Any) -> Any:
+        pass
 
     @staticmethod
     def escape(string: str) -> str:
@@ -606,75 +604,29 @@ class StringConverter(commands.Converter[str]):
         return "".join(newstr)
 
 
-VST = TypeVar("VST", int, range, ellipsis)
-VSTT = TypeVar("VSTT", tuple[int, int], tuple[int, ellipsis], tuple[ellipsis, int])
+class StringConverter(_StringConverter, Generic[_T]):
+    """A converter that parses string literals to string objects,
+    thereby handling escaped characters and removing trailing quotes.
 
+    Can be used over the default `str` converter for less greedy argument
+    parsing.
 
-class CharConverter(StringConverter, Generic[_T]):  # type: ignore
-    """A subclass of `StringConverter` that enforces the length of arguments to match
-    the parameterized integer literal given via subscripting this class. Without passing
-    a subscript integer literal, the required argument size will be exactly 1.
-
-    Note that some Unicode glyphs, e.g. emojis, may consist of 2 or more characters.
-    """
-
-    def __init__(self, size: Any = None) -> None:
-        super().__init__()
-        self.size: tuple = (1, 1) if size is None else size
-
-    def __class_getitem__(cls, size: int) -> Self:
-        size_tuple = (1, 1)
-
-        if getattr(size, "__origin__", None) is Literal:
-            if size.__args__ and len(size.__args__) == 1:  # type: ignore
-                size = (int(size.__args__[0]),) * 2  # type: ignore
-            else:
-                raise ValueError(
-                    "'Literal' type argument must contain one positive integer"
-                )
-
-        if isinstance(size, int):
-            if size < 0:
-                raise ValueError(
-                    f"integer type argument for '{cls.__name__}' must be positive"
-                )
-
-            size_tuple = (size, size)
-        else:
-            raise ValueError(
-                f"type argument for '{cls.__name__}' must be of type 'int'"
-            )
-
-        return cls(size=size_tuple)
-
-    async def convert(self, ctx: commands.Context[DECBotT], argument: str) -> str:
-        s = await super().convert(ctx, argument)
-
-        if not len(s) == self.size[0]:
-            raise commands.BadArgument(
-                f"string argument must be {self.size[0]} character(s) long."
-            )
-
-        return s
-
-    def __repr__(self) -> str:
-        return f"{self.__class__.__name__}[{self.size[0]}]"  # type: ignore
-
-
-class VarCharConverter(CharConverter, Generic[_T]):  # type: ignore
-    """A subclass of `StringConverter` that enforces the length of arguments to be within
-    the range of parameterized integer literals given via subscripting this class.
-    Without passing subscript integer literals, this class will behave exactly like
-    `StringConverter`.
+    It parameterized with 1-2 integers, it will enforce the length of arguments
+    to be within the range (inclusive) of parameterized integer literals given.
+    To omit an upper/lower range, use `...`.
 
     Note that some Unicode glyphs, e.g. emojis, may consist of 2 or more characters.
+
+    Syntax:
+        - `"'abc'" -> 'abc'`
+        - `'"ab\\"c"' -> 'ab"c'`
     """
 
     def __init__(self, size: Any = None) -> None:
         super().__init__()
         self.size: tuple = (..., ...) if size is None else size
 
-    def __class_getitem__(cls, size: Union[VST, VSTT]) -> Self:
+    def __class_getitem__(cls, size: Union[StringParams, StringParamsTuple]) -> Self:
         size_tuple = (..., ...)
 
         if getattr(size, "__origin__", None) is Literal:
@@ -774,12 +726,11 @@ class VarCharConverter(CharConverter, Generic[_T]):  # type: ignore
         return cls(size=size_tuple)
 
     async def convert(self, ctx: commands.Context[DECBotT], argument: str) -> str:
-        s = await super().convert(ctx, argument)
-
+        string = await super().convert(ctx, argument)
         if (
             isinstance(self.size[0], int)
             and isinstance(self.size[1], int)
-            and not self.size[0] <= len(s) <= self.size[1]
+            and not self.size[0] <= len(string) <= self.size[1]
         ):
             raise commands.BadArgument(
                 f"string argument must be {self.size[0]} character(s) long."
@@ -790,7 +741,7 @@ class VarCharConverter(CharConverter, Generic[_T]):  # type: ignore
         elif (
             isinstance(self.size[0], ellipsis)
             and isinstance(self.size[1], int)
-            and not len(s) <= self.size[1]
+            and not len(string) <= self.size[1]
         ):
             raise commands.BadArgument(
                 f"string argument must be {self.size[1]} or less characters long."
@@ -798,16 +749,75 @@ class VarCharConverter(CharConverter, Generic[_T]):  # type: ignore
         elif (
             isinstance(self.size[0], int)
             and isinstance(self.size[1], ellipsis)
-            and not self.size[0] <= len(s)
+            and not self.size[0] <= len(string)
         ):
             raise commands.BadArgument(
                 f"string argument must be {self.size[0]} or more characters long."
             )
 
-        return s
+        return string
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}[{', '.join(self.size)}]"  # type: ignore
+        return f"{self.__class__.__name__}" + (
+            f"[{', '.join(self.size)}]" if self.size != (..., ...) else ""
+        )
+
+
+TVT = TypeVarTuple("TVT")
+
+
+class StringExprConverter(_StringConverter, Generic[TVT]):  # type: ignore
+    def __init__(self, regex: str, examples: tuple[str, ...]) -> None:
+        super().__init__()
+        self.regex_pattern = re.compile(regex)
+        self.examples = examples
+
+    def __class_getitem__(cls, regex_and_examples: Union[str, tuple[str, ...]]) -> Self:
+        regex = None
+        examples = ()
+        if isinstance(regex_and_examples, tuple) and regex_and_examples:
+            regex = regex_and_examples[0]
+            examples = regex_and_examples[1:]
+        elif isinstance(regex_and_examples, str):
+            regex = regex_and_examples
+        else:
+            raise TypeError(
+                f"'{cls.__name__}' must be parameterized with one or more strings"
+            )
+
+        return cls(regex, examples)
+
+    async def convert(self, ctx: commands.Context[DECBotT], argument: str) -> str:
+        string = await super().convert(ctx, argument)
+        if not self.regex_pattern.fullmatch(string):
+            raise commands.BadArgument(
+                f"argument {argument!r} has an invalid structure/format"
+                + (
+                    ". Example formats: " + ", ".join(repr(exp) for exp in self.examples)
+                    if self.examples
+                    else ""
+                )
+                + ". Check command documentation to see the correct formats."
+            )
+        return string
+
+
+class StringExprMatchConverter(StringExprConverter, Generic[TVT]):  # type: ignore
+    async def convert(
+        self, ctx: commands.Context[DECBotT], argument: str
+    ) -> re.Match[str]:
+        string = await super().convert(ctx, argument)
+        if not (match := self.regex_pattern.fullmatch(string)):
+            raise commands.BadArgument(
+                f"argument {argument:r} has an invalid structure/format"
+                + (
+                    ". Example formats: " + ", ".join(repr(exp) for exp in self.examples)
+                    if self.examples
+                    else ""
+                )
+                + ". Check command documentation to see the correct formats."
+            )
+        return match
 
 
 class ParensConverter(commands.Converter[tuple]):
@@ -1157,38 +1167,59 @@ Time = Annotated[datetime.time, TimeConverter]
 TimeDelta = Annotated[datetime.timedelta, TimeDeltaConverter]
 ClosedRange = Annotated[range, ClosedRangeConverter]
 
-if TYPE_CHECKING:
-    String = str
+if TYPE_CHECKING:  # type checker deception
     Parens = tuple
 
-    class Char(String):  # type: ignore
-        """A converter that enforces the length of arguments to match
-        the parameterized integer literal given via subscripting this class. Without passing
-        a subscript integer literal, the required argument size will be exactly 1.
+    class String(str):  # type: ignore
+        """A converter that parses string literals to string objects,
+        thereby handling escaped characters and removing trailing quotes.
+
+        Can be used over the default `str` converter for less greedy argument
+        parsing.
+
+        It parameterized with 1-2 integers, it will enforce the length of arguments
+        to be within the range (inclusive) of parameterized integer literals given.
+        To omit an upper/lower range, use `...`. Specifying only one integer is the
+        same as specifying `..., integer`.
 
         Note that some Unicode glyphs, e.g. emojis, may consist of 2 or more characters.
+
+        Syntax:
+            - `"'abc'" -> 'abc'`
+            - `'"ab\\"c"' -> 'ab"c'`
         """
 
-        def __class_getitem__(cls, size: int):
+        def __class_getitem__(cls, size: Union[StringParams, StringParamsTuple]):
             ...
 
-    class VarChar(Char):  # type: ignore
-        """A converter that enforces the length of arguments to be within
-        the range of parameterized integer literals given via subscripting this class.
-        Without passing subscript integer literals, this class will behave exactly like
-        `String`.
+    class StringExpr(str):  # type: ignore
+        """A subclass of the `String` converter, that enforces input strings to match the
+        regular expression the class is parameterized with. If more than one string
+        is passed for parameterization, the second string and others that follow will
+        be treated as user-facing example formats, shown in an error message when inputs
+        fail to match.
 
-        Note that some Unicode glyphs, e.g. emojis, may consist of 2 or more characters.
+        Syntax:
+            - `"'abc'" -> 'abc'`
+            - `'"ab\\"c"' -> 'ab"c'`
         """
 
-        def __class_getitem__(cls, size: Union[VST, VSTT]):
+        def __class_getitem__(cls, regex_and_examples: Union[str, tuple[str, ...]]):
+            ...
+
+    class StringExprMatch(re.Match):  # type: ignore
+        """A subclass of the `StringExpr` converter, that converts inputs into
+        `re.Match` objects instead of strings.
+        """
+
+        def __class_getitem__(cls, regex_and_examples: Union[str, tuple[str, ...]]):
             ...
 
 else:
     String = StringConverter
+    StringExpr = StringExprConverter
+    StringExprMatch = StringExprMatchConverter
     Parens = ParensConverter
-    Char = CharConverter
-    VarChar = VarCharConverter
 
 
 async def tuple_convert_all(
