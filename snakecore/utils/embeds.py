@@ -486,8 +486,8 @@ def split_embed_dict(
                             ]
                             embed_dict["title"] = (
                                 author_name[url_match.start() :]
-                                + f' {embed_dict["title"]}'
-                            ).strip()
+                                + f'\n{embed_dict["title"]}'
+                            ).removesuffix("\n")
 
                             normal_split = False
 
@@ -497,8 +497,8 @@ def split_embed_dict(
                         ]
                         embed_dict["title"] = (
                             author_name[EMBED_CHAR_LIMITS["author.name"] - 1 :]
-                            + f' {embed_dict["title"]}'
-                        ).strip()
+                            + f'\n{embed_dict["title"]}'
+                        ).removesuffix("\n")
 
                     if not embed_dict["title"]:
                         del embed_dict["title"]
@@ -531,8 +531,8 @@ def split_embed_dict(
 
                             embed_dict["description"] = (
                                 f'`{title[EMBED_CHAR_LIMITS["title"] - 1 :]}'
-                                f' {embed_dict["description"]}'
-                            ).strip()
+                                f'\n{embed_dict["description"]}'
+                            ).removesuffix("\n")
                             normal_split = False
                         elif (
                             (
@@ -546,8 +546,8 @@ def split_embed_dict(
                             embed_dict["title"] = title[: inline_code_match.start()]
                             embed_dict["description"] = (
                                 title[inline_code_match.start() :]
-                                + f' {embed_dict["description"]}'
-                            ).strip()
+                                + f'\n{embed_dict["description"]}'
+                            ).removesuffix("\n")
 
                             normal_split = False
 
@@ -565,16 +565,16 @@ def split_embed_dict(
                             embed_dict["title"] = title[: url_match.start()]
                             embed_dict["description"] = (
                                 title[url_match.start() :]
-                                + f' {embed_dict["description"]}'
-                            ).strip()
+                                + f'\n{embed_dict["description"]}'
+                            ).removesuffix("\n")
                             normal_split = False
 
                     if normal_split:
                         embed_dict["title"] = title[: EMBED_CHAR_LIMITS["title"] - 1]
                         embed_dict["description"] = (
                             title[EMBED_CHAR_LIMITS["title"] - 1 :]
-                            + f' {embed_dict["description"]}'
-                        )
+                            + f'\n{embed_dict["description"]}'
+                        ).removesuffix("\n")
 
                     if not embed_dict["description"]:
                         del embed_dict["description"]
@@ -617,8 +617,8 @@ def split_embed_dict(
 
                             next_embed_dict["description"] = (
                                 f'```{code_match.group(1)}\n{description[EMBED_CHAR_LIMITS["description"] - 3 :]}'  # group 1 is the code language
-                                + f' {next_embed_dict["description"]}'
-                            )
+                                + f'\n{next_embed_dict["description"]}'
+                            ).removesuffix("\n")
                             normal_split = False
                         elif (
                             ((match_span := code_match.span())[1] - match_span[0] + 1)
@@ -628,14 +628,16 @@ def split_embed_dict(
                             ]
                             next_embed_dict["description"] = (
                                 description[code_match.start() :]
-                                + f' {next_embed_dict["description"]}'
-                            )
+                                + f'\n{next_embed_dict["description"]}'
+                            ).removesuffix("\n")
                             normal_split = False
 
                     elif (
                         (
                             inline_code_matches := tuple(
-                                re.finditer(regex_patterns.CODE_BLOCK, description)
+                                re.finditer(
+                                    regex_patterns.INLINE_CODE_BLOCK, description
+                                )
                             )
                         )
                         and (inline_code_match := inline_code_matches[-1]).start()
@@ -651,8 +653,8 @@ def split_embed_dict(
 
                             next_embed_dict["description"] = (
                                 f'`{description[EMBED_CHAR_LIMITS["description"] - 1 :]}'
-                                + f' {next_embed_dict["description"]}'
-                            ).strip()
+                                f'\n{next_embed_dict["description"]}'
+                            ).removesuffix("\n")
                             normal_split = False
                         elif (
                             (
@@ -668,8 +670,8 @@ def split_embed_dict(
                             ]
                             next_embed_dict["description"] = (
                                 description[inline_code_match.start() :]
-                                + f' {next_embed_dict["description"]}'
-                            ).strip()
+                                + f'\n{next_embed_dict["description"]}'
+                            ).removesuffix("\n")
                             normal_split = False
 
                     elif (
@@ -691,8 +693,8 @@ def split_embed_dict(
                             embed_dict["description"] = description[: url_match.start()]
                             next_embed_dict["description"] = (
                                 description[url_match.start() :]
-                                + f' {next_embed_dict["description"]}'
-                            ).strip()
+                                + f'\n{next_embed_dict["description"]}'
+                            ).removesuffix("\n")
 
                             normal_split = False
 
@@ -702,8 +704,8 @@ def split_embed_dict(
                         ]
                         next_embed_dict["description"] = (
                             description[EMBED_CHAR_LIMITS["description"] - 1 :]
-                            + f' {next_embed_dict["description"]}'
-                        ).strip()
+                            + f'\n{next_embed_dict["description"]}'
+                        ).removesuffix("\n")
 
                     if not next_embed_dict["description"]:
                         del next_embed_dict["description"]
@@ -752,8 +754,8 @@ def split_embed_dict(
 
                                     field["value"] = (
                                         f'`{field_name[EMBED_CHAR_LIMITS["field.name"] - 2 :]}'
-                                        f' {field["value"]}'
-                                    ).strip()
+                                        f'\n{field["value"]}'
+                                    ).removesuffix("\n")
                                     normal_split = False
                                 elif (
                                     (
@@ -769,8 +771,8 @@ def split_embed_dict(
                                     ]
                                     field["value"] = (
                                         field_name[inline_code_match.start() :]
-                                        + f' {field["value"]}'
-                                    ).strip()
+                                        + f'\n{field["value"]}'
+                                    ).removesuffix("\n")
                                     normal_split = False
 
                             elif (
@@ -795,8 +797,8 @@ def split_embed_dict(
                                     field["name"] = field_name[: url_match.start()]
                                     field["value"] = (
                                         field_name[url_match.start() :]
-                                        + f' {field["value"]}'
-                                    ).strip()
+                                        + f'\n{field["value"]}'
+                                    ).removesuffix("\n")
 
                                     normal_split = False
 
@@ -806,8 +808,8 @@ def split_embed_dict(
                                 ]
                                 field["value"] = (
                                     field_name[EMBED_CHAR_LIMITS["field.name"] - 1 :]
-                                    + f' {field["value"]}'
-                                ).strip()
+                                    + f'\n{field["value"]}'
+                                ).removesuffix("\n")
 
                             if not field["value"]:
                                 del field["value"]
@@ -851,8 +853,8 @@ def split_embed_dict(
 
                                     next_field["value"] = (
                                         f'```{code_match.group(1)}\n{field_value[EMBED_CHAR_LIMITS["field.value"] - 3 :]}'  # group 1 is the code language
-                                        f' {next_field["field.value"]}'
-                                    ).split()
+                                        f'\n{next_field["field.value"]}'
+                                    ).removesuffix("\n")
                                     normal_split = False
                                 elif (
                                     (
@@ -864,15 +866,16 @@ def split_embed_dict(
                                     field["value"] = field_value[: code_match.start()]
                                     next_field["value"] = (
                                         field_value[code_match.start() :]
-                                        + f' {next_field["value"]}'
-                                    ).strip()
+                                        + f'\n{next_field["value"]}'
+                                    ).removesuffix("\n")
                                     normal_split = False
 
                             elif (
                                 (
                                     inline_code_matches := tuple(
                                         re.finditer(
-                                            regex_patterns.CODE_BLOCK, field_value
+                                            regex_patterns.INLINE_CODE_BLOCK,
+                                            field_value,
                                         )
                                     )
                                 )
@@ -891,8 +894,8 @@ def split_embed_dict(
 
                                     next_field["value"] = (
                                         f'`{field_value[EMBED_CHAR_LIMITS["field.value"] - 1 :]}'
-                                        f' {next_field["value"]}'
-                                    ).strip()
+                                        f'\n{next_field["value"]}'
+                                    ).removesuffix("\n")
                                     normal_split = False
                                 elif (
                                     (
@@ -908,8 +911,8 @@ def split_embed_dict(
                                     ]
                                     next_field["value"] = (
                                         field_value[inline_code_match.start() :]
-                                        + f' {next_field["value"]}'
-                                    ).strip()
+                                        + f'\n{next_field["value"]}'
+                                    ).removesuffix("\n")
                                     normal_split = False
 
                             elif (
@@ -934,8 +937,8 @@ def split_embed_dict(
                                     field["value"] = field_value[: url_match.start()]
                                     next_field["value"] = (
                                         field_value[url_match.start() :]
-                                        + f' {next_field["value"]}'
-                                    ).strip()
+                                        + f'\n{next_field["value"]}'
+                                    ).removesuffix("\n")
 
                                     normal_split = False
 
@@ -947,8 +950,8 @@ def split_embed_dict(
                                     field["value"][
                                         EMBED_CHAR_LIMITS["field.value"] - 1 :
                                     ]
-                                    + f' {next_field["value"]}'
-                                ).strip()
+                                    + f'\n{next_field["value"]}'
+                                ).removesuffix("\n")
 
                             if not next_field["value"]:
                                 del next_field["value"]
@@ -1046,16 +1049,16 @@ def split_embed_dict(
                                 ]
                                 next_embed_dict["footer"]["text"] = (
                                     footer_text[url_match.start() :]
-                                    + f' {next_embed_dict["footer"]["text"]}'
-                                ).strip()
+                                    + f'\n{next_embed_dict["footer"]["text"]}'
+                                ).removesuffix("\n")
                                 normal_split = False
 
                         if normal_split:
                             embed_dict["footer"]["text"] = footer_text[:split_index]
                             next_embed_dict["footer"]["text"] = (
                                 footer_text[split_index:]
-                                + f' {next_embed_dict["footer"]["text"]}'
-                            ).strip()
+                                + f'\n{next_embed_dict["footer"]["text"]}'
+                            ).removesuffix("\n")
 
                         if not embed_dict["footer"]["text"]:
                             del embed_dict["footer"]["text"]
