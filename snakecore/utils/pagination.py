@@ -30,27 +30,30 @@ class EmbedPaginator:
         start_page_number: int = 1,
         inactivity_timeout: Optional[float] = None,
         theme_color: Union[int, discord.Color] = 0,
-    ):
-        """
-        Create an embed paginator that can paginate between the given embed pages,
+    ) -> None:
+        """Create an embed paginator that can paginate between the given embed pages,
         using the given Discord message in a guild. The input message must have remaining
         space for at least 2 embeds, otherwise the last 2 will be overwritten.
 
-        Args:
-            message (discord.Message): The bot message to use for pagination.
-            *pages (discord.Embed): The embed pages.
-            member (Union[discord.Member, Sequence[discord.Member]]):
-              The member(s) that can control the paginator.
-            roles (Optional[Iterable[Union[discord.Role, int]]], optional): The
-              IDs of the guild roles that are additionally granted control over this embed
-              paginator.
-            start_page_number (int): The number of the page to start from (1-based).
-              Defaults to 1.
-            inactivity_timeout (Optional[float], optional): The maximum time period
-              for this paginator to wait for a reaction to occur, before aborting.
-              Defaults to None.
-            theme_color (Union[int, discord.Color]): The theme color to use
-              for all extra embeds used by the paginator. Defaults to 0 (black).
+        Parameters
+        ----------
+        message : discord.Message
+            The bot message to use for pagination.
+        *pages : discord.Embed
+            The embed pages.
+        member : Union[discord.Member, Sequence[discord.Member]]
+            The member(s) that can control the paginator.
+        roles : Optional[Iterable[Union[discord.Role, int]]], optional
+            The IDs of the guild roles that are additionally granted control over this
+            embed paginator.
+        start_page_number : int
+            The number of the page to start from (1-based). Defaults to 1.
+        inactivity_timeout : Optional[float], optional
+            The maximum time period for this paginator to wait for a reaction to occur,
+            before aborting. Defaults to None.
+        theme_color : Union[int, discord.Color]
+            The theme color to use for all extra embeds used by the paginator.
+            Defaults to 0 (black).
         """
 
         if not message.guild:

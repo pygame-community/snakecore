@@ -253,8 +253,7 @@ class JobPermissionLevels(IntEnum):
 
 
 class JobBoolFlags:
-    """
-    Bit flags to be used by job classes for storing
+    """Bit flags to be used by job classes for storing
     boolean values. Can be inherited and extended using
     the `LAST_FLAG_OFFSET` as a starting offset instead of 0.
 

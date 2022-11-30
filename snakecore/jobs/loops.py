@@ -36,34 +36,19 @@ class JobLoop(tasks.Loop):
         time: Union[datetime.time, Sequence[datetime.time]] = discord.utils.MISSING,
         count: Optional[int] = None,
         reconnect: bool = True,
-    ):
+    ) -> None:
         super().__init__(coro, seconds, hours, minutes, time, count, reconnect)
         self.job = job
         self.clear_exception_types()
         self.add_exception_type(*DEFAULT_JOB_EXCEPTION_ALLOWLIST)
 
-    def cancel(self):
+    def cancel(self) -> None:
         """Cancels the internal task, if it is running."""
         if self._can_be_cancelled():
             assert self._task
             self._task.cancel(msg="CANCEL_BY_TASK_LOOP")
 
-    def restart(self, *args, **kwargs):
-        r"""A convenience method to restart the internal task.
-
-        .. note::
-
-            Due to the way this function works, the task is not
-            returned like :meth:`start`.
-
-        Parameters
-        ------------
-        \*args
-            The arguments to to use.
-        \*\*kwargs
-            The keyword arguments to use.
-        """
-
+    def restart(self, *args, **kwargs) -> None:
         def restart_when_over(fut, *, args=args, kwargs=kwargs):
             self._task.remove_done_callback(restart_when_over)  # type: ignore
             self.start(*args, **kwargs)

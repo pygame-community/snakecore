@@ -57,14 +57,16 @@ class MessageSend(
         ] = None,
         mention_author: Optional[bool] = None,
         kill_if_failed: bool = True,
-    ):
+    ) -> None:
         """Setup this job ojbect's namespace.
 
-        Args:
-            channel (Union[int, discord.abc.Messageable]): The channel/channel ID to
-              message to.
-            **kwargs: The keyword arguments to pass to the `.send()`
-              coroutine method of the channel.
+        Parameters
+        ----------
+        channel : Union[int, discord.abc.Messageable]
+            The channel/channel ID to message to.
+        **kwargs
+            The keyword arguments to pass to the `.send()` coroutine method of
+            the channel.
         """
         super().__init__()
         self.data.channel = channel
@@ -214,21 +216,22 @@ class _MessageModify(jobs.ManagedJobBase):
         ],
         message: Union[int, discord.Message, serializers.MessageSerializer],
         kill_if_failed: bool = True,
-    ):
+    ) -> None:
         """Create a bot job instance.
 
-        Args:
-            channel (Union[int, discord.abc.Messageable, serializers.ChannelSerializer]):
-              The target channel.
-            message (Union[int, discord.Message, serializers.MessageSerializer]):
-              The target message.
+        Parameters
+        ----------
+        channel : Union[int, discord.abc.Messageable, ChannelSerializer]
+            The target channel.
+        message : Union[int, discord.Message, MessageSerializer]
+            The target message.
         """
         super().__init__()
         self.data.channel = channel
         self.data.message = message
         self.data.kill_if_failed = not not kill_if_failed
 
-    async def on_init(self):
+    async def on_init(self) -> None:
         if not isinstance(self.data.channel, messageable_channels):
             if isinstance(self.data.channel, int):
                 channel_id = self.data.channel
@@ -259,7 +262,7 @@ class _MessageModify(jobs.ManagedJobBase):
             else:
                 raise TypeError("Invalid type for argument 'message'")
 
-    async def on_stop(self):
+    async def on_stop(self) -> None:
         if self.run_failed():
             if self.data.kill_if_failed:
                 self.kill()
@@ -288,16 +291,18 @@ class MessageEdit(
             Union[discord.AllowedMentions, serializers.AllowedMentionsSerializer]
         ] = None,
         **kwargs,
-    ):
+    ) -> None:
         """Setup this job ojbect.
 
-        Args:
-            channel (Union[int, discord.abc.Messageable, serializers.ChannelSerializer]):
-              The target channel.
-            message (Union[int, discord.Message, serializers.MessageSerializer]):
-              The target message.
-            **kwargs: The keyword arguments to pass to the coroutine methods of
-              the message.
+        Parameters
+        ----------
+        channel : Union[int, discord.abc.Messageable, ChannelSerializer]
+            The target channel.
+        message : Union[int, discord.Message, MessageSerializer]
+            The target message.
+        **kwargs
+            The keyword arguments to pass to the coroutine methods of
+            the message.
         """
         super().__init__(channel=channel, message=message, **kwargs)
         self.data.kwargs = dict(
@@ -307,7 +312,7 @@ class MessageEdit(
             allowed_mentions=allowed_mentions,
         )
 
-    async def on_init(self):
+    async def on_init(self) -> None:
         await super().on_init()
         if not isinstance(self.data.kwargs["embed"], (discord.Embed, NoneType)):
             if isinstance(self.data.kwargs["embed"], dict):
@@ -335,7 +340,7 @@ class MessageEdit(
             else:
                 raise TypeError("Invalid type for argument 'allowed_mentions'")
 
-    async def on_run(self):
+    async def on_run(self) -> None:
         await self.data.message.edit(**self.data.kwargs)
 
 
@@ -352,28 +357,30 @@ class MessageDelete(_MessageModify, class_uuid="860055c6-4971-4046-925c-7cafae67
         message: Union[int, discord.Message, serializers.MessageSerializer],
         delay: Optional[float] = None,
         **kwargs,
-    ):
+    ) -> None:
         """Setup this job ojbect.
 
-        Args:
-            channel (Union[int, discord.abc.Messageable, serializers.ChannelSerializer]):
-              The target channel.
-            message (Union[int, discord.Message, serializers.MessageSerializer]):
-              The target message.
-            **kwargs: The keyword arguments to pass to the coroutine
-              methods of the message.
+        Parameters
+        ----------
+        channel : Union[int, discord.abc.Messageable, ChannelSerializer]
+            The target channel.
+        message : Union[int, discord.Message, MessageSerializer]
+            The target message.
+        **kwargs
+            The keyword arguments to pass to the coroutine
+            methods of the message.
         """
         super().__init__(channel=channel, message=message, **kwargs)
         self.data.kwargs = dict(delay=delay)
 
-    async def on_init(self):
+    async def on_init(self) -> None:
         await super().on_init()
         if not isinstance(self.data.kwargs["delay"], (int, float)):
             raise TypeError("Invalid type given for argument 'delay'")
 
         self.data.kwargs["delay"] = float(self.data.kwargs["delay"])
 
-    async def on_run(self):
+    async def on_run(self) -> None:
         await self.data.message.delete(**self.data.kwargs)
 
 
@@ -396,28 +403,24 @@ class ReactionAdd(_MessageModify, class_uuid="151cf1a5-73c8-4542-ad17-9b9956d0eb
             str,
         ],
         **kwargs,
-    ):
+    ) -> None:
         """Setup this job ojbect.
 
-        Args:
-            channel (Union[int, discord.abc.Messageable, serializers.ChannelSerializer]):
-              The target channel.
-            message (Union[int, discord.Message, serializers.MessageSerializer]):
-              The target message.
-            emoji: (
-                Union[
-                    discord.Emoji,
-                    discord.Reaction,
-                    discord.PartialEmoji,
-                    str
-                ]
-            ): The emoji to react with.
-            **kwargs: More optional keyword arguments.
+        Parameters
+        ----------
+        channel : Union[int, discord.abc.Messageable, ChannelSerializer]
+            The target channel.
+        message : Union[int, discord.Message, MessageSerializer]
+            The target message.
+        emoji : Union[int, discord.Reaction, discord.Emoji, EmojiSerializer, discord.PartialEmoji, PartialEmojiSerializer, str]
+            The emoji to react with.
+        **kwargs
+            More optional keyword arguments.
         """
         super().__init__(channel=channel, message=message, **kwargs)
         self.data.emoji = emoji
 
-    async def on_init(self):
+    async def on_init(self) -> None:
         await super().on_init()
         if not isinstance(
             self.data.emoji,
@@ -437,7 +440,7 @@ class ReactionAdd(_MessageModify, class_uuid="151cf1a5-73c8-4542-ad17-9b9956d0eb
             else:
                 raise TypeError("Invalid type for argument 'emoji'")
 
-    async def on_run(self):
+    async def on_run(self) -> None:
         await self.data.message.add_reaction(self.data.emoji)
 
 
@@ -461,24 +464,16 @@ class ReactionsAdd(_MessageModify, class_uuid="f26bdcb2-8d04-4bf5-82f8-778c7a8af
         ],
         stop_at_maximum=True,
         **kwargs,
-    ):
+    ) -> None:
         """Setup this object.
 
-        Args:
-            channel (Union[int, discord.abc.Messageable, serializers.ChannelSerializer]):
+        Parameters
+        ----------
+            channel : Union[int, discord.abc.Messageable, ChannelSerializer]
               The target channel.
-            message (Union[int, discord.Message, serializers.MessageSerializer]):
+            message : Union[int, discord.Message, MessageSerializer]
               The message to react to.
-            *emojis (
-                Union[
-                    int,
-                    discord.Reaction,
-                    discord.Emoji,
-                    serializers.EmojiSerializer,
-                    discord.PartialEmoji,
-                    serializers.PartialEmojiSerializer,
-                    str]
-            ):
+            *emojis : Union[int, discord.Reaction, discord.Emoji, EmojiSerializer, discord.PartialEmoji, PartialEmojiSerializer, str]
                 A sequence of emojis to react with.
             stop_at_maximum (bool, optional): Whether the reactions will be added until
               the maxmimum is reached. If False, reaction emojis will be added to a
@@ -494,7 +489,7 @@ class ReactionsAdd(_MessageModify, class_uuid="f26bdcb2-8d04-4bf5-82f8-778c7a8af
         self.data.emojis = list(emojis)
         self.data.stop_at_maximum = stop_at_maximum
 
-    async def on_init(self):
+    async def on_init(self) -> None:
         await super().on_init()
         for i in range(len(self.data.emojis)):
             emoji = self.data.emojis[i]
@@ -520,7 +515,7 @@ class ReactionsAdd(_MessageModify, class_uuid="f26bdcb2-8d04-4bf5-82f8-778c7a8af
                         f"Invalid type for argument 'emojis' at argument {3+i}"
                     )
 
-    async def on_run(self):
+    async def on_run(self) -> None:
         message: discord.Message = self.data.message
         emojis: list = self.data.emojis
 
@@ -554,31 +549,25 @@ class ReactionRemove(_MessageModify, class_uuid="e1c474dd-1c56-43b9-91f4-7b74a1d
             discord.abc.Snowflake, discord.Member, serializers.MemberSerializer
         ],
         **kwargs,
-    ):
+    ) -> None:
         """Setup this job ojbect.
 
-        Args:
-            channel (Union[int, discord.abc.Messageable, serializers.ChannelSerializer]):
-              The target channel.
-            message (Union[int, discord.Message, serializers.MessageSerializer]):
-              The target message.
-            emoji: (
-                Union[
-                    discord.Emoji,
-                    discord.Reaction,
-                    discord.PartialEmoji,
-                    str
-                ]
-            ):
-                The emoji to remove.
-            member: (discord.abc.Snowflake): The member whose reaction should be removed.
-            **kwargs: More optional keyword arguments.
+        Parameters
+        ----------
+        channel : Union[int, discord.abc.Messageable, ChannelSerializer]
+            The target channel.
+        message : Union[int, discord.Message, MessageSerializer]
+            The target message.
+        emoji : Union[int, discord.Reaction, discord.Emoji, EmojiSerializer, discord.PartialEmoji, PartialEmojiSerializer, str]
+            The emoji to remove.
+        member: (discord.abc.Snowflake): The member whose reaction should be removed.
+        **kwargs: More optional keyword arguments.
         """
         super().__init__(channel=channel, message=message, **kwargs)
         self.data.emoji = emoji
         self.data.member = member
 
-    async def on_init(self):
+    async def on_init(self) -> None:
         await super().on_init()
         if not isinstance(
             self.data.emoji,
@@ -604,7 +593,7 @@ class ReactionRemove(_MessageModify, class_uuid="e1c474dd-1c56-43b9-91f4-7b74a1d
             else:
                 raise TypeError("Invalid type for argument 'member'")
 
-    async def on_run(self):
+    async def on_run(self) -> None:
         await self.data.message.remove_reaction(self.data.emoji, self.data.member)
 
 
@@ -629,29 +618,24 @@ class ReactionClearEmoji(
             str,
         ],
         **kwargs,
-    ):
+    ) -> None:
         """Setup this job ojbect.
 
-        Args:
-            channel (Union[int, discord.abc.Messageable, serializers.ChannelSerializer]):
-              The target channel.
-            message (Union[int, discord.Message, serializers.MessageSerializer]):
-              The target message.
-            emoji: (
-                Union[
-                    discord.Emoji,
-                    discord.Reaction,
-                    discord.PartialEmoji,
-                    str
-                ]
-            ):
-                The emoji to clear.
-            **kwargs: More optional keyword arguments.
+        Parameters
+        ----------
+        channel : Union[int, discord.abc.Messageable, ChannelSerializer]
+            The target channel.
+        message : Union[int, discord.Message, MessageSerializer]
+            The target message.
+        emoji : Union[int, discord.Reaction, discord.Emoji, EmojiSerializer, discord.PartialEmoji, PartialEmojiSerializer, str]
+            The emoji to clear.
+        **kwargs
+            More optional keyword arguments.
         """
         super().__init__(channel=channel, message=message, **kwargs)
         self.data.emoji = emoji
 
-    async def on_init(self):
+    async def on_init(self) -> None:
         await super().on_init()
         if not isinstance(
             self.data.emoji,
@@ -671,12 +655,12 @@ class ReactionClearEmoji(
             else:
                 raise TypeError("Invalid type for argument 'emoji'")
 
-    async def on_run(self):
+    async def on_run(self) -> None:
         await self.data.message.clear_reaction(self.data.emoji)
 
 
 class ReactionClear(_MessageModify, class_uuid="1637b978-64c1-420c-a12f-09f81fc613ac"):
     """Clears all reactions from a message."""
 
-    async def on_run(self):
+    async def on_run(self) -> None:
         await self.data.message.clear_reactions()

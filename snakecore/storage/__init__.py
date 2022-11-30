@@ -21,13 +21,14 @@ from .discord_storage import (
 from .local_storage import LocalStorage as LocalStorage
 
 
-async def init(global_client: Optional[discord.Client] = None):
+async def init(global_client: Optional[discord.Client] = None) -> None:
     """Initialize this module.
 
-    Args:
-        global_client (Optional[discord.Client], optional):
-          The global `discord.Client` object to set for all modules to use.
-          Defaults to None.
+    Parameters
+    ----------
+    global_client : Optional[discord.Client], optional
+        The global `discord.Client` object to set for all modules to use.
+        Defaults to None.
     """
     if global_client is not None and not config.conf.is_set("global_client"):
         config.conf.global_client = global_client
@@ -37,17 +38,13 @@ async def init(global_client: Optional[discord.Client] = None):
         config.conf.init_mods[config.ModuleName.STORAGE] = True
 
 
-async def quit():
+async def quit() -> None:
     """Quit this module."""
     if is_init():
         await quit_discord_storage()
         config.conf.init_mods[config.ModuleName.STORAGE] = False
 
 
-def is_init():
-    """Whether this module has been sucessfully initialized.
-
-    Returns:
-        bool: True/False
-    """
+def is_init() -> bool:
+    """`bool`: Whether this module has been sucessfully initialized."""
     return config.conf.init_mods.get(config.ModuleName.STORAGE, False)

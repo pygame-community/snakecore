@@ -33,7 +33,7 @@ async def init(
     global_client: Optional[discord.Client] = None,
     *,
     raise_module_exceptions: bool = False,
-):
+) -> tuple[int, int]:
     """Initialize all modules that `snakecore` provides using their respective
     initialization functions with default arguments. For more control, those functions
     can be called individually. This is the same as calling `init_sync()` followed by
@@ -45,17 +45,21 @@ async def init(
     only attempt to initialize modules that aren't yet initialized and can be called
     multiple times.
 
-    Args:
-        global_client (Optional[discord.Client], optional):
-          The global `discord.Client` object to set for all modules to use.
-          Defaults to None.
-        raise_module_exceptions (bool, optional): Whether all module-specific
-          exceptions should be raised as they occur. Defaults to False.
+    Parameters
+    ----------
+    global_client : Optional[discord.Client], optional
+        The global `discord.Client` object to set for all modules to use.
+        By default None.
+    raise_module_exceptions : bool, optional
+        Whether all module-specific exceptions should be raised as they occur.
+        By default False.
 
-    Returns:
-        tuple[int, int]: A tuple of two integers, with the first one representing the
-          count of successfully initialized modules and the last one the amount of
-          failed modules.
+    Returns
+    -------
+    tuple[int, int]
+        A tuple of two integers, with the first one representing the count of
+        successfully initialized modules and the last one the amount of
+        failed modules.
     """
 
     if global_client is not None and not config.conf.is_set("global_client"):
@@ -76,21 +80,25 @@ def init_sync(
     global_client: Optional[discord.Client] = None,
     *,
     raise_module_exceptions: bool = False,
-):
+) -> tuple[int, int]:
     """Initialize all `snakecore` modules which don't require asynchronous
     initialization. This is only a shorthand for those modules and does not fully
     initialize snakecore like `init()`. This function will only attempt to initialize
     modules that aren't yet initialized and can be called multiple times.
 
-    Args:
-        global_client (Optional[discord.Client], optional):
-          The global `discord.Client` object to set for all modules to use.
-          Defaults to None.
-        raise_module_exceptions (bool, optional): Whether all module-specific
-          exceptions should be raised as they occur. Defaults to False.
+    Parameters
+    ----------
+    global_client : Optional[discord.Client], optional
+        The global `discord.Client` object to set for all modules to use.
+        Defaults to None.
+    raise_module_exceptions : bool, optional
+        Whether all module-specific exceptions should be raised as they occur.
+        Defaults to False.
 
-    Returns:
-        tuple[int, int]: A tuple of two integers, with the first one representing the
+    Returns
+    -------
+    tuple[int, int]
+        A tuple of two integers, with the first one representing the
           count of successfully initialized modules and the last one the amount of
           failed modules.
     """
@@ -135,17 +143,21 @@ async def init_async(
     initialize snakecore like `init()`. This function will only attempt to initialize
     modules that aren't yet initialized and can be called multiple times.
 
-    Args:
-        global_client (Optional[discord.Client], optional):
-          The global `discord.Client` object to set for all modules to use.
-          Defaults to None.
-        raise_module_exceptions (bool, optional): Whether all module-specific
-          exceptions should be raised as they occur. Defaults to False.
+    Parameters
+    ----------
+    global_client : Optional[discord.Client], optional
+        The global `discord.Client` object to set for all modules to use.
+        Defaults to None.
+    raise_module_exceptions : bool, optional
+        Whether all module-specific exceptions should be raised as they occur.
+        Defaults to False.
 
-    Returns:
-        tuple[int, int]: A tuple of two integers, with the first one representing the
-          count of successfully initialized modules and the last one the amount of
-          failed modules.
+    Returns
+    -------
+    tuple[int, int]
+        A tuple of two integers, with the first one representing the
+        count of successfully initialized modules and the last one the amount of
+        failed modules.
     """
 
     if global_client is not None and not config.conf.is_set("global_client"):
@@ -222,38 +234,29 @@ async def quit_async():
     config.conf.init_mods[config.ModuleName.SNAKECORE_ASYNC] = False
 
 
-def is_sync_init():
-    """Whether an attempt to initialize modules that don't require asynchronous
+def is_sync_init() -> bool:
+    """`bool`: Whether an attempt to initialize modules that don't require asynchronous
     initialization has occured successfully. This only means that at least one
     of the modules targeted in `init_sync()` has been sucessfully initialized,
     not all of them. For more control, consider initializing modules and handling
     their errors directly.
-
-    Returns:
-        bool: True/False
     """
 
     return config.conf.init_mods.get(config.ModuleName.SNAKECORE_SYNC, False)
 
 
 def is_async_init():
-    """Whether an attempt to initialize modules that require asynchronous
+    """`bool`: Whether an attempt to initialize modules that require asynchronous
     initialization has occured successfully. This only means that at least one
     of the modules targeted in `init_async()` has been sucessfully initialized,
     not all of them. For more control, consider initializing modules and handling
     their errors directly.
-
-    Returns:
-        bool: True/False
     """
     return config.conf.init_mods.get(config.ModuleName.SNAKECORE_ASYNC, False)
 
 
 def is_init():
-    """A shorthand for testing against `is_sync_init()` and `is_async_init()` together.
-    See their documentation for more deatils.
-
-    Returns:
-        bool: True/False
+    """`bool`: A shorthand for testing against `is_sync_init()` and `is_async_init()` together.
+    See their documentation for more details.
     """
     return is_sync_init() and is_async_init()

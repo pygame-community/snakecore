@@ -16,8 +16,7 @@ _T = TypeVar("_T")
 
 
 class AbstractStorage(ABC, Generic[_T]):
-    """
-    An Abstract Base Class for concrete classes that implement a Storage Interface
+    """An Abstract Base Class for concrete classes that implement a Storage Interface
     API. The goals of this abstract class is to facilitate common API for
     numerous different Storage API backends, while exposing an easy to use, pythonic
     API
@@ -30,9 +29,8 @@ class AbstractStorage(ABC, Generic[_T]):
     name: str
 
     @abstractmethod
-    def __init__(self, name: str, obj_type: Type[_T]):
-        """
-        The implementation of this method is responsible for constructing the
+    def __init__(self, name: str, obj_type: type[_T]) -> None:
+        """The implementation of this method is responsible for constructing the
         object. This must take 2 arguments:
         'name' is the key of the record.
         'obj_type' is the type of the record. This type object is also used for
@@ -41,8 +39,7 @@ class AbstractStorage(ABC, Generic[_T]):
 
     @abstractmethod
     async def __aenter__(self):
-        """
-        The implementation of this method is responsible for doing any initial
+        """The implementation of this method is responsible for doing any initial
         setups needed before access to data. Based on the implementation, this
         can hold locks, initialise data or connect to an external location for
         hosting the data.
@@ -50,8 +47,7 @@ class AbstractStorage(ABC, Generic[_T]):
 
     @abstractmethod
     async def __aexit__(self, *_):
-        """
-        The implementation of this method is responsible for doing cleanups
+        """The implementation of this method is responsible for doing cleanups
         after the data has been used and modified. Based on the implementation,
         this can release locks, finalise data or flush data to an external data
         host.
@@ -60,8 +56,7 @@ class AbstractStorage(ABC, Generic[_T]):
     @property
     @abstractmethod
     def is_init(self) -> bool:
-        """
-        The implementation of this property should return a bool that indicates
+        """The implementation of this property should return a bool that indicates
         whether the backend used by the storage is initialised. Return True if
         the backend does not need init mechanisms
         """
@@ -69,23 +64,20 @@ class AbstractStorage(ABC, Generic[_T]):
     @property
     @abstractmethod
     def obj(self) -> _T:
-        """
-        The implementation of this property should return the object contained in
+        """The implementation of this property should return the object contained in
         the storage.
         """
 
     @obj.setter
     @abstractmethod
     def obj(self, set_obj: _T):
-        """
-        The implementation of this property should set the object to the value
+        """The implementation of this property should set the object to the value
         of the argument passed
         """
 
     @obj.deleter
     @abstractmethod
     def obj(self):
-        """
-        The implementation of this property should delete the object from the
+        """The implementation of this property should delete the object from the
         storage system
         """

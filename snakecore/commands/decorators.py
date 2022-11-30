@@ -38,7 +38,7 @@ def flagconverter_kwargs(
     *,
     prefix: Optional[str] = "",
     delimiter: str = ":",
-    cls: Type[commands.FlagConverter] = _FlagConverter,
+    cls: type[commands.FlagConverter] = _FlagConverter,
 ) -> Callable[[Callable[_P, _T]], Callable[_P, _T]]:
     """Wraps a `discord.ext.commands` command function using a wrapper function
     that fakes its signature, whilst mapping the `.__dict__`s key-value pairs from
@@ -63,20 +63,22 @@ def flagconverter_kwargs(
     to customize the way a command object processes its signature, as well as
     using another direct signature.
 
-    Args:
-        prefix (Optional[str], optional): The prefix to pass to the `FlagConverter`
-          subclass. Defaults to `""`.
+    Parameters
+    ----------
+    prefix : Optional[str], optional
+        The prefix to pass to the `FlagConverter` subclass. Defaults to `""`.
         delimiter (Optional[str], optional): The delimiter to pass to the `FlagConverter`
           subclass. Defaults to `":"`.
-        cls (Type[commands.FlagConverter], optional): The class to use as a base class for
+        cls (type[commands.FlagConverter], optional): The class to use as a base class for
           the resulting FlagConverter class to generate. Useful for implementing custom flag
           parsing functionality. If specified and the class is not a subclass of
           `snakecore.commands.converters.FlagConverter`, flags with annotation `tuple[T[, ...]]`
           where `T` is `CodeBlock` or `Parens` will fail to parse correctly.
 
-    Returns:
-        Callable[..., Coroutine[Any, Any, Any]]: The generated
-          wrapper function.
+    Returns
+    -------
+    Callable[..., Coroutine[Any, Any, Any]]:
+        The generated wrapper function.
     """
 
     if not issubclass(cls, commands.FlagConverter):
@@ -244,16 +246,20 @@ def custom_parsing(
     using a `__wrapped__` attribute, but by using a custom `__wrapped_func__`
     attribute instead.
 
-    Args:
-        inside_class (bool): Whether the input function is being defined inside a
-          class, such as a `commands.Cog` subclass. Defaults to False.
-        inject_message_reference (bool): Whether the referenced message of the
-          command invocation message should be, if available, injected as the
-          first argument of a command function if that function's signature allows
-          for it. Defaults to False.
+    Parameters
+    ----------
+    inside_class : bool, optional
+        Whether the input function is being defined inside a class, such as a
+        `commands.Cog` subclass. Defaults to False.
+    inject_message_reference : bool, optional
+        Whether the referenced message of the command invocation message should be,
+        if available, injected as the first argument of a command function if that
+        function's signature allows for it. Defaults to False.
 
-    Returns:
-        Callable[..., Coroutine[Any, Any, Any]]: A wrapper callable object.
+    Returns
+    -------
+    Callable[..., Coroutine[Any, Any, Any]]
+        A wrapper callable object.
     """
 
     def custom_parsing_inner_deco(func: Callable[_P, _T]) -> Callable[_P, _T]:
@@ -313,8 +319,10 @@ def with_extras(**extras: Any) -> Callable[[AnyCommandType], AnyCommandType]:
     """A convenience decorator for adding data into the `extras`
     attribute of a command object.
 
-    Args:
-        **extras: The extras.
+    Parameters
+    ----------
+    **extras
+        The extras.
     """
 
     def inner_with_extras(cmd: AnyCommandType) -> AnyCommandType:
@@ -329,9 +337,10 @@ def with_config_kwargs(setup: Callable[_P, Any]) -> Callable[[commands.Bot], Any
     receiving arguments from the `Ext(AutoSharded)Bot.get_extension_config(...)`
     function's output mapping, if available.
 
-    Args:
-        func (Callable[[Union[ExtBot, ExtAutoShardedBot], ...], None]):
-          The `setup()` function.
+    Parameters
+    ----------
+    func : Callable[[Union[ExtBot, ExtAutoShardedBot], ...], None]
+        The `setup()` function.
     """
 
     async def setup_wrapper(bot: commands.Bot):

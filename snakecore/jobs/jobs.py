@@ -111,27 +111,35 @@ def get_job_class_from_uuid(
 
 
 def get_job_class_uuid(
-    cls: Type["JobBase"],
+    cls: type["JobBase"],
     default: Any = UNSET,
     /,
 ) -> Union[str, Any]:
     """Get a job class by its UUID. This is the safe way
     of looking up job classes in a persistent manner.
 
-    Args:
-        cls (Type[JobBase]): The job class whose UUID should be fetched.
-        default (Any): A default value which will be returned if this function
-          fails to produce the desired output. If omitted, exceptions will be
-          raised.
+    Parameters
+    ----------
+    cls : type[JobBase]
+        The job class whose UUID should be fetched.
+    default : Any
+        A default value which will be returned if this function
+        fails to produce the desired output. If omitted, exceptions will be
+        raised.
 
-    Returns:
-        str: The string identifier.
+    Returns
+    -------
+    str
+        The string identifier.
 
-    Raises:
-        TypeError: 'cls' does not inherit from a job base class.
-        LookupError: The given job class does not exist in the job class registry.
-          This exception should not occur if job classes inherit their base classes
-          correctly.
+    Raises
+    ------
+    TypeError
+        'cls' does not inherit from a job base class.
+    LookupError
+        The given job class does not exist in the job class registry.
+        This exception should not occur if job classes inherit their base classes
+        correctly.
     """
 
     if not issubclass(cls, JobBase):
@@ -166,27 +174,35 @@ def get_job_class_uuid(
 
 
 def get_job_class_runtime_id(
-    cls: Type["JobBase"],
+    cls: type["JobBase"],
     default: Any = UNSET,
     /,
 ) -> Union[str, Any]:
     """Get a job class by its runtime id string. This is the safe way
     of looking up job class runtime ids.
 
-    Args:
-        cls (Type[JobBase]): The job class whose identifier should be fetched.
-        default (Any): A default value which will be returned if this function
-          fails to produce the desired output. If omitted, exceptions will be
-          raised.
+    Parameters
+    ----------
+    cls : type[JobBase]
+        The job class whose identifier should be fetched.
+    default : Any
+        A default value which will be returned if this function
+        fails to produce the desired output. If omitted, exceptions will be
+        raised.
 
-    Returns:
-        str: The string identifier.
+    Returns
+    -------
+    str
+        The string identifier.
 
-    Raises:
-        TypeError: 'cls' does not inherit from a job base class.
-        LookupError: The given job class does not exist in the job class registry.
-          This exception should not occur if job classes inherit their base classes
-          correctly.
+    Raises
+    ------
+    TypeError
+        'cls' does not inherit from a job base class.
+    LookupError
+        The given job class does not exist in the job class registry.
+        This exception should not occur if job classes inherit their base classes
+        correctly.
     """
 
     if not issubclass(cls, JobBase):
@@ -263,25 +279,33 @@ class JobNamespace(SimpleNamespace):
 
 
 @overload
-def singletonjob(cls: Type[_T]) -> Type[_T]:
+def singletonjob(cls: type[_T]) -> type[_T]:
     ...
 
 
 @overload
 def singletonjob(
-    cls: Optional[Type[_T]] = None, disabled: bool = False
-) -> Callable[[Type[_T]], Type[_T]]:
+    cls: Optional[type[_T]] = None, disabled: bool = False
+) -> Callable[[type[_T]], type[_T]]:
     ...
 
 
 def singletonjob(
-    cls: Optional[Type[_T]] = None, disabled: bool = False
-) -> Union[Type[_T], Callable[[Type[_T]], Type[_T]]]:
+    cls: Optional[type[_T]] = None, disabled: bool = False
+) -> Union[type[_T], Callable[[type[_T]], type[_T]]]:
     """A class decorator for (un)marking managed job classes as singletons,
     meaning that their instances can only be running one at a time in a job manager.
+
+    Parameters
+    ----------
+    cls : Optional[type[T]], optional
+        The `ManagedJobBase` subclass.
+    disabled : bool, optional
+        Whether to disable singleton mode.
+        Defaults to False.
     """
 
-    def inner_deco(cls: Type[_T]) -> Type[_T]:
+    def inner_deco(cls: type[_T]) -> type[_T]:
         if issubclass(cls, JobBase):
             cls._SINGLE = not disabled
         else:
@@ -303,16 +327,19 @@ def publicjobmethod(
     """A special decorator to expose a managed job class method as public to other managed
     job objects. Can be used as a decorator function with or without extra arguments.
 
-    Args:
-        func (Optional[Callable[[Any], Any]]): The function to mark as a public method.
-          disabled (bool): Whether to mark this public job method as disabled.
-          Defaults to False.
-        is_async (Optional[bool]): An indicator for whether the returned value of the
-          public method should be awaited upon being called, either because of it being a
-          coroutine function or it returning an awaitable object. If set to `None`, it
-          will be checked for whether it is a coroutine function.
-          that the function will be checked.
-
+    Parameters
+    ----------
+    func : Optional[Callable[P, T]], optional
+        The function to mark as a public method.
+    is_async : Optional[bool], optional
+        An indicator for whether the returned value of the
+        public method should be awaited upon being called, either because of it being a
+        coroutine function or it returning an awaitable object. If set to `None`, it
+        will be checked for whether it is a coroutine function.
+        that the function will be checked.
+    disabled : bool, optional
+        Whether to mark this public job method as disabled.
+        Defaults to False.
     """
 
     def inner_deco(func: Callable[_P, _T]) -> Callable[_P, _T]:
@@ -413,9 +440,9 @@ class _JobCore:
 
         self._job_loop: JobLoop = None  # type: ignore (will be set at runtime)
 
-        self._on_start_exception: Optional[Exception] = None
-        self._on_run_exception: Optional[Exception] = None
-        self._on_stop_exception: Optional[Exception] = None
+        self._on_start_exception: Optional[BaseException] = None
+        self._on_run_exception: Optional[BaseException] = None
+        self._on_stop_exception: Optional[BaseException] = None
 
         self._bools = 0
 
@@ -436,8 +463,10 @@ class _JobCore:
     def get_class_runtime_id(cls) -> str:
         """Get the runtime id of this job class.
 
-        Returns:
-            str: The runtime id.
+        Returns
+        -------
+        str
+            The runtime id.
         """
         return cls._RUNTIME_ID
 
@@ -445,7 +474,8 @@ class _JobCore:
     def get_class_uuid(cls) -> Optional[str]:
         """Get the UUID of this job class.
 
-        Returns:
+        Returns
+        -------
             Optional[str]: The UUID.
         """
         return cls._UUID
@@ -462,10 +492,10 @@ class _JobCore:
 
     @property
     def data(self) -> Namespace:
-        """The `JobNamespace` instance bound to this job object for storage."""
+        """`JobNameSpace`: The `JobNamespace` instance bound to this job object for storage."""
         return self._data
 
-    async def _on_init(self):
+    async def _on_init(self) -> None:
         try:
             self._bools |= JF.IS_INITIALIZING  # True
             await self.on_init()
@@ -477,7 +507,7 @@ class _JobCore:
             self._bools |= JF.INITIALIZED  # True
             self._initialized_since_ts = time.time()
 
-    async def on_init(self):
+    async def on_init(self) -> None:
         """DO NOT CALL THIS METHOD MANUALLY, EXCEPT WHEN USING `super()`
         WITHIN THIS METHOD TO ACCESS THE SUPERCLASS METHOD.
 
@@ -485,7 +515,7 @@ class _JobCore:
         """
         pass
 
-    async def _on_start(self):
+    async def _on_start(self) -> None:
         self._on_start_exception = None
         self._on_run_exception = None
         self._on_stop_exception = None
@@ -512,33 +542,39 @@ class _JobCore:
         finally:
             self._bools &= ~JF.IS_STARTING  # False
 
-    async def on_start(self):
+    async def on_start(self) -> None:
         """DO NOT CALL THIS METHOD MANUALLY, EXCEPT WHEN USING `super()` WITHIN
         OVERLOADED VERSIONS OF THIS METHOD TO ACCESS A SUPERCLASS METHOD.
 
         A generic hook method that subclasses can use to setup their job objects
         when they start.
 
-        Raises:
-            NotImplementedError: This method must be overloaded in subclasses.
+        Raises
+        ------
+        NotImplementedError
+            This method must be overloaded in subclasses.
         """
         raise NotImplementedError()
 
-    async def _on_run(self):
+    async def _on_run(self) -> None:
         """DO NOT CALL THIS METHOD MANUALLY, EXCEPT WHEN USING `super()` WITHIN
         OVERLOADED VERSIONS OF THIS METHOD TO ACCESS A SUPERCLASS METHOD.
 
-        Raises:
-            NotImplementedError: This method must be overloaded in subclasses.
+        Raises
+        ------
+        NotImplementedError
+            This method must be overloaded in subclasses.
         """
         raise NotImplementedError()
 
-    async def on_run(self):
+    async def on_run(self) -> None:
         """DO NOT CALL THIS METHOD MANUALLY, EXCEPT WHEN USING `super()` WITHIN
         OVERLOADED VERSIONS OF THIS METHOD TO ACCESS A SUPERCLASS METHOD.
 
-        Raises:
-            NotImplementedError: This method must be overloaded in subclasses.
+        Raises
+        ------
+        NotImplementedError
+            This method must be overloaded in subclasses.
         """
         raise NotImplementedError()
 
@@ -547,7 +583,7 @@ class _JobCore:
         reason: Optional[
             Union[JobStopReasons.Internal, JobStopReasons.External]
         ] = None,
-    ):
+    ) -> None:
         self._last_stopping_reason = (
             reason
             if isinstance(reason, (JobStopReasons.External, JobStopReasons.Internal))
@@ -577,7 +613,7 @@ class _JobCore:
                 if not fut.done():
                     fut.set_result(JobStatus.STOPPED)
 
-    async def _on_stop(self):
+    async def _on_stop(self) -> None:
         self._bools |= JF.IS_STOPPING  # True
 
         try:
@@ -590,7 +626,7 @@ class _JobCore:
         finally:
             self._stop_cleanup()
 
-    async def on_stop(self):
+    async def on_stop(self) -> None:
         """DO NOT CALL THIS METHOD MANUALLY, EXCEPT WHEN USING `super()` WITHIN
         OVERLOADED VERSIONS OF THIS METHOD TO ACCESS A SUPERCLASS METHOD.
 
@@ -600,19 +636,23 @@ class _JobCore:
         Note that `on_stop_error()` will not be called if this method raises
         TimeoutError, and this job did not trigger the stop operation.
 
-        Raises:
-            NotImplementedError: This method must be overloaded in subclasses.
+        Raises
+        ------
+        NotImplementedError
+            This method must be overloaded in subclasses.
         """
         raise NotImplementedError()
 
-    async def on_start_error(self, exc: Exception):
+    async def on_start_error(self, exc: Exception) -> None:
         """DO NOT CALL THIS METHOD MANUALLY, EXCEPT WHEN USING `super()` WITHIN
         OVERLOADED VERSIONS OF THIS METHOD TO ACCESS A SUPERCLASS METHOD.
 
         This method gets called when an error occurs while this job is starting up.
 
-        Args:
-            exc (Exception): The exception that occured.
+        Parameters
+        ----------
+        exc : Exception
+            The exception that occured.
         """
         print(
             f"An exception occured in 'on_start' method of job " f"'{self!r}':\n\n",
@@ -620,19 +660,21 @@ class _JobCore:
             file=sys.stderr,
         )
 
-    async def _on_run_error(self, exc: Exception):
+    async def _on_run_error(self, exc: Exception) -> None:
         self._on_run_exception = exc
         self._bools |= (
             JF.TOLD_TO_STOP | JF.TOLD_TO_STOP_BY_SELF | JF.IS_STOPPING
         )  # True
         await self.on_run_error(exc)
 
-    async def on_run_error(self, exc: Exception):
+    async def on_run_error(self, exc: Exception) -> None:
         """DO NOT CALL THIS METHOD MANUALLY, EXCEPT WHEN USING `super()` WITHIN
         OVERLOADED VERSIONS OF THIS METHOD TO ACCESS A SUPERCLASS METHOD.
 
-        Args:
-            exc (Exception): The exception that occured.
+        Parameters
+        ----------
+        exc : Exception
+            The exception that occured.
         """
         print(
             f"An exception occured in 'on_run' method of job " f"'{self!r}':\n\n",
@@ -640,14 +682,15 @@ class _JobCore:
             file=sys.stderr,
         )
 
-    async def on_stop_error(self, exc: Exception):
+    async def on_stop_error(self, exc: Exception) -> None:
         """DO NOT CALL THIS METHOD MANUALLY, EXCEPT WHEN USING `super()` WITHIN
         OVERLOADED VERSIONS OF THIS METHOD TO ACCESS A SUPERCLASS METHOD.
 
         This method gets called when an error occurs
         while this job is stopping.
 
-        Args:
+        Parameters
+        ----------
             exc (Exception): The exception that occured.
         """
         print(
@@ -656,56 +699,40 @@ class _JobCore:
             file=sys.stderr,
         )
 
-    def told_to_stop(self):
-        """Whether this job object has been requested to stop from
+    def told_to_stop(self) -> bool:
+        """`bool`: Whether this job object has been requested to stop from
         an internal or external source. If `True`, this job will
         attempt to stop as soon at it becomes possible, be it gracefully
         or forcefully.
-
-        Returns:
-            bool: True/False
         """
         return bool(self._bools & JF.TOLD_TO_STOP)
 
     def told_to_stop_by_force(self) -> bool:
-        """Whether this job object was told to stop forcefully.
+        """`bool`: Whether this job object was told to stop forcefully.
         This also applies when it is told to restart, be killed or
         complete. Errors that occur during execution and lead
         to a job stopping do not count. This can only return `True`
         if `told_to_stop()` returns `True`.
-
-        Returns:
-            bool: True/False
         """
         return bool(self._bools & JF.TOLD_TO_STOP_BY_FORCE)
 
-    def told_to_restart(self):
-        """Whether this job object has been requested to restart from
+    def told_to_restart(self) -> bool:
+        """`bool`: Whether this job object has been requested to restart from
         an internal or external source. If `True`, this job will
         attempt to restart as soon as it becomes possible.
-
-        Returns:
-            bool: True/False
         """
         return bool(self._bools & JF.TOLD_TO_RESTART)
 
     def is_stopping(self) -> bool:
-        """Whether this job object is stopping.
-
-        Returns:
-            bool: True/False
-        """
+        """`bool`: Whether this job object is stopping."""
         return bool(self._bools & JF.IS_STOPPING)
 
     def is_stopping_by_force(self) -> bool:
-        """Whether this job object is stopping forcefully.
+        """`bool`: Whether this job object is stopping forcefully.
         This also applies when it is being restarted, killed or
         completed. Errors that occur during execution and lead
         to a job stopping do not count as being forcefully stopped.
         This can only return `True` if `is_stoping()` returns `True`.
-
-        Returns:
-            bool: True/False
         """
         return (
             self._bools & (TRUE := JF.IS_STOPPING | JF.TOLD_TO_STOP_BY_FORCE) == TRUE
@@ -716,10 +743,11 @@ class _JobCore:
     ) -> Optional[Union[JobStopReasons.Internal, JobStopReasons.External]]:
         """Get the reason this job is currently stopping, if it is the case.
 
-        Returns:
-            Union[JobStopReasons.Internal, JobStopReasons.External]: An enum value
-            from the `Internal` or `External` enums of the `JobStopReasons` namespace.
-            None: This job is not stopping.
+        Returns
+        -------
+        Optional[Union[JobStopReasons.Internal, JobStopReasons.External]]:
+            An enum value from the `Internal` or `External` enums of the
+            `JobStopReasons` namespace, if applicable.
         """
 
         if not self._bools & JF.IS_STOPPING:
@@ -743,28 +771,35 @@ class _JobCore:
             else:
                 return JobStopReasons.External.UNKNOWN
 
-    def add_to_exception_whitelist(self, *exception_types):
+    def add_to_exception_whitelist(self, *exception_types: type[BaseException]) -> None:
         """Add exceptions to a whitelist, which allows them to be ignored
         when they are raised, if reconnection is enabled.
-        Args:
-            *exception_types: The exception types to add.
+        Parameters
+        ----------
+        *exception_types : BaseException
+            The exception types to add.
         """
         self._job_loop.add_exception_type(*exception_types)
 
-    def remove_from_exception_whitelist(self, *exception_types):
+    def remove_from_exception_whitelist(
+        self, *exception_types: type[BaseException]
+    ) -> None:
         """Remove exceptions from the exception whitelist for reconnection.
-        Args:
-            *exception_types: The exception types to remove.
+        Parameters
+        ----------
+        *exception_types: BaseException
+            The exception types to remove.
         """
         self._job_loop.remove_exception_type(*exception_types)
 
     def clear_exception_whitelist(self, keep_default=True):
         """Clear all the exceptions whitelisted for reconnection.
 
-        Args:
-            keep_default (bool, optional): Preserve the default set of exceptions
+        Parameters
+        ----------
+        keep_default : bool, optional
+            Preserve the default set of exceptions
             in the whitelist. Defaults to True.
-
         """
         self._job_loop.clear_exception_types()
         if keep_default:
@@ -775,42 +810,46 @@ class _JobCore:
     ) -> Optional[Union[JobStopReasons.Internal, JobStopReasons.External]]:
         """Get the last reason this job object stopped, when applicable.
 
-        Returns:
-            Optional[Union[JobStopReasons.Internal, JobStopReasons.External]]:
-              The reason for stopping.
+        Returns
+        -------
+        Optional[Union[JobStopReasons.Internal, JobStopReasons.External]]:
+            The reason for stopping.
         """
         return self._last_stopping_reason
 
-    def get_start_exception(self) -> Optional[Exception]:
+    def get_start_exception(self) -> Optional[BaseException]:
         """Get the exception that caused this job to fail at startup
         within the `on_start()` method if it is the case,
         otherwise return None.
 
-        Returns:
-            Exception: The exception instance.
-            None: No exception has been raised in `on_start()`.
+        Returns
+        -------
+        Optional[BaseException]
+            The exception, if one occured.
         """
         return self._on_start_exception
 
-    def get_run_exception(self) -> Optional[Exception]:
+    def get_run_exception(self) -> Optional[BaseException]:
         """Get the exception that caused this job to fail while running
         its main loop within the `on_run()` method if it is the case,
         otherwise return None.
 
-        Returns:
-            Exception: The exception instance.
-            None: No exception has been raised in `on_run()`.
+        Returns
+        -------
+        Optional[BaseException]
+            The exception, if one occured.
         """
         return self._on_run_exception
 
-    def get_stop_exception(self) -> Optional[Exception]:
+    def get_stop_exception(self) -> Optional[BaseException]:
         """Get the exception that caused this job to fail while shutting
         down with the `on_stop()` method if it is the case,
         otherwise return None.
 
-        Returns:
-            Exception: The exception instance.
-            None: No exception has been raised in `on_stop()`.
+        Returns
+        -------
+        Optional[BaseException]
+            The exception, if one occured.
         """
         return self._on_stop_exception
 
@@ -838,14 +877,19 @@ class _JobCore:
     def stop(self, force=False) -> bool:
         """DO NOT CALL THIS METHOD FROM OUTSIDE YOUR JOB SUBCLASS.
         Stop this job object.
-        Args:
-            force (bool, optional): Whether this job object should always
-              be stopped forcefully instead of gracefully, thereby ignoring any
-              exceptions that it might have handled when reconnecting is enabled
-              for it. Job objects that are idling are always stopped forcefully.
-              Defaults to False.
-        Returns:
-            bool: Whether the call was successful.
+
+        Parameters
+        ----------
+        force : bool, optional
+            Whether this job object should always be stopped forcefully instead of
+            gracefully, thereby ignoring any exceptions that it might have handled
+            when reconnecting is enabled for it. Job objects that are idling are
+            always stopped forcefully. Defaults to False.
+
+        Returns
+        -------
+        bool
+            Whether the call was successful.
         """
 
         task = self._job_loop.get_task()
@@ -875,8 +919,10 @@ class _JobCore:
     def _stop_external(self, force=False) -> bool:
         """DO NOT CALL THIS METHOD MANUALLY.
         See `STOP()`.
-        Returns:
-            bool: Whether the call was successful.
+        Returns
+        -------
+        bool
+            Whether the call was successful.
         """
 
         if self.stop(force=force):
@@ -893,8 +939,11 @@ class _JobCore:
         killed, being completed or already being restarted. If a job
         object is being stopped gracefully, it will be restarted immediately
         after it stops.
-        Returns:
-            bool: Whether the call was successful.
+
+        Returns
+        -------
+        bool
+            Whether the call was successful.
         """
 
         task = self._job_loop.get_task()
@@ -920,7 +969,7 @@ class _JobCore:
 
     def _restart_external(self) -> bool:
         """DO NOT CALL THIS METHOD MANUALLY.
-        See `RESTART()`.
+        See `restart()`.
         """
         task = self._job_loop.get_task()
 
@@ -945,32 +994,20 @@ class _JobCore:
         return False
 
     def loop_count(self) -> int:
-        """The current amount of `on_run()` calls completed by this job object."""
+        """`int`: The current amount of `on_run()` calls completed by this job object."""
         return self._loop_count
 
     def initialized(self) -> bool:
-        """Whether this job has been initialized.
-
-        Returns:
-            bool: True/False
-        """
+        """`bool`: Whether this job has been initialized."""
         return bool(self._bools & JF.INITIALIZED)
 
     def is_initializing(self) -> bool:
-        """Whether this job object is initializing.
-
-        Returns:
-            bool: True/False
-        """
+        """`bool`: Whether this job object is initializing."""
 
         return bool(self._bools & JF.IS_INITIALIZING)
 
     def initialized_since(self) -> Optional[datetime.datetime]:
-        """The time at which this job object was initialized, if available.
-
-        Returns:
-            datetime.datetime: The time, if available.
-        """
+        """`Optional[datetime.datetime]`: The time at which this job object was initialized, if available."""
         if self._initialized_since_ts:
             return datetime.datetime.fromtimestamp(
                 self._initialized_since_ts, tz=datetime.timezone.utc
@@ -978,19 +1015,11 @@ class _JobCore:
         return None
 
     def is_starting(self) -> bool:
-        """Whether this job is currently starting to run.
-
-        Returns:
-            bool: True/False
-        """
+        """`bool`: Whether this job is currently starting to run."""
         return bool(self._bools & JF.IS_STARTING)
 
     def is_running(self) -> bool:
-        """Whether this job is currently running (alive and not stopped).
-
-        Returns:
-            bool: True/False
-        """
+        """`bool`: Whether this job is currently running (alive and not stopped)."""
         return (
             self.initialized()
             and self._job_loop.is_running()
@@ -998,11 +1027,7 @@ class _JobCore:
         )
 
     def running_since(self) -> Optional[datetime.datetime]:
-        """The last time at which this job object started running, if available.
-
-        Returns:
-            datetime.datetime: The time, if available.
-        """
+        """`Optional[datetime.datetime]`: The last time at which this job object started running, if available."""
         if self._running_since_ts:
             return datetime.datetime.fromtimestamp(
                 self._running_since_ts, tz=datetime.timezone.utc
@@ -1010,19 +1035,11 @@ class _JobCore:
         return None
 
     def stopped(self) -> bool:
-        """Whether this job is currently stopped (alive and not running).
-
-        Returns:
-            bool: True/False
-        """
+        """`bool`: Whether this job is currently stopped (alive and not running)."""
         return bool(self._bools & JF.STOPPED)
 
     def stopped_since(self) -> Optional[datetime.datetime]:
-        """The last time at which this job object stopped, if available.
-
-        Returns:
-            datetime.datetime: The time, if available.
-        """
+        """`Optional[datetime.datetime]`: The last time at which this job object stopped, if available."""
         if self._stopped_since_ts:
             return datetime.datetime.fromtimestamp(
                 self._stopped_since_ts, tz=datetime.timezone.utc
@@ -1030,20 +1047,13 @@ class _JobCore:
         return None
 
     def is_idling(self) -> bool:
-        """Whether this task is currently idling
+        """`bool`: Whether this task is currently idling
         (running, waiting for the next opportunity to continue execution)
-
-        Returns:
-            bool: True/False
         """
         return bool(self._bools & JF.IS_IDLING)
 
     def idling_since(self) -> Optional[datetime.datetime]:
-        """The last time at which this job object began idling, if available.
-
-        Returns:
-            datetime.datetime: The time, if available.
-        """
+        """`Optional[datetime.datetime]`: The last time at which this job object began idling, if available."""
         if self._idling_since_ts:
             return datetime.datetime.fromtimestamp(
                 self._idling_since_ts, tz=datetime.timezone.utc
@@ -1051,32 +1061,20 @@ class _JobCore:
         return None
 
     def run_failed(self) -> bool:
-        """Whether this job's `.on_run()` method failed an execution attempt,
+        """`bool`: Whether this job's `.on_run()` method failed an execution attempt,
         due to an unhandled exception being raised.
-
-        Returns:
-            bool: True/False
         """
         return self._job_loop.failed()
 
     def is_restarting(self) -> bool:
-        """Whether this job is restarting.
-
-        Returns:
-            bool: True/False
-        """
+        """`bool`: Whether this job is restarting."""
 
         return (
             self._bools & (TRUE := JF.IS_STOPPING | JF.TOLD_TO_RESTART) == TRUE
         )  # any
 
     def was_restarted(self) -> bool:
-        """A convenience method to check if a job was restarted.
-
-        Returns:
-            bool: True/False
-
-        """
+        """`bool`: A convenience method to check if a job was restarted."""
         return self._last_stopping_reason in (
             JobStopReasons.Internal.RESTART,
             JobStopReasons.External.RESTART,
@@ -1089,15 +1087,22 @@ class _JobCore:
         """Wait for this job object to stop using the
         coroutine output of this method.
 
-        Args:
-            timeout (float, optional): Timeout for awaiting. Defaults to None.
+        Parameters
+        ----------
+        timeout : float, optional
+            Timeout for awaiting. Defaults to None.
 
-        Returns:
-            Coroutine: A coroutine that evaluates to `JobStatus.STOPPED`.
+        Returns
+        -------
+        Coroutine[Any, Any, Literal[JobStatus.STOPPED]]
+            A coroutine that evaluates to `JobStatus.STOPPED`.
 
-        Raises:
-            JobNotRunning: This job object is not running.
-            asyncio.TimeoutError: The timeout was exceeded.
+        Raises
+        ------
+        JobNotRunning
+            This job object is not running.
+        asyncio.TimeoutError
+            The timeout was exceeded.
         """
 
         if not self.is_running():
@@ -1115,11 +1120,8 @@ class _JobCore:
         return asyncio.wait_for(fut, timeout)
 
     def status(self) -> JobStatus:
-        """Get the job status of this job as a value from the
+        """`JobStatus`: Get the job status of this job as a value from the
         `JobStatus` enum.
-
-        Returns:
-            str: A status value.
         """
         output = None
         if self.is_running():
@@ -1195,7 +1197,7 @@ class JobCore(_JobCore):
     def __init_subclass__(
         cls,
         class_uuid: Optional[str] = None,
-    ):
+    ) -> None:
         super().__init_subclass__(class_uuid=class_uuid)
 
         name = cls.__qualname__
@@ -1277,7 +1279,7 @@ class JobCore(_JobCore):
                 ignore_defaultdicts=True,
             )
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
 
         self._manager: Union["proxies.JobManagerProxy", Any] = None
@@ -1333,11 +1335,8 @@ class JobCore(_JobCore):
 
     @classmethod
     def singleton(cls) -> bool:
-        """Whether this job class is a singleton, meaning
+        """`bool`: Whether this job class is a singleton, meaning
         that it may only be registered once per job manager.
-
-        Returns:
-            bool: True/False
         """
         return cls._SINGLE
 
@@ -1363,25 +1362,25 @@ class JobCore(_JobCore):
 
     @property
     def creator(self) -> Optional["proxies.JobProxy"]:
-        """The `JobProxy` of the creator of this job object."""
+        """`Optional[JobProxy]`: The `JobProxy` of the creator of this job object."""
         return self._creator
 
     @property
     def guardian(self) -> Optional["proxies.JobProxy"]:
-        """The `JobProxy` of the current guardian of this job object."""
+        """`Optional[JobProxy]`: The `JobProxy` of the current guardian of this job object."""
         return self._guardian
 
     @property
     def guarded_jobs(self) -> Mapping[int, "proxies.JobProxy"]:
-        """A mapping of `JobProxy` objects of the jobs guarded by this job."""
+        """`Mapping[int, JobProxy]`: A mapping of `JobProxy` objects of the jobs guarded by this job."""
         return MappingProxyType(self._guarded_job_proxies_dict or {})  # type: ignore
 
     @property
     def proxy(self) -> "proxies.JobProxy":
-        """The `JobProxy` object bound to this job object."""
+        """`JobProxy`: The `JobProxy` object bound to this job object."""
         return self._proxy
 
-    async def _on_start(self):
+    async def _on_start(self) -> None:
         self._on_start_exception = None
         self._on_run_exception = None
         self._on_stop_exception = None
@@ -1415,7 +1414,7 @@ class JobCore(_JobCore):
         reason: Optional[
             Union[JobStopReasons.Internal, JobStopReasons.External]
         ] = None,
-    ):
+    ) -> None:
         self._last_stopping_reason = (
             reason
             if isinstance(reason, (JobStopReasons.External, JobStopReasons.Internal))
@@ -1548,7 +1547,7 @@ class JobCore(_JobCore):
                     if not fut.done():
                         fut.set_result(JobStatus.STOPPED)
 
-    async def _on_stop(self):
+    async def _on_stop(self) -> None:
         self._bools |= JF.IS_STOPPING  # True
         try:
             if not self._bools & JF.TOLD_TO_STOP_BY_SELF:
@@ -1574,22 +1573,16 @@ class JobCore(_JobCore):
             self._stop_cleanup()
 
     def told_to_be_killed(self) -> bool:
-        """Whether this job object has been requested to get killed from
+        """`bool`: Whether this job object has been requested to get killed from
         an internal or external source. If `True`, this job will
         attempt to be killed as soon as it becomes possible.
-
-        Returns:
-            bool: True/False
         """
         return bool(self._bools & JF.TOLD_TO_BE_KILLED)
 
     def told_to_complete(self) -> bool:
-        """Whether this job object has been requested to complete from
+        """`bool`: Whether this job object has been requested to complete from
         an internal source. If `True`, this job will
         attempt to complete as soon as it becomes possible.
-
-        Returns:
-            bool: True/False
         """
         return bool(self._bools & JF.TOLD_TO_COMPLETE)
 
@@ -1715,8 +1708,10 @@ class JobCore(_JobCore):
         reconnecting enabled, then it will be silently cancelled
         to ensure that it suspends all execution.
 
-        Returns:
-            bool: Whether the call was successful.
+        Returns
+        -------
+        bool
+            Whether the call was successful.
         """
 
         if not self._bools & (JF.TOLD_TO_BE_KILLED | JF.TOLD_TO_COMPLETE):  # not any
@@ -1729,13 +1724,14 @@ class JobCore(_JobCore):
         return False
 
     def kill(self) -> bool:
-        """
-        DO NOT CALL THIS METHOD FROM OUTSIDE YOUR JOB SUBCLASS.
+        """DO NOT CALL THIS METHOD FROM OUTSIDE YOUR JOB SUBCLASS.
 
         Stops this job object forcefully, before removing it from its job manager.
 
-        Returns:
-            bool: Whether this method was successful.
+        Returns
+        -------
+        bool
+            Whether this method was successful.
         """
 
         if not self._bools & (JF.TOLD_TO_BE_KILLED | JF.TOLD_TO_COMPLETE):  # not any
@@ -1767,12 +1763,16 @@ class JobCore(_JobCore):
         uninitialized and removed from its job manager without it being able to
         react to the process.
 
-        Args:
-            awaken (bool, optional): Whether to awaken this job object before
-              killing it, if it is stopped. Defaults to True.
+        Parameters
+        ----------
+        awaken : bool, optional
+            Whether to awaken this job object before
+            killing it, if it is stopped. Defaults to True.
 
-        Returns:
-            bool: Whether this method was successful.
+        Returns
+        -------
+        bool
+            Whether this method was successful.
         """
 
         if not self._bools & (JF.TOLD_TO_BE_KILLED | JF.TOLD_TO_COMPLETE):  # not any
@@ -1804,11 +1804,8 @@ class JobCore(_JobCore):
         return success
 
     def alive(self) -> bool:
-        """Whether this job is currently alive
+        """`bool`: Whether this job is currently alive
         (initialized and bound to a job manager, not completed or killed).
-
-        Returns:
-            bool: True/False
         """
         return bool(
             self._manager is not None
@@ -1817,11 +1814,7 @@ class JobCore(_JobCore):
         )
 
     def alive_since(self) -> Optional[datetime.datetime]:
-        """The last time at which this job object became alive, if available.
-
-        Returns:
-            datetime.datetime: The time, if available.
-        """
+        """`Optional[datetime.datetime]`: The last time at which this job object became alive, if available."""
         if self._alive_since_ts:
             return datetime.datetime.fromtimestamp(
                 self._alive_since_ts, tz=datetime.timezone.utc
@@ -1829,11 +1822,7 @@ class JobCore(_JobCore):
         return None
 
     def is_running(self) -> bool:
-        """Whether this job is currently running (alive and not stopped).
-
-        Returns:
-            bool: True/False
-        """
+        """`bool`: Whether this job is currently running (alive and not stopped)."""
         return (
             self.alive()
             and self._job_loop.is_running()
@@ -1841,21 +1830,17 @@ class JobCore(_JobCore):
         )
 
     def killed(self) -> bool:
-        """Whether this job was killed."""
+        """`bool`: Whether this job was killed."""
         return bool(self._bools & JF.KILLED)
 
     def is_being_killed(self) -> bool:
-        """Whether this job is being killed.
-
-        Returns:
-            bool: True/False
-        """
+        """`bool`: Whether this job is being killed."""
         return (
             self._bools & (TRUE := JF.IS_STOPPING | JF.TOLD_TO_BE_KILLED) == TRUE
         )  # all
 
     def is_being_startup_killed(self) -> bool:
-        """Whether this job was started up only for it to be killed.
+        """`bool`: Whether this job was started up only for it to be killed.
         This is useful for knowing if a job skipped `on_start()` and `on_run()`
         due to that, and can be checked for within `on_stop()`.
         """
@@ -1866,37 +1851,21 @@ class JobCore(_JobCore):
         )
 
     def completed(self) -> bool:
-        """Whether this job completed successfully.
-
-        Returns:
-            bool: True/False
-        """
+        """`bool`: Whether this job completed successfully."""
         return bool(self._bools & JF.COMPLETED)
 
     def is_completing(self) -> bool:
-        """Whether this job is currently completing.
-
-        Returns:
-            bool: True/False
-        """
+        """`bool`: Whether this job is currently completing."""
         return (
             self._bools & (TRUE := JF.IS_STOPPING | JF.TOLD_TO_COMPLETE) == TRUE
         )  # all
 
     def done(self) -> bool:
-        """Whether this job was killed or has completed.
-
-        Returns:
-            bool: True/False
-        """
+        """`bool`: Whether this job was killed or has completed."""
         return bool(self._bools & (JF.KILLED | JF.COMPLETED))  # any
 
     def done_since(self) -> Optional[datetime.datetime]:
-        """The time at which this job object completed successfully or was killed, if available.
-
-        Returns:
-            datetime.datetime: The time, if available.
-        """
+        """`Optional[datetime.datetime]`: The time at which this job object completed successfully or was killed, if available."""
         if self._done_since_ts is not None:
             return datetime.datetime.fromtimestamp(
                 self._done_since_ts, tz=datetime.timezone.utc
@@ -1906,23 +1875,21 @@ class JobCore(_JobCore):
     killed_at = property(fget=done_since)
     """The time at which this job object was killed, if available.
 
-    Returns:
+    Returns
+    -------
         Optional[datetime.datetime]: The time, if available.
     """
 
     completed_at = killed_at
     """The time at which this job object completed successfully, if available.
 
-    Returns:
+    Returns
+    -------
         Optional[datetime.datetime]: The time, if available.
     """
 
     def is_being_guarded(self) -> bool:
-        """Whether this job object is being guarded.
-
-        Returns:
-            bool: True/False
-        """
+        """`bool`: Whether this job object is being guarded."""
         return self._guardian is not None
 
     def await_stop(
@@ -1934,17 +1901,25 @@ class JobCore(_JobCore):
         """Wait for this job object to stop using the
         coroutine output of this method.
 
-        Args:
-            timeout (float, optional): Timeout for awaiting. Defaults to None.
+        Parameters
+        ----------
+        timeout : float, optional
+            Timeout for awaiting. Defaults to None.
 
-        Returns:
-            Coroutine: A coroutine that evaluates to either `STOPPED`,
-              `KILLED` or `COMPLETED` from the `JobStatus` enum.
+        Returns
+        -------
+        Coroutine[Any, Any, Literal[JobStatus.STOPPED, JobStatus.KILLED, JobStatus.COMPLETED]]
+            A coroutine that evaluates to either `STOPPED`,
+            `KILLED` or `COMPLETED` from the `JobStatus` enum.
 
-        Raises:
-            JobIsDone: This job object is already done.
-            JobNotRunning: This job object is not running.
-            asyncio.TimeoutError: The timeout was exceeded.
+        Raises
+        ------
+        JobIsDone
+            This job object is already done.
+        JobNotRunning
+            This job object is not running.
+        asyncio.TimeoutError
+            The timeout was exceeded.
         """
 
         if not self.is_running():
@@ -1967,17 +1942,25 @@ class JobCore(_JobCore):
         """Wait for this job object to be done (completed or killed) using the
         coroutine output of this method.
 
-        Args:
-            timeout (float, optional): Timeout for awaiting. Defaults to None.
+        Parameters
+        ----------
+        timeout : float, optional
+            Timeout for awaiting. Defaults to None.
 
-        Returns:
-            Coroutine: A coroutine that evaluates to either `KILLED`
-              or `COMPLETED` from the `JobStatus` enum.
+        Returns
+        -------
+        Coroutine[Any, Any, Literal[JobStatus.KILLED, JobStatus.COMPLETED]]
+            A coroutine that evaluates to either `KILLED` or `COMPLETED` from the
+            `JobStatus` enum.
 
-        Raises:
-            JobIsDone: This job object is already done.
-            asyncio.TimeoutError: The timeout was exceeded.
-            asyncio.CancelledError: The job was killed.
+        Raises
+        ------
+        JobIsDone
+            This job object is already done.
+        asyncio.TimeoutError
+            The timeout was exceeded.
+        asyncio.CancelledError
+            The job was killed.
         """
         if self.done():
             raise JobIsDone("This job object is already done")
@@ -1997,19 +1980,28 @@ class JobCore(_JobCore):
         """Wait for this job object to be unguarded using the
         coroutine output of this method.
 
-        Args:
-            timeout (float, optional):
-                Timeout for awaiting. Defaults to None.
+        Parameters
+        ----------
+        timeout : float, optional
+            Timeout for awaiting. Defaults to None.
 
-        Returns:
-            Coroutine: A coroutine that evaluates to `True`.
+        Returns
+        -------
+        Coroutine[Any, Any, bool]
+            A coroutine that evaluates to `True`.
 
-        Raises:
-            JobNotAlive: This job object is not alive.
-            JobIsDone: This job object is already done.
-            JobStateError: This job object isn't being guarded.
-            asyncio.TimeoutError: The timeout was exceeded.
-            asyncio.CancelledError: The job was killed.
+        Raises
+        ------
+        JobNotAlive
+            This job object is not alive.
+        JobIsDone
+            This job object is already done.
+        JobStateError
+            This job object isn't being guarded.
+        asyncio.TimeoutError
+            The timeout was exceeded.
+        asyncio.CancelledError
+            The job was killed.
         """
 
         if not self.alive():
@@ -2032,14 +2024,19 @@ class JobCore(_JobCore):
         """Get a job output queue proxy object for more convenient
         reading of job output queues while this job is running.
 
-        Returns:
-            JobOutputQueueProxy: The output queue proxy.
+        Returns
+        -------
+        JobOutputQueueProxy
+            The output queue proxy.
 
-        Raises:
-            JobNotAlive: This job object is not alive.
-            JobIsDone: This job object is already done.
-            TypeError: Output queues aren't
-              defined for this job type.
+        Raises
+        ------
+        JobNotAlive
+            This job object is not alive.
+        JobIsDone
+            This job object is already done.
+        TypeError
+            Output queues aren't defined for this job type.
         """
 
         if not self.alive():
@@ -2062,19 +2059,26 @@ class JobCore(_JobCore):
         or if it supports output fields at all. Disabled output field names
         are seen as unsupported.
 
-        Args:
-            field_name (str): The name of the output field to set.
-            raise_exceptions (bool, optional): Whether exceptions
-              should be raised. Defaults to False.
+        Parameters
+        ----------
+        field_name : str
+            The name of the output field to set.
+        raise_exceptions : bool, optional
+            Whether exceptions should be raised. Defaults to False.
 
-        Returns:
-            bool: True/False
+        Returns
+        -------
+        bool
+            ``True`` if condition is met, ``False`` otherwise.
 
-        Raises:
-            TypeError: Output fields aren't supported for this job,
-              or `field_name` is not a string.
-              ValueError: The specified field name was marked as disabled.
-            LookupError: The specified field name is not defined by this job.
+        Raises
+        ------
+        TypeError
+            Output fields aren't supported for this job, or `field_name` is not a string.
+        ValueError
+            The specified field name was marked as disabled.
+        LookupError
+            The specified field name is not defined by this job.
         """
 
         if cls.OutputFields is None:
@@ -2120,19 +2124,27 @@ class JobCore(_JobCore):
         or if it supports output queues at all. Disabled output queue names
         are seen as unsupported.
 
-        Args:
-            queue_name (str): The name of the output queue to set.
-            raise_exceptions (bool, optional): Whether exceptions should be
-              raised. Defaults to False.
+        Parameters
+        ----------
+        queue_name : str
+            The name of the output queue to set.
+        raise_exceptions : bool, optional
+            Whether exceptions should be raised. Defaults to False.
 
-        Returns:
-            bool: True/False
+        Returns
+        -------
+        bool
+            ``True`` if condition is met, ``False`` otherwise.
 
-        Raises:
-            TypeError: Output queues aren't supported for this job,
+        Raises
+        ------
+        TypeError
+            Output queues aren't supported for this job,
               or `queue_name` is not a string.
-            ValueError: The specified queue name was marked as disabled.
-            LookupError: The specified queue name is not defined by this job.
+        ValueError
+            The specified queue name was marked as disabled.
+        LookupError
+            The specified queue name is not defined by this job.
         """
         if cls.OutputQueues is None:
             if raise_exceptions:
@@ -2169,18 +2181,24 @@ class JobCore(_JobCore):
 
         return True
 
-    def set_output_field(self, field_name: str, value: Any):
+    def set_output_field(self, field_name: str, value: Any) -> None:
         """Set the specified output field to have the given value,
         while releasing the value to external jobs awaiting the field.
 
-        Args:
-            field_name (str): The name of the output field to set.
+        Parameters
+        ----------
+        field_name : str
+            The name of the output field to set.
 
-        Raises:
-            TypeError: Output fields aren't supported for this job,
+        Raises
+        ------
+        TypeError
+            Output fields aren't supported for this job,
               or `field_name` is not a string.
-            LookupError: The specified field name is not defined by this job.
-            JobOutputError: An output field value has already been set.
+        LookupError
+            The specified field name is not defined by this job.
+        JobOutputError
+            An output field value has already been set.
         """
 
         self.verify_output_field_support(field_name, raise_exceptions=True)
@@ -2203,19 +2221,25 @@ class JobCore(_JobCore):
 
             self._output_field_futures[field_name].clear()
 
-    def push_output_queue(self, queue_name: str, value: Any):
+    def push_output_queue(self, queue_name: str, value: Any) -> None:
         """Add a value to the specified output queue,
         while releasing the value to external jobs
         awaiting the field.
 
-        Args:
-            queue_name (str): The name of the target output queue.
+        Parameters
+        ----------
+        queue_name : str
+            The name of the target output queue.
 
-        Raises:
-            TypeError: Output queues aren't supported for this job,
+        Raises
+        ------
+        TypeError
+            Output queues aren't supported for this job,
               or `queue_name` is not a string.
-            LookupError: The specified queue name is not defined by this job.
-            JobOutputError: An output field value has already been set.
+        LookupError
+            The specified queue name is not defined by this job.
+        JobOutputError
+            An output field value has already been set.
         """
 
         self.verify_output_queue_support(queue_name, raise_exceptions=True)
@@ -2242,22 +2266,29 @@ class JobCore(_JobCore):
     def get_output_field(self, field_name: str, default=UNSET, /) -> Any:
         """Get the value of a specified output field.
 
-        Args:
-            field_name (str): The name of the target output field.
-            default (object, optional): The value to return if the specified
-              output field does not exist, has not been set,
-              or if this job doesn't support them at all.
-              Defaults to `UNSET`, which will
-              trigger an exception.
+        Parameters
+        ----------
+        field_name : str
+            The name of the target output field.
+        default : Any, optional
+            The value to return if the specified output field does not exist,
+            has not been set, or if this job doesn't support them at all,
+            instead of raising an exception.
 
-        Returns:
-            object: The output field value.
+        Returns
+        -------
+        Any
+            The output field value.
 
-        Raises:
-            TypeError: Output fields aren't supported for this job,
+        Raises
+        ------
+        TypeError
+            Output fields aren't supported for this job,
               or `field_name` is not a string.
-            LookupError: The specified field name is not defined by this job.
-            JobOutputError: An output field value is not set.
+        LookupError
+            The specified field name is not defined by this job.
+        JobOutputError
+            An output field value is not set.
         """
 
         if self.OutputFields is None:
@@ -2296,22 +2327,29 @@ class JobCore(_JobCore):
         For continuous access to job output queues, consider requesting
         a `JobOutputQueueProxy` object using `.get_output_queue_proxy()`.
 
-        Args:
-            queue_name (str): The name of the target output queue.
-            default (object, optional): The value to return if the specified
-              output queue does not exist, is empty,
-              or if this job doesn't support them at all.
-              Defaults to `UNSET`, which will
-              trigger an exception.
+        Parameters
+        ----------
+        queue_name : str
+            The name of the target output queue.
+        default : Any, optional
+            The value to return if the specified output queue does not exist, is
+            empty, or if this job doesn't support them at all, instead of raising
+            an exception.
 
-        Returns:
-            list: A list of values.
+        Returns
+        -------
+        list
+            A list of values.
 
-        Raises:
-            JobOutputError: The specified output queue is empty.
-            TypeError: Output queues aren't supported for this job,
+        Raises
+        ------
+        JobOutputError
+            The specified output queue is empty.
+        TypeError
+            Output queues aren't supported for this job,
               or `queue_name` is not a string.
-            LookupError: The specified queue name is not defined by this job.
+        LookupError
+            The specified queue name is not defined by this job.
         """
 
         self.verify_output_queue_support(queue_name, raise_exceptions=True)
@@ -2327,11 +2365,13 @@ class JobCore(_JobCore):
 
         return queue_data_list[:]
 
-    def clear_output_queue(self, queue_name: str):
+    def clear_output_queue(self, queue_name: str) -> None:
         """Clear all values in the specified output queue.
 
-        Args:
-            queue_name (str): The name of the target output field.
+        Parameters
+        ----------
+        queue_name : str
+            The name of the target output field.
         """
         self.verify_output_queue_support(queue_name, raise_exceptions=True)
 
@@ -2359,8 +2399,10 @@ class JobCore(_JobCore):
         """Get all output field names that this job supports.
         An empty tuple means that none are supported.
 
-        Returns:
-            tuple: A tuple of the supported output fields.
+        Returns
+        -------
+        tuple[str]
+            A tuple of the supported output fields.
         """
 
         if cls.OutputFields is None:
@@ -2373,8 +2415,10 @@ class JobCore(_JobCore):
         """Get all output queue names that this job supports.
         An empty tuple means that none are supported.
 
-        Returns:
-            tuple: A tuple of the supported output queues.
+        Returns
+        -------
+        tuple[str]
+            A tuple of the supported output queues.
         """
         if cls.OutputQueues is None:
             return tuple()
@@ -2386,11 +2430,15 @@ class JobCore(_JobCore):
         """Whether the specified field name is supported as an
         output field.
 
-        Args:
-            field_name (str): The name of the target output field.
+        Parameters
+        ----------
+        field_name : str
+            The name of the target output field.
 
-        Returns:
-            bool: True/False
+        Returns
+        -------
+        bool
+            ``True`` if condition is met, ``False`` otherwise.
         """
 
         if not isinstance(field_name, str):
@@ -2406,11 +2454,15 @@ class JobCore(_JobCore):
         """Whether the specified queue name is supported as an
         output queue.
 
-        Args:
-            queue_name (str): The name of the target output queue.
+        Parameters
+        ----------
+        queue_name : str
+            The name of the target output queue.
 
-        Returns:
-            bool: True/False
+        Returns
+        -------
+        bool
+            ``True`` if condition is met, ``False`` otherwise.
         """
 
         if not isinstance(queue_name, str):
@@ -2425,16 +2477,23 @@ class JobCore(_JobCore):
         """Whether a value for the specified output field
         has been set.
 
-        Args:
-            field_name (str): The name of the target output field.
+        Parameters
+        ----------
+        field_name : str
+            The name of the target output field.
 
-        Returns:
-            bool: True/False
+        Returns
+        -------
+        bool
+            ``True`` if condition is met, ``False`` otherwise.
 
-        Raises:
-            TypeError: Output fields aren't supported for this job,
-              or `field_name` is not a string.
-            LookupError: The specified field name is not defined by this job.
+        Raises
+        ------
+        TypeError
+            Output fields aren't supported for this job, or `field_name` is not
+            a string.
+        LookupError
+            The specified field name is not defined by this job.
         """
 
         self.verify_output_field_support(field_name, raise_exceptions=True)
@@ -2445,16 +2504,23 @@ class JobCore(_JobCore):
     def output_queue_is_empty(self, queue_name: str) -> bool:
         """Whether the specified output queue is empty.
 
-        Args:
-            queue_name (str): The name of the target output queue.
+        Parameters
+        ----------
+        queue_name : str
+            The name of the target output queue.
 
-        Returns:
-            bool: True/False
+        Returns
+        -------
+        bool
+            ``True`` if condition is met, ``False`` otherwise.
 
-        Raises:
-            TypeError: Output queues aren't supported for this job,
-              or `queue_name` is not a string.
-            LookupError: The specified queue name is not defined by this job.
+        Raises
+        ------
+        TypeError
+            Output queues aren't supported for this job, or `queue_name` is not a
+            string.
+        LookupError
+            The specified queue name is not defined by this job.
         """
 
         self.verify_output_queue_support(queue_name, raise_exceptions=True)
@@ -2470,22 +2536,32 @@ class JobCore(_JobCore):
         specified output field while it is running, using the
         coroutine output of this method.
 
-        Args:
-            field_name (str): The name of the target output field.
-            timeout (float, optional): The maximum amount of
-              time to wait in seconds. Defaults to None.
+        Parameters
+        ----------
+        field_name : str
+            The name of the target output field.
+        timeout : float, optional
+            The maximum amount of time to wait in seconds.
+            Defaults to None.
 
-        Returns:
-            Coroutine: A coroutine that evaluates to the value of specified
-              output field.
+        Returns
+        -------
+        Coroutine[Any, Any, Union[Any, Literal[JobStatus.COMPLETED, JobStatus.KILLED]]]
+            A coroutine that evaluates to the value of specified
+            output field.
 
-        Raises:
-            TypeError: Output fields aren't supported for this job,
-              or `field_name` is not a string.
-            LookupError: The specified field name is not defined by this job.
-            JobIsDone: This job object is already done.
-            asyncio.TimeoutError: The timeout was exceeded.
-            asyncio.CancelledError: The job was killed.
+        Raises
+        ------
+        TypeError
+            Output fields aren't supported for this job, or `field_name` is not a string.
+        LookupError
+            The specified field name is not defined by this job.
+        JobIsDone
+            This job object is already done.
+        asyncio.TimeoutError
+            The timeout was exceeded.
+        asyncio.CancelledError
+            The job was killed.
         """
 
         self.verify_output_field_support(field_name, raise_exceptions=True)
@@ -2521,28 +2597,38 @@ class JobCore(_JobCore):
         """Wait for this job object to add to the specified output queue while
         it is running, using the coroutine output of this method.
 
-        Args:
-            timeout (float, optional): The maximum amount of time to wait in
+        Parameters
+        ----------
+        timeout : float, optional
+            The maximum amount of time to wait in
               seconds. Defaults to None.
-            cancel_if_cleared (bool, optional): Whether `asyncio.CancelledError` should
-              be raised if the output queue is cleared. If set to `False`,
-              `JobStatus.OUTPUT_QUEUE_CLEARED` will be the result of the coroutine.
-              Defaults to False.
+        cancel_if_cleared : bool, optional
+            Whether `asyncio.CancelledError` should
+            be raised if the output queue is cleared. If set to `False`,
+            `JobStatus.OUTPUT_QUEUE_CLEARED` will be the result of the coroutine.
+            Defaults to False.
 
-        Returns:
-            Coroutine: A coroutine that evaluates to the most recent output
-              queue value, or `JobStatus.OUTPUT_QUEUE_CLEARED` if the queue
-              is cleared, `JobStatus.KILLED` if this job was killed and
-              `JobStatus.COMPLETED` if this job is completed.
+        Returns
+        -------
+        Coroutine[Any, Any, Union[Any, Literal[JobStatus.OUTPUT_QUEUE_CLEARED, JobStatus.KILLED, JobStatus.COMPLETED]]]
+            A coroutine that evaluates to the most recent output
+            queue value, or `JobStatus.OUTPUT_QUEUE_CLEARED` if the queue
+            is cleared, `JobStatus.KILLED` if this job was killed and
+            `JobStatus.COMPLETED` if this job is completed.
 
-        Raises:
-            TypeError: Output fields aren't supported for this job,
-              or `field_name` is not a string.
-            LookupError: The specified field name is not defined by this job
-            JobIsDone: This job object is already done.
-            asyncio.TimeoutError: The timeout was exceeded.
-            asyncio.CancelledError: The job was killed, or the output queue
-              was cleared.
+        Raises
+        ------
+        TypeError
+            Output fields aren't supported for this job, or `field_name` is not a
+            string.
+        LookupError
+            The specified field name is not defined by this job
+        JobIsDone
+            This job object is already done.
+        asyncio.TimeoutError
+            The timeout was exceeded.
+        asyncio.CancelledError
+            The job was killed, or the output queue was cleared.
         """
 
         self.verify_output_queue_support(queue_name, raise_exceptions=True)
@@ -2568,20 +2654,25 @@ class JobCore(_JobCore):
         supported by this job, or if it supports public methods at all. Disabled
         public method names are seen as unsupported.
 
+        Parameters
+        ----------
+        method_name : str
+            The name of the public method.
+        raise_exceptions : bool, optional
+            Whether exceptions should be raised. Defaults to False.
 
-        Args:
-            method_name (str): The name of the public method.
-            raise_exceptions (bool, optional): Whether exceptions
-              should be raised. Defaults to False.
+        Returns
+        -------
+        bool
+            ``True`` if condition is met, ``False`` otherwise.
 
-        Returns:
-            bool: True/False
-
-        Raises:
-            TypeError: Output fields aren't supported for this job,
-              or `field_name` is not a string.
-            LookupError: No public method under the specified name is defined by this
-              job.
+        Raises
+        ------
+        TypeError
+            Output fields aren't supported for this job, or `field_name` is not a
+            string.
+        LookupError
+            No public method under the specified name is defined by this job.
         """
 
         if cls.PUBLIC_METHODS_CHAINMAP is None:
@@ -2621,8 +2712,10 @@ class JobCore(_JobCore):
     def get_public_method_names(cls) -> tuple[str]:
         """Get the names of all public methods that this job supports.
 
-        Returns:
-            tuple: A tuple of the names of the supported methods.
+        Returns
+        -------
+        tuple[str]
+            A tuple of the names of the supported methods.
         """
         if cls.PUBLIC_METHODS_CHAINMAP is None:
             return tuple()
@@ -2633,11 +2726,15 @@ class JobCore(_JobCore):
     def has_public_method_name(cls, method_name: str) -> bool:
         """Whether a public method under the specified name is supported by this job.
 
-        Args:
-            method_name (str): The name of the target method
+        Parameters
+        ----------
+        method_name : str
+            The name of the target method
 
-        Returns:
-            bool: True/False
+        Returns
+        -------
+        bool
+            ``True`` if condition is met, ``False`` otherwise.
         """
 
         if not isinstance(method_name, str):
@@ -2652,11 +2749,15 @@ class JobCore(_JobCore):
     def public_method_is_async(cls, method_name: str) -> bool:
         """Whether a public method under the specified name is a coroutine function.
 
-        Args:
-            method_name (str): The name of the target method.
+        Parameters
+        ----------
+        method_name : str
+            The name of the target method.
 
-        Returns:
-            bool: True/False
+        Returns
+        -------
+        bool
+            ``True`` if condition is met, ``False`` otherwise.
         """
 
         cls.verify_public_method_suppport(method_name, raise_exceptions=True)
@@ -2667,24 +2768,27 @@ class JobCore(_JobCore):
         """Run a public method under the specified name and return the
         result. Raise a LookupError if not found.
 
-        Args:
-            method_name (str): The name of the target method.
-            *args (Any): The positional method arguments.
-            **kwargs (Any): The keyword method arguments.
+        Parameters
+        ----------
+        method_name : str
+            The name of the target method.
+        *args
+            The positional method arguments.
+        **kwargs
+            The keyword method arguments.
 
-        Returns:
-            object: The result of the call.
+        Returns
+        -------
+        Any
+            The result of the call.
         """
 
         self.verify_public_method_suppport(method_name, raise_exceptions=True)
         return getattr(self.__class__, method_name)(self, *args, **kwargs)
 
     def status(self) -> JobStatus:
-        """Get the job status of this job as a value from the
+        """`JobStatus`: Get the job status of this job as a value from the
         `JobStatus` enum.
-
-        Returns:
-            JobStatus: A status value.
         """
         output = JobStatus.FRESH
         if self.alive():
@@ -2716,7 +2820,7 @@ class JobCore(_JobCore):
 
         return output
 
-    def __str__(self):
+    def __str__(self) -> str:
         return (
             f"<{self.__class__.__qualname__} "
             + f"(id={self._runtime_id} created_at={self.created_at} "
@@ -2745,10 +2849,10 @@ class JobMixin(JobCore):
 
     __slots__ = ()
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
 
-    async def mixin_routine(self: Union[Self, "JobBase"]):
+    async def mixin_routine(self: Union[Self, "JobBase"]) -> None:
         """A function to overload for running job mixin
         functionality.
         """
@@ -2758,13 +2862,13 @@ class JobMixin(JobCore):
 class JobBase(JobCore):
     __slots__ = ("_mixin_task_dict", "_mixin_future_dict")
 
-    JOB_MIXIN_CLASSES: frozenset[Type[JobMixin]] = frozenset()
+    JOB_MIXIN_CLASSES: frozenset[type[JobMixin]] = frozenset()
 
     def __init_subclass__(cls, class_uuid: Optional[str] = None):
         super().__init_subclass__(class_uuid)
 
-        mixin_classes: list[Type[JobMixin]] = []
-        mro_mixin_supercls_of: dict[Type[JobMixin], Type[JobMixin]] = {}
+        mixin_classes: list[type[JobMixin]] = []
+        mro_mixin_supercls_of: dict[type[JobMixin], type[JobMixin]] = {}
 
         if not issubclass(cls.__bases__[-1], JobBase):
             raise TypeError(
@@ -2812,26 +2916,33 @@ class JobBase(JobCore):
                 mixin_classes
             )  # add variable to current class dict
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
-        self._mixin_task_dict: dict[Type[JobMixin], asyncio.Task] = {}
-        self._mixin_future_dict: dict[Type[JobMixin], list[asyncio.Future]] = {}
+        self._mixin_task_dict: dict[type[JobMixin], asyncio.Task] = {}
+        self._mixin_future_dict: dict[type[JobMixin], list[asyncio.Future]] = {}
 
-    def handle_mixin_routines(self, *mixin_classes: Type[JobMixin]):
+    def handle_mixin_routines(self, *mixin_classes: type[JobMixin]) -> None:
         """Handle the mixin routines of the specified mixin classes
         by scheduling them to run once. If the tasks through which
         the mixin routines were previously scheduled are done, they
         will be replaced with new ones to reschedule the mixin routines.
         If they weren't done, `JobStateError` will be raised.
 
-        Args:
-            *mixin_classes (Type[JobMixin]): The mixin classes.
+        Parameters
+        ----------
+        *mixin_classes : type[JobMixin])
+            The mixin classes.
 
-        Raises:
-            JobIsDone: This job object is already done.
-            JobNotRunning: This job object is not running.
-            TypeError: Invalid mixin classes given as input.
-            JobStateError: The given mixin classes are already
+        Raises
+        ------
+        JobIsDone
+            This job object is already done.
+        JobNotRunning
+            This job object is not running.
+        TypeError
+            Invalid mixin classes given as input.
+        JobStateError
+            The given mixin classes are already
               being handled.
         """
 
@@ -2860,7 +2971,7 @@ class JobBase(JobCore):
 
         self._handle_mixin_routines(*mixin_classes)
 
-    def handle_all_mixin_routines(self):
+    def handle_all_mixin_routines(self) -> None:
         """Handle the routines of all the inherited mixin classes,
         by scheduling them to run once. If the tasks through which
         the mixin routines were previously scheduled are done,
@@ -2868,12 +2979,16 @@ class JobBase(JobCore):
         mixin routines. If they weren't done, `JobStateError`
         will be raised.
 
-        Raises:
-            JobIsDone: This job object is already done.
-            JobNotRunning: This job object is not running.
-            TypeError: Invalid mixin classes given as input.
-            JobStateError: The given mixin classes are already
-              being handled.
+        Raises
+        ------
+        JobIsDone
+            This job object is already done.
+        JobNotRunning
+            This job object is not running.
+        TypeError
+            Invalid mixin classes given as input.
+        JobStateError
+            The given mixin classes are already being handled.
         """
 
         if self.done():
@@ -2886,7 +3001,7 @@ class JobBase(JobCore):
 
         self._handle_mixin_routines(*self.JOB_MIXIN_CLASSES)
 
-    def _handle_mixin_routines(self, *mixin_classes: Type[JobMixin]):
+    def _handle_mixin_routines(self, *mixin_classes: type[JobMixin]):
         for mixin_cls in mixin_classes:
             if mixin_cls in self._mixin_task_dict:
                 del self._mixin_task_dict[mixin_cls]
@@ -2908,22 +3023,26 @@ class JobBase(JobCore):
             self._mixin_task_dict[mixin_cls] = tsk
             task_mixin_cls_dict[tsk] = mixin_cls
 
-    async def _call_mixin_routine(self, mixin_cls: Type[JobMixin]):
+    async def _call_mixin_routine(self, mixin_cls: type[JobMixin]):
         try:
             await mixin_cls.mixin_routine(self)
         except Exception as e:
             await self.on_mixin_routine_error(e, mixin_cls)
             raise
 
-    def mixin_routine_is_running(self, mixin_cls: Type[JobMixin]) -> bool:
+    def mixin_routine_is_running(self, mixin_cls: type[JobMixin]) -> bool:
         """Whether the mixin routine of the given mixin class is currently
         running.
 
-        Args:
-            mixin_cls (Type[JobMixin]): The mixin class.
+        Parameters
+        ----------
+        mixin_cls : type[JobMixin]
+            The mixin class.
 
-        Returns:
-            bool: True/False
+        Returns
+        -------
+        bool
+            ``True`` if condition is met, ``False`` otherwise.
         """
         return (
             mixin_cls in self._mixin_task_dict
@@ -2932,29 +3051,38 @@ class JobBase(JobCore):
 
     def wait_for_mixin_routines(
         self,
-        *mixin_classes: Type[JobMixin],
+        *mixin_classes: type[JobMixin],
         timeout: Optional[float] = None,
         skip_not_running: bool = True,
-    ):
+    ) -> Coroutine[Any, Any, dict[type[JobMixin], asyncio.Task[None]]]:
         """Wait for the mixin routines of the specified mixin classes
         to finish running using the returned coroutine.
 
-        Args:
-            *mixin_classes (Type[JobMixin]): The mixin classes.
-            timeout (Optional[float], optional): The waiting timeout. Defaults to None.
-            skip_not_running (bool, optional): Whether to ignore the mixin classes which
-              don't have their routines scheduled to run. If set to `False`,
-              `JobStateError` will be raised. Defaults to True.
+        Parameters
+        ----------
+        *mixin_classes : type[JobMixin]
+            The mixin classes.
+        timeout : Optional[float], optional
+            The waiting timeout. Defaults to None.
+        skip_not_running : bool, optional
+            Whether to ignore the mixin classes which
+            don't have their routines scheduled to run. If set to `False`,
+            `JobStateError` will be raised. Defaults to True.
 
-        Returns:
-            Coroutine: A coroutine which returns a dictionary that maps the specified
-              mixin classes to the `asyncio.Task` objects used to run their routine
-              functions.
+        Returns
+        -------
+        Coroutine[Any, Any, dict[type[JobMixin], asyncio.Task[None]]]
+            A coroutine which returns a dictionary that maps the specified
+            mixin classes to the `asyncio.Task` objects used to run their routine
+            functions.
 
-        Raises:
-            TypeError: Invalid mixin class(es).
-            JobStateError: Some or none of the given mixin classes have their
-              routines scheduled to run.
+        Raises
+        ------
+        TypeError
+            Invalid mixin class(es).
+        JobStateError
+            Some or none of the given mixin classes have their routines scheduled to
+            run.
         """
 
         futs = []
@@ -3000,35 +3128,42 @@ class JobBase(JobCore):
     async def _wait_for_mixin_routine_futures(self, *futures: asyncio.Future):
         results = await asyncio.gather(*futures, return_exceptions=True)
 
-        result_dict: dict[Type[JobMixin], asyncio.Task] = {}
+        result_dict: dict[type[JobMixin], asyncio.Task] = {}
         for result in results:
             if isinstance(result, dict):
                 result_dict.update(result)
 
         return result_dict
 
-    def _cancel_all_mixin_routines(self, msg: str):
+    def _cancel_all_mixin_routines(self, msg: str) -> None:
         for task in self._mixin_task_dict.values():
             if not task.done():
                 task.cancel(msg)
 
-    async def run_mixin_routines(self, *mixin_classes: Type[JobMixin]):
+    async def run_mixin_routines(self, *mixin_classes: type[JobMixin]):
         """Handle the routines of the given mixin classes and block until
         they finish running. This method is a combination of
         `handle_mixin_routines` and `wait_for_mixin_routines`.
 
-        Args:
-            *mixin_classes (Type[JobMixin]): The mixin classes.
+        Parameters
+        ----------
+        *mixin_classes : type[JobMixin]
+            The mixin classes.
 
-        Returns:
-            Coroutine: A coroutine which returns a dictionary that maps the specified
-              mixin classes to the `asyncio.Task` objects used to run their routine
-              functions.
+        Returns
+        -------
+        Coroutine[Any, Any, dict[type[JobMixin], asyncio.Task[None]]]
+            A coroutine which returns a dictionary that maps the specified
+            mixin classes to the `asyncio.Task` objects used to run their routine
+            functions.
 
-        Raises:
-            TypeError: Invalid mixin class(es).
-            JobStateError: Some or none of the given mixin classes have their
-              routines scheduled to run/Some are already being handled.
+        Raises
+        ------
+        TypeError
+            Invalid mixin class(es).
+        JobStateError
+            Some or none of the given mixin classes have their
+            routines scheduled to run/Some are already being handled.
         """
 
         self.handle_mixin_routines(*mixin_classes)
@@ -3039,28 +3174,37 @@ class JobBase(JobCore):
         they finish running. This method is a combination of `handle_mixin_routines`
         and `wait_for_mixin_routines`.
 
-        Returns:
-            Coroutine: A coroutine which returns a dictionary that maps the specified
-              mixin classes to the `asyncio.Task` objects used to run their routine
-              functions.
+        Returns
+        -------
+        Coroutine[Any, Any, dict[type[JobMixin], asyncio.Task[None]]]
+            A coroutine which returns a dictionary that maps the specified
+            mixin classes to the `asyncio.Task` objects used to run their routine
+            functions.
 
-        Raises:
-            TypeError: Invalid mixin class(es).
-            JobStateError: Some or none of the given mixin classes have their
-              routines scheduled to run/Some are already being handled.
+        Raises
+        ------
+        TypeError
+            Invalid mixin class(es).
+        JobStateError
+            Some or none of the given mixin classes have their
+            routines scheduled to run/Some are already being handled.
         """
         self.handle_all_mixin_routines()
         return await self.wait_for_mixin_routines(*self.JOB_MIXIN_CLASSES)
 
-    def cancel_mixin_routines(self, *mixin_classes: Type[JobMixin]):
+    def cancel_mixin_routines(self, *mixin_classes: type[JobMixin]):
         """Cancel the routines of the given mixin classes, if they are
         running.
 
-        Args:
-            *mixin_classes (Type[JobMixin]): The mixin classes.
+        Parameters
+        ----------
+        *mixin_classes : type[JobMixin]
+            The mixin classes.
 
-        Raises:
-            TypeError: Invalid mixin class(es).
+        Raises
+        ------
+        TypeError
+            Invalid mixin class(es).
         """
 
         for mixin_cls in mixin_classes:
@@ -3085,16 +3229,20 @@ class JobBase(JobCore):
             f"Job {self!r} has requested mixin routine cancellation."
         )
 
-    def get_mixin_routine_tasks(self):
+    def get_mixin_routine_tasks(self) -> dict[type[JobMixin], asyncio.Task[None]]:
         """Get a dictionary that maps all supported mixin classes to the `asyncio.Task` objects
         used to run their routine functions. If some of the tasks are not done, a JobStateError
         exception is raised.
 
-        Raises:
-            JobStateError: Some mixin routine tasks are not done.
+        Returns
+        -------
+        dict[type[JobMixin], asyncio.Task[None]]
+            The dictionary.
 
-        Returns:
-            dict[Type[JobMixin], asyncio.Task]: The dictionary.
+        Raises
+        ------
+        JobStateError
+            Some mixin routine tasks are not done.
         """
         if self._mixin_task_dict and not all(
             task.done() for task in self._mixin_task_dict.values()
@@ -3105,12 +3253,15 @@ class JobBase(JobCore):
 
         return self._mixin_task_dict.copy()
 
-    async def on_mixin_routine_error(self, exc: Exception, mixin_cls: Type[JobMixin]):
+    async def on_mixin_routine_error(self, exc: Exception, mixin_cls: type[JobMixin]):
         """A listener for reacting to failed mixin routines.
 
-        Args:
-            exc (Exception): The exception.
-            mixin_cls (Type[JobMixin]): The mixin class.
+        Parameters
+        ----------
+        exc : Exception
+            The exception.
+        mixin_cls : type[JobMixin]
+            The mixin class.
         """
         print(
             f"A job mixin exception occured in '{mixin_cls.__qualname__}.mixin_run()' "
@@ -3152,7 +3303,7 @@ class ManagedJobBase(JobBase):
         time: Union[datetime.time, Sequence[datetime.time]] = UNSET,
         count: Union[int, NoneType] = UNSET,
         reconnect: bool = UNSET,
-    ):
+    ) -> None:
         """Create a new `ManagedJobBase` instance."""
 
         super().__init__()
@@ -3186,24 +3337,27 @@ class ManagedJobBase(JobBase):
         self._job_loop.error(self._on_run_error)  # type: ignore
 
     def next_iteration(self) -> Optional[datetime.datetime]:
-        """When the next iteration of `.on_run()` will occur.
-        If not known, this method will return `None`.
-
-        Returns:
-            Optional[datetime.datetime]: The time at which
-              the next iteration will occur, if available.
-        """
+        """`Optional[datetime.datetime]`: When the next iteration of `.on_run()` will occur."""
         return self._job_loop.next_iteration
 
     def get_interval(self) -> Optional[tuple[float, float, float]]:
-        """Returns a tuple of the seconds, minutes and hours at which this job
-        object is executing its `.on_run()` method. This method will return `None`
-        if a time based interval is being used.
-
-        Returns:
-            Optional[tuple[int, int, int]]: `(seconds, minutes, hours)`.
+        """`Optional[tuple[float, float, float]]`: Returns a tuple of the seconds,
+        minutes and hours at which this job object is executing its `.on_run()`
+        method.
         """
-        return ((secs := self._job_loop.seconds), (mins := self._job_loop.minutes), (hrs := self._job_loop.hours)) if not (secs is None or mins is None or hrs is None) else None  # type: ignore
+        return (
+            (
+                secs,
+                mins,
+                hrs,
+            )
+            if not (
+                (secs := self._job_loop.seconds) is None
+                or (mins := self._job_loop.minutes) is None
+                or (hrs := self._job_loop.hours) is None
+            )
+            else None
+        )
 
     def change_interval(
         self,
@@ -3212,16 +3366,20 @@ class ManagedJobBase(JobBase):
         minutes: float = 0,
         hours: float = 0,
         time: Union[datetime.time, Sequence[datetime.time]] = UNSET,
-    ):
+    ) -> None:
         """Change the interval at which this job will run its `on_run()` method,
         as soon as possible.
 
-        Args:
-            seconds (float, optional): Defaults to 0.
-            minutes (float, optional): Defaults to 0.
-            hours (float, optional): Defaults to 0.
-            time (Union[datetime.time, Sequence[datetime.time]], optional):
-              Defaults to 0.
+        Parameters
+        ----------
+        seconds : float, optional
+            Defaults to 0.
+        minutes : float, optional
+            Defaults to 0.
+        hours : float, optional
+            Defaults to 0.
+        time : Union[datetime.time, Sequence[datetime.time]], optional
+            Defaults to 0.
         """
         self._job_loop.change_interval(
             seconds=seconds,
@@ -3235,10 +3393,10 @@ class ManagedJobBase(JobBase):
         else:
             self._interval_secs = seconds + (minutes * 60.0) + (hours * 3600.0)
 
-    async def on_start(self):  # make this optional for subclasses
+    async def on_start(self) -> None:  # make this optional for subclasses
         pass
 
-    async def _on_run(self):
+    async def _on_run(self) -> None:
         if self._bools & JF.EXTERNAL_STARTUP_KILL:
             self._kill_external_raw()
             return
@@ -3260,19 +3418,21 @@ class ManagedJobBase(JobBase):
 
         self._loop_count += 1
 
-    async def on_run(self):
+    async def on_run(self) -> None:
         """DO NOT CALL THIS METHOD MANUALLY, EXCEPT WHEN USING `super()` WITHIN
         OVERLOADED VERSIONS OF THIS METHOD TO ACCESS A SUPERCLASS METHOD.
 
         The code to run at the set interval.
         This method must be overloaded in subclasses.
 
-        Raises:
-            NotImplementedError: This method must be overloaded in subclasses.
+        Raises
+        ------
+        NotImplementedError
+            This method must be overloaded in subclasses.
         """
         raise NotImplementedError()
 
-    async def on_stop(self):  # make this optional for subclasses
+    async def on_stop(self) -> None:  # make this optional for subclasses
         pass
 
 
@@ -3285,7 +3445,7 @@ class JobManagerJob(ManagedJobBase):
 
     _RUNTIME_ID = "JobManagerJob-0"
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self._runtime_id = "JobManagerJob-0:0"
 

@@ -1,5 +1,4 @@
-"""
-This file is a part of the source code for snakecore.
+"""This file is a part of the source code for snakecore.
 This project has been licensed under the MIT license.
 Copyright (c) 2022-present pygame-community
 
@@ -58,7 +57,7 @@ class OnTyping(ClientEvent):
         when: datetime.datetime,
         *args,
         **kwargs,
-    ):
+    ) -> None:
         super().__init__(event_created_at=when)
         self.channel = channel
         self.user = user
@@ -67,11 +66,13 @@ class OnTyping(ClientEvent):
 
 class OnMessageBase(ClientEvent):
     """Base class for all messaging related events.
-    Subclasses:
-        `OnMessage`
-        `OnMessageEdit`
-        `OnMessageDelete`
-        `OnBulkMessageDelete`
+
+    Subclasses
+    ----------
+    - `OnMessage`
+    - `OnMessageEdit`
+    - `OnMessageDelete`
+    - `OnBulkMessageDelete`
     """
 
     __slots__ = ()
@@ -79,7 +80,9 @@ class OnMessageBase(ClientEvent):
 
 class OnRawMessageBase(ClientEvent):
     """Base class for all raw messaging related events.
-    Subclasses:
+
+    Subclasses
+    ----------
         `OnRawMessageEdit`
         `OnRawMessageDelete`
         `OnRawBulkMessageDelete`
@@ -94,7 +97,7 @@ class OnMessage(OnMessageBase):
     __slots__ = ("message",)
     ALT_NAME = "message"
 
-    def __init__(self, message: discord.Message, *args, **kwargs):
+    def __init__(self, message: discord.Message, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.message = message
 
@@ -105,7 +108,7 @@ class OnMessageDelete(OnMessageBase):
     __slots__ = ("message",)
     ALT_NAME = "message_delete"
 
-    def __init__(self, message: discord.Message, *args, **kwargs):
+    def __init__(self, message: discord.Message, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.message = message
 
@@ -121,7 +124,7 @@ class OnRawMessageDelete(OnRawMessageBase):
         payload: discord.RawMessageDeleteEvent,
         *args,
         **kwargs,
-    ):
+    ) -> None:
         super().__init__(*args, **kwargs)
         self.payload = payload
 
@@ -132,7 +135,7 @@ class OnBulkMessageDelete(OnMessageBase):
     ALT_NAME = "bulk_message_delete"
     __slots__ = ("messages",)
 
-    def __init__(self, messages: list[discord.Message], *args, **kwargs):
+    def __init__(self, messages: list[discord.Message], *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.messages = messages
 
@@ -148,7 +151,7 @@ class OnRawBulkMessageDelete(OnRawMessageBase):
         payload: discord.RawBulkMessageDeleteEvent,
         *args,
         **kwargs,
-    ):
+    ) -> None:
         super().__init__(*args, **kwargs)
         self.payload = payload
 
@@ -161,7 +164,7 @@ class OnMessageEdit(OnMessageBase):
 
     def __init__(
         self, before: discord.Message, after: discord.Message, *args, **kwargs
-    ):
+    ) -> None:
         super().__init__(*args, **kwargs)
         self.before = before
         self.after = after
@@ -178,14 +181,16 @@ class OnRawMessageEdit(OnRawMessageBase):
         payload: discord.RawMessageUpdateEvent,
         *args,
         **kwargs,
-    ):
+    ) -> None:
         super().__init__(*args, **kwargs)
         self.payload = payload
 
 
 class OnReactionBase(ClientEvent):
     """Base class for all message reaction related events.
-    Subclasses:
+
+    Subclasses
+    ----------
         `OnReactionAdd`
         `OnReactionRemove`
         `OnReactionclear`
@@ -197,7 +202,9 @@ class OnReactionBase(ClientEvent):
 
 class OnRawReactionBase(ClientEvent):
     """Base class for all raw message reaction related events.
-    Subclasses:
+
+    Subclasses
+    ----------
         `OnRawReactionAdd`
         `OnRawReactionRemove`
         `OnRawReactionclear`
@@ -219,7 +226,7 @@ class _OnReactionToggle(OnReactionBase):
         ],
         *args,
         **kwargs,
-    ):
+    ) -> None:
         super().__init__(*args, **kwargs)
         self.reaction = reaction
         self.user = user
@@ -233,7 +240,7 @@ class _OnRawReactionToggle(OnRawReactionBase):
         payload: discord.RawReactionActionEvent,
         *args,
         **kwargs,
-    ):
+    ) -> None:
         super().__init__(*args, **kwargs)
         self.payload = payload
 
@@ -316,7 +323,7 @@ class OnReactionClear(OnReactionBase):
         reactions: list[discord.Reaction],
         *args,
         **kwargs,
-    ):
+    ) -> None:
         super().__init__(*args, **kwargs)
         self.message = message
         self.reactions = reactions
@@ -344,7 +351,7 @@ class OnRawReactionClearEmoji(OnRawReactionBase):
         payload: discord.RawReactionClearEmojiEvent,
         *args,
         **kwargs,
-    ):
+    ) -> None:
         super().__init__(*args, **kwargs)
         self.payload = payload
 
@@ -360,14 +367,16 @@ class OnRawReactionClear(OnRawReactionBase):
         payload: discord.RawReactionClearEvent,
         *args,
         **kwargs,
-    ):
+    ) -> None:
         super().__init__(*args, **kwargs)
         self.payload = payload
 
 
 class OnPrivateChannelBase(ClientEvent):
     """Base class for all private channel manipulation related events.
-    Subclasses:
+
+    Subclasses
+    ----------
         `OnPrivateChannelCreate`
         `OnPrivateChannelDelete`
         `OnPrivateChannelUpdate`
@@ -380,7 +389,7 @@ class OnPrivateChannelBase(ClientEvent):
 class _OnPrivateChannelLifeCycle(OnPrivateChannelBase):
     __slots__ = ("channel",)
 
-    def __init__(self, channel: discord.abc.PrivateChannel, *args, **kwargs):
+    def __init__(self, channel: discord.abc.PrivateChannel, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.channel = channel
 
@@ -411,7 +420,7 @@ class OnPrivateChannelUpdate(OnPrivateChannelBase):
         after: discord.abc.PrivateChannel,
         *args,
         **kwargs,
-    ):
+    ) -> None:
         super().__init__(*args, **kwargs)
         self.before = before
         self.after = after
@@ -429,7 +438,7 @@ class OnPrivateChannelPinsUpdate(OnPrivateChannelBase):
         last_pin: datetime.datetime,
         *args,
         **kwargs,
-    ):
+    ) -> None:
         super().__init__(*args, **kwargs)
         self.channel = channel
         self.last_pin = last_pin
@@ -438,19 +447,21 @@ class OnPrivateChannelPinsUpdate(OnPrivateChannelBase):
 class OnGuildBase(ClientEvent):
     """Base class for all guild manipulation related events.
     Also includes manipulation of guild channels.
-    Subclasses:
-        `OnGuildChannelBase`
-        `OnGuildIntegrationsUpdate`
-        `OnWebhooksUpdate`
-        `OnMemberBase`
-        `OnGuildTrafficBase`
-        `OnGuildUpdate`
-        `OnGuildRoleBase`
-        `OnGuildEmojisUpdate`
-        `OnGuildAvailabilityBase`
-        `OnVoiceStateUpdate`
-        `OnMemberBanBase`
-        `OnInviteBase`
+
+    Subclasses
+    ----------
+    - `OnGuildChannelBase`
+    - `OnGuildIntegrationsUpdate`
+    - `OnWebhooksUpdate`
+    - `OnMemberBase`
+    - `OnGuildTrafficBase`
+    - `OnGuildUpdate`
+    - `OnGuildRoleBase`
+    - `OnGuildEmojisUpdate`
+    - `OnGuildAvailabilityBase`
+    - `OnVoiceStateUpdate`
+    - `OnMemberBanBase`
+    - `OnInviteBase`
     """
 
     __slots__ = ()
@@ -458,10 +469,12 @@ class OnGuildBase(ClientEvent):
 
 class OnGuildChannelBase(OnGuildBase):
     """Base class for all guild channel manipulation related events.
-    Subclasses:
-        `OnGuildChannelCreate`
-        `OnGuildChannelDelete`
-        `OnGuildChannelUpdate`
+
+    Subclasses
+    ----------
+    - `OnGuildChannelCreate`
+    - `OnGuildChannelDelete`
+    - `OnGuildChannelUpdate`
     """
 
     __slots__ = ()
@@ -470,7 +483,7 @@ class OnGuildChannelBase(OnGuildBase):
 class _OnGuildChannelLifeCycle(OnGuildChannelBase):
     __slots__ = ("channel",)
 
-    def __init__(self, channel: discord.abc.GuildChannel, *args, **kwargs):
+    def __init__(self, channel: discord.abc.GuildChannel, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.channel = channel
 
@@ -501,7 +514,7 @@ class OnGuildChannelUpdate(OnGuildChannelBase):
         after: discord.abc.GuildChannel,
         *args,
         **kwargs,
-    ):
+    ) -> None:
         super().__init__(*args, **kwargs)
         self.before = before
         self.after = after
@@ -519,7 +532,7 @@ class OnGuildChannelPinsUpdate(OnGuildChannelBase):
         last_pin: datetime.datetime,
         *args,
         **kwargs,
-    ):
+    ) -> None:
         super().__init__(*args, **kwargs)
         self.channel = channel
         self.last_pin = last_pin
@@ -531,7 +544,7 @@ class OnGuildIntegrationsUpdate(OnGuildBase):
     __slots__ = ("guild",)
     ALT_NAME = "guild_integrations_update"
 
-    def __init__(self, guild: discord.abc.GuildChannel, *args, **kwargs):
+    def __init__(self, guild: discord.abc.GuildChannel, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.guild = guild
 
@@ -542,14 +555,15 @@ class OnWebhooksUpdate(OnGuildBase):
     __slots__ = ("channel",)
     ALT_NAME = "webhooks_update"
 
-    def __init__(self, channel: discord.abc.GuildChannel, *args, **kwargs):
+    def __init__(self, channel: discord.abc.GuildChannel, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.channel = channel
 
 
 class OnMemberBase(OnGuildBase):
     """Base class for all guild member related events.
-    Subclasses:
+    Subclasses
+    ----------
         `OnMemberTrafficBase`
         `OnMemberUpdate`
         `OnMemberBanBase`
@@ -561,14 +575,15 @@ class OnMemberBase(OnGuildBase):
 class OnMemberTrafficBase(OnMemberBase):
     """Base class for all guild member traffic, which involve
     members joining and leaving guilds.
-    Subclasses:
+    Subclasses
+    ----------
         `OnMemberJoin`
         `OnMemberRemove`
     """
 
     __slots__ = ("member",)
 
-    def __init__(self, member: discord.Member, *args, **kwargs):
+    def __init__(self, member: discord.Member, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.member = member
 
@@ -593,7 +608,9 @@ class OnMemberUpdate(OnMemberBase):
     __slots__ = ("before", "after")
     ALT_NAME = "member_update"
 
-    def __init__(self, before: discord.Member, after: discord.Member, *args, **kwargs):
+    def __init__(
+        self, before: discord.Member, after: discord.Member, *args, **kwargs
+    ) -> None:
         super().__init__(*args, **kwargs)
         self.before = before
         self.after = after
@@ -605,7 +622,9 @@ class OnUserUpdate(ClientEvent):
     __slots__ = ("before", "after")
     ALT_NAME = "user_update"
 
-    def __init__(self, before: discord.User, after: discord.User, *args, **kwargs):
+    def __init__(
+        self, before: discord.User, after: discord.User, *args, **kwargs
+    ) -> None:
         super().__init__(*args, **kwargs)
         self.before = before
         self.after = after
@@ -613,14 +632,15 @@ class OnUserUpdate(ClientEvent):
 
 class OnGuildTrafficBase(OnGuildBase):
     """Base class for all guild traffic related events, such as the client joining and leaving guilds.
-    Subclasses:
+    Subclasses
+    ----------
         `OnGuildJoin`
         `OnGuildRemove`
     """
 
     __slots__ = ("guild",)
 
-    def __init__(self, guild: discord.Guild, *args, **kwargs):
+    def __init__(self, guild: discord.Guild, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.guild = guild
 
@@ -645,7 +665,9 @@ class OnGuildUpdate(OnGuildBase):
     __slots__ = ("before", "after")
     ALT_NAME = "guild_update"
 
-    def __init__(self, before: discord.Guild, after: discord.Guild, *args, **kwargs):
+    def __init__(
+        self, before: discord.Guild, after: discord.Guild, *args, **kwargs
+    ) -> None:
         super().__init__(*args, **kwargs)
         self.before = before
         self.after = after
@@ -653,10 +675,12 @@ class OnGuildUpdate(OnGuildBase):
 
 class OnGuildRoleBase(OnGuildBase):
     """Base class for all guild role manipulation related events.
-    Subclasses:
-        `OnGuildRoleCreate`
-        `OnGuildRoleDelete`
-        `OnGuildRoleUpdate
+
+    Subclasses
+    ----------
+    - `OnGuildRoleCreate`
+    - `OnGuildRoleDelete`
+    - `OnGuildRoleUpdate
     """
 
     __slots__ = ()
@@ -665,7 +689,7 @@ class OnGuildRoleBase(OnGuildBase):
 class _OnGuildRoleLifeCycle(OnGuildRoleBase):
     __slots__ = ("role",)
 
-    def __init__(self, role: discord.Role, *args, **kwargs):
+    def __init__(self, role: discord.Role, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.role = role
 
@@ -690,7 +714,9 @@ class OnGuildRoleUpdate(OnGuildRoleBase):
     __slots__ = ("before", "after")
     ALT_NAME = "guild_role_update"
 
-    def __init__(self, before: discord.Role, after: discord.Role, *args, **kwargs):
+    def __init__(
+        self, before: discord.Role, after: discord.Role, *args, **kwargs
+    ) -> None:
         super().__init__(*args, **kwargs)
         self.before = before
         self.after = after
@@ -709,7 +735,7 @@ class OnGuildEmojisUpdate(OnGuildBase):
         after: Sequence[discord.Emoji],
         *args,
         **kwargs,
-    ):
+    ) -> None:
         self.guild = guild
         self.before = before
         self.after = after
@@ -717,14 +743,16 @@ class OnGuildEmojisUpdate(OnGuildBase):
 
 class OnGuildAvailabilityBase(OnGuildBase):
     """Base class for all guild availability related events.
-    Subclasses:
-        `OnGuildAvailable`
-        `OnGuildUnavailable`
+
+    Subclasses
+    ----------
+    - `OnGuildAvailable`
+    - `OnGuildUnavailable`
     """
 
     __slots__ = ("guild",)
 
-    def __init__(self, guild: discord.Guild, *args, **kwargs):
+    def __init__(self, guild: discord.Guild, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.guild = guild
 
@@ -756,7 +784,7 @@ class OnVoiceStateUpdate(OnGuildBase):
         after: discord.VoiceState,
         *args,
         **kwargs,
-    ):
+    ) -> None:
         super().__init__(*args, **kwargs)
         self.member = member
         self.before = before
@@ -765,9 +793,11 @@ class OnVoiceStateUpdate(OnGuildBase):
 
 class OnMemberBanBase(OnMemberBase):
     """Base class for all guild member banning related events.
-    Subclasses:
-        `OnMemberBan`
-        `OnMemberUnBan`
+
+    Subclasses
+    ----------
+    - `OnMemberBan`
+    - `OnMemberUnBan`
     """
 
     __slots__ = ()
@@ -782,7 +812,7 @@ class _OnMemberBanToggle(OnMemberBanBase):
         user: Union[discord.Member, discord.User],
         *args,
         **kwargs,
-    ):
+    ) -> None:
         super().__init__(*args, **kwargs)
         self.guild = guild
         self.user = user
@@ -804,9 +834,11 @@ class OnMemberUnban(_OnMemberBanToggle):
 
 class OnInviteBase(OnGuildBase):
     """Base class for all guild invite related events.
-    Subclasses:
-        `OnInviteCreate`
-        `OnInviteDelete`
+
+    Subclasses
+    ----------
+    - `OnInviteCreate`
+    - `OnInviteDelete`
     """
 
     __slots__ = ()
@@ -815,7 +847,7 @@ class OnInviteBase(OnGuildBase):
 class _OnInviteLifeCycle(OnInviteBase):
     __slots__ = ("invite",)
 
-    def __init__(self, invite: discord.Invite, *args, **kwargs):
+    def __init__(self, invite: discord.Invite, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.invite = invite
 

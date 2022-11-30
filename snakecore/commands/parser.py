@@ -96,27 +96,21 @@ class ParsingError(commands.BadArgument):
 
 
 class ArgError(ParsingError):
-    """
-    Base class for positional arguments related exceptions
-    """
+    """Base class for positional arguments related exceptions"""
 
 
 class KwargError(ParsingError):
-    """
-    Base class for keyword arguments related exceptions
-    """
+    """Base class for keyword arguments related exceptions"""
 
 
 class CodeBlock:
-    """
-    Base class to represent code blocks in the argument parser.
+    """Base class to represent code blocks in the argument parser.
     Supports the `discord.ext.commands` converter
     protocol and can be used as a converter.
     """
 
-    def __init__(self, text: str, lang: Optional[str] = None):
-        """
-        Initialise codeblock object. The text argument here is the contents of
+    def __init__(self, text: str, lang: Optional[str] = None) -> None:
+        """Initialise codeblock object. The text argument here is the contents of
         the codeblock. If the optional argument lang is specified, it has to be
         the language type of the codeblock, if not provided, it is determined
         from the text argument itself
@@ -155,16 +149,15 @@ ESCAPES = {
 
 
 class String:
-    """
-    Base class to represent strings in the argument parser. On the discord end
+    """Base class to represent strings in the argument parser. On the discord end
     it is a string enclosed in quotes. Supports the `discord.ext.commands` converter
     protocol and can be used as a converter.
     """
 
-    def __init__(self, string: str):
+    def __init__(self, string: str) -> None:
         self.string = self.escape(string)
 
-    def __bool__(self):
+    def __bool__(self) -> bool:
         return bool(self.string)
 
     @classmethod
@@ -178,9 +171,7 @@ class String:
         return s
 
     def escape(self, string: str):
-        """
-        Convert a "raw" string to one where characters are escaped
-        """
+        """Convert a "raw" string to one where characters are escaped"""
         cnt = 0
         newstr = ""
         while cnt < len(string):
@@ -229,8 +220,7 @@ SPLIT_FLAGS = (("`", CodeBlock), ('"', String), ("'", String))
 
 
 def split_anno(anno: str):
-    """
-    Helper to split an anno string based on commas, but does not split commas
+    """Helper to split an anno string based on commas, but does not split commas
     within nested annotations. Returns a generator of strings.
     """
     nest_cnt = 0
@@ -252,9 +242,7 @@ def split_anno(anno: str):
 
 
 def strip_optional_anno(anno: str) -> str:
-    """
-    Helper to strip "Optional" anno
-    """
+    """Helper to strip "Optional" anno"""
     anno = anno.strip()
     if anno.startswith("Optional[") and anno.endswith("]"):
         # call recursively to split "Optional" chains
@@ -264,9 +252,7 @@ def strip_optional_anno(anno: str) -> str:
 
 
 def split_union_anno(anno: str):
-    """
-    Helper to split a 'Union' annotation. Returns a generator of strings.
-    """
+    """Helper to split a 'Union' annotation. Returns a generator of strings."""
     anno = strip_optional_anno(anno)
     if anno.startswith("Union[") and anno.endswith("]"):
         for anno in split_anno(anno[6:-1]):
@@ -277,8 +263,7 @@ def split_union_anno(anno: str):
 
 
 def split_tuple_anno(anno: str):
-    """
-    Helper to split a 'tuple' annotation.
+    """Helper to split a 'tuple' annotation.
     Returns None if anno is not a valid tuple annotation
     """
     if anno.lower() == "tuple":
@@ -289,9 +274,7 @@ def split_tuple_anno(anno: str):
 
 
 def get_anno_error(anno: str) -> str:
-    """
-    Get error message to display to user when user has passed invalid arg
-    """
+    """Get error message to display to user when user has passed invalid arg"""
     union_errors = []
     for subanno in split_union_anno(anno):
         tupled = split_tuple_anno(subanno)
@@ -325,8 +308,7 @@ def get_anno_error(anno: str) -> str:
 
 
 def split_args(split_str: str):
-    """
-    Utility function to do the first parsing step to split input string based
+    """Utility function to do the first parsing step to split input string based
     on seperators like code ticks and quotes (strings).
     Returns a generator of Codeblock objects, String objects and str.
     """
@@ -403,8 +385,7 @@ def split_args(split_str: str):
 
 
 def parse_args(cmd_str: str):
-    """
-    Custom parser for handling arguments. This function parses the source
+    """Custom parser for handling arguments. This function parses the source
     string of the command into the command name, a list of arguments and a
     dictionary of keyword arguments. Arguments will only contain strings,
     'CodeBlock' objects, 'String' objects and tuples.
@@ -417,9 +398,7 @@ def parse_args(cmd_str: str):
     prevkey = None  # temporarily store previous key name
 
     def append_arg(arg: Any):
-        """
-        Internal helper function to append a parsed argument into arg/kwarg/tuple
-        """
+        """Internal helper function to append a parsed argument into arg/kwarg/tuple"""
         nonlocal prevkey
         if temp_list is not None:
             # already in a tuple, flush arg into that
@@ -547,8 +526,7 @@ async def cast_basic_arg(
     anno: str,
     arg: Any,
 ) -> Any:
-    """
-    Helper to cast an argument to the type mentioned by the parameter
+    """Helper to cast an argument to the type mentioned by the parameter
     annotation. This casts an argument in its "basic" form, where both argument
     and typehint are "simple", that does not contain stuff like Union[...],
     tuple[...], etc.
@@ -823,9 +801,7 @@ async def cast_arg(
     key: Optional[str] = None,
     convert_error: bool = True,
 ) -> Any:
-    """
-    Cast an argument to the type mentioned by the paramenter annotation
-    """
+    """Cast an argument to the type mentioned by the paramenter annotation"""
     if isinstance(param, str):
         anno = param
 

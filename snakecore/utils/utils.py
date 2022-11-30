@@ -42,9 +42,7 @@ from typing_extensions import Self
 
 
 def join_readable(joins: list[str]):
-    """
-    Join a list of strings, in a human readable way
-    """
+    """Join a list of strings, in a human readable way"""
     if not joins:
         return ""
 
@@ -56,9 +54,7 @@ def join_readable(joins: list[str]):
 
 
 def clamp(value, min_, max_):
-    """
-    Returns the value clamped between a maximum and a minumum
-    """
+    """Returns the value clamped between a maximum and a minumum"""
     value = value if value > min_ else min_
     return value if value < max_ else max_
 
@@ -67,9 +63,7 @@ def is_emoji_equal(
     partial_emoji: discord.PartialEmoji,
     emoji: Union[str, discord.Emoji, discord.PartialEmoji],
 ):
-    """
-    Utility to compare a partial emoji with any other kind of emoji
-    """
+    """Utility to compare a partial emoji with any other kind of emoji"""
     if isinstance(emoji, discord.PartialEmoji):
         return partial_emoji == emoji
 
@@ -83,9 +77,7 @@ def is_emoji_equal(
 
 
 def format_discord_link(link: str, guild_id_or_me: Union[int, Literal["@me"]]):
-    """
-    Format a discord link to a channel or message
-    """
+    """Format a discord link to a channel or message"""
     link = link.lstrip("<").rstrip(">").rstrip("/")
 
     for prefix in (
@@ -101,9 +93,7 @@ def format_discord_link(link: str, guild_id_or_me: Union[int, Literal["@me"]]):
 def progress_bar(
     pct: float, full_bar: str = "█", empty_bar: str = "░", divisions: int = 10
 ):
-    """
-    A simple horizontal progress bar generator.
-    """
+    """A simple horizontal progress bar generator."""
     pct = 0 if pct < 0 else 1 if pct > 1 else pct
     return full_bar * (int(divisions * pct)) + empty_bar * (
         divisions - int(divisions * pct)
@@ -135,26 +125,37 @@ def format_time_by_units(
     fractional time unit(s). The time units range from nanoseconds to weeks.
 
 
-    Args:
-        dt (Union[datetime.timedelta, int, float]): The relative input time in seconds.
-        decimal_places (int, optional): The decimal places to be used in the formatted output
-          time. Only applies when `multi_units` is `False`. Defaults to 4.
-        value_unit_space (bool, optional): Whether to add a whitespace character before the name
-          of a time unit. Defaults to True.
-        full_unit_names (bool, optional): Use full unit names (like 'week' instead of 'w').
-          Defaults to False.
-        multi_units (bool, optional): Whether the formatted output string should use multiple
-          units in descending order to divide up the input time. Defaults to False.
-        whole_units (bool, optional): Whether whole units above or equal to one should be
-          used as units. Defaults to True.
-        fractional_units (bool, optional): Whether fractional units less than or equal to one
-          should be used as units. Defaults to True.
+    Parameters
+    ----------
+    dt : Union[datetime.timedelta, int, float]
+        The relative input time in seconds.
+    decimal_places : int, optional
+        The decimal places to be used in the formatted output time. Only applies when
+        `multi_units` is `False`. Defaults to 4.
+    value_unit_space : bool, optional
+        Whether to add a whitespace character before the name of a time unit.
+        Defaults to True.
+    full_unit_names : bool, optional
+        Use full unit names (like 'week' instead of 'w'). Defaults to False.
+    multi_units : bool, optional
+        Whether the formatted output string should use multiple units in descending order
+        to divide up the input time. Defaults to False.
+    whole_units : bool, optional
+        Whether whole units above or equal to one should be used as units.
+        Defaults to True.
+    fractional_units : bool, optional
+        Whether fractional units less than or equal to one should be used as units.
+        Defaults to True.
 
-    Returns:
-        str: The formatted time string.
+    Returns
+    -------
+    str
+        The formatted time string.
 
-    Raises:
-        ValueError: `dt` was not positive.
+    Raises
+    ------
+    ValueError
+        `dt` was not positive.
     """
 
     if isinstance(dt, datetime.timedelta):
@@ -231,19 +232,23 @@ def format_byte(
     the size with an equal or larger size unit. The units
     range from bytes to gigabytes.
 
-    Args:
-        size (int): The size in bytes.
-        decimal_places (Optional[int], optional): The exact decimal places to display in the
-          formatting output. If omitted, the Python `float` class's string version
-          will be used to automatically choose the needed decimal places.
-          Defaults to None.
-        full_unit_names (bool, optional): Use full unit names (like 'gigabyte'
-          instead of 'GB'). Defaults to False.
-        base_2_units (bool, optional): Whether powers of 2 should be used as size units.
-          Defaults to False.
+    Parameters
+    ----------
+    size : int
+        The size in bytes.
+    decimal_places : Optional[int], optional
+        The exact decimal places to display in the formatting output.
+        If omitted, the Python `float` class's string version will be used to
+        automatically choose the needed decimal places. Defaults to None.
+    full_unit_names : bool, optional
+        Use full unit names (like 'gigabyte' instead of 'GB'). Defaults to False.
+    base_2_units : bool, optional
+        Whether powers of 2 should be used as size units. Defaults to False.
 
-    Returns:
-        str: The formatted size string.
+    Returns
+    -------
+    str
+        The formatted size string.
     """
 
     name_idx = 1 if full_unit_names else 0
@@ -261,9 +266,7 @@ def format_byte(
 
 
 def split_long_message(message: str, limit: int = 2000):
-    """
-    Splits message string by 2000 characters with safe newline splitting
-    """
+    """Splits message string by 2000 characters with safe newline splitting"""
     split_output: list[str] = []
     lines = message.split("\n")
     temp = ""
@@ -282,9 +285,7 @@ def split_long_message(message: str, limit: int = 2000):
 
 
 def format_code_exception(exc, pops: int = 1):
-    """
-    Provide a formatted exception for code snippets
-    """
+    """Provide a formatted exception for code snippets"""
     tbs = traceback.format_exception(type(exc), exc, exc.__traceback__)
     # Pop out the first entry in the traceback, because that's
     # this function call itself
@@ -307,14 +308,20 @@ def extract_markdown_mention_id(markdown_mention: str) -> int:
     or '<#6969...>'.
     Does not validate for the existence of those ids.
 
-    Args:
-        markdown_mention (str): The mention string.
+    Parameters
+    ----------
+    markdown_mention : str
+        The mention string.
 
-    Returns:
-        int: The extracted integer id.
+    Returns
+    -------
+    int
+        The extracted integer id.
 
-    Raises:
-        ValueError: Invalid Discord markdown mention string.
+    Raises
+    ------
+    ValueError
+        Invalid Discord markdown mention string.
     """
 
     match = re.match(regex_patterns.USER_ROLE_CHANNEL_MENTION, markdown_mention)
@@ -333,29 +340,38 @@ def is_markdown_mention(string: str) -> bool:
     or '<#6969...>'.
     Does not validate for the actual existence of the mention targets.
 
-    Args:
-        string (str): The string to check for.
+    Parameters
+    ----------
+    string : str
+        The string to check for.
 
-    Returns:
-        bool: True/False
+    Returns
+    -------
+    bool
+        ``True`` if condition is met, ``False`` otherwise.
     """
     return bool(re.match(regex_patterns.USER_ROLE_CHANNEL_MENTION, string))
 
 
 def extract_markdown_custom_emoji_id(markdown_emoji: str) -> int:
-    """
-    Extract the id '123456789696969' from a Discord markdown custom emoji string with
+    """Extract the id '123456789696969' from a Discord markdown custom emoji string with
     the structure '<:custom_emoji:123456789696969>'. Also includes animated emojis.
     Does not validate for the existence of the ids.
 
-    Args:
-        markdown_emoji (str): The markdown custom emoji string.
+    Parameters
+    ----------
+    markdown_emoji  : str
+        The markdown custom emoji string.
 
-    Returns:
-        int: The extracted integer id.
+    Returns
+    -------
+    int
+        The extracted integer id.
 
-    Raises:
-        ValueError: Invalid Discord markdown custom emoji string.
+    Raises
+    ------
+    ValueError
+        Invalid Discord markdown custom emoji string.
     """
 
     emoji_pattern = regex_patterns.CUSTOM_EMOJI
@@ -370,17 +386,20 @@ def extract_markdown_custom_emoji_id(markdown_emoji: str) -> int:
 
 
 def is_markdown_custom_emoji(string: str) -> bool:
-    """
-    Whether the given string matches the structure of a custom Discord markdown emoji
+    """Whether the given string matches the structure of a custom Discord markdown emoji
     string with the structure '<:custom_emoji:123456789696969>'. Also includes animated
     emojis.
     Does not validate for the existence of the specified emoji markdown.
 
-    Args:
-        string (str): The string to check for.
+    Parameters
+    ----------
+    string : str
+        The string to check for.
 
-    Returns:
-        bool: True/False
+    Returns
+    -------
+    bool
+        ``True`` if condition is met, ``False`` otherwise.
     """
     return bool(re.match(regex_patterns.CUSTOM_EMOJI, string))
 
@@ -390,11 +409,15 @@ def is_emoji_shortcode(string: str) -> bool:
     which is ':{unicode_characters}:'. No whitespace is allowed.
     Does not validate for the existence of the emoji shortcodes on Discord.
 
-    Args:
-        string (str): The string to check for.
+    Parameters
+    ----------
+    string : str
+        The string to check for.
 
-    Returns:
-        bool: True/False
+    Returns
+    -------
+    bool
+        `True` if condition is met, `False` otherwise.
     """
     return bool(re.match(regex_patterns.EMOJI_SHORTCODE, string))
 
@@ -405,14 +428,20 @@ def extract_markdown_timestamp(markdown_timestamp: str) -> int:
     '<t:6969...[:t|T|d|D|f|F|R]>'.
     Does not check the extracted timestamps for validity.
 
-    Args:
-        markdown_timestamp (str): The markdown timestamp string.
+    Parameters
+    ----------
+    markdown_timestamp : str
+        The markdown timestamp string.
 
-    Returns:
-        int: The extracted UNIX timestamp.
+    Returns
+    -------
+    int
+        The extracted UNIX timestamp.
 
-    Raises:
-        ValueError: Invalid Discord markdown timestamp string.
+    Raises
+    ------
+    ValueError
+        invalid Discord markdown timestamp string.
     """
 
     ts_md_pattern = regex_patterns.UNIX_TIMESTAMP
@@ -428,23 +457,27 @@ def is_markdown_timestamp(string: str) -> int:
     string with the structure '<t:6969...>' or '<t:6969...[:t|T|d|D|f|F|R]>'.
     Does not check timestamps for validity.
 
-    Args:
-        string (str): The string to check for.
+    Parameters
+    ----------
+    string : str
+        The string to check for.
 
-    Returns:
-        bool: True/False
+    Returns
+    -------
+    bool
+        `True` if condition is met, `False` otherwise.
 
-    Raises:
-        ValueError: Invalid Discord markdown timestamp string.
+    Raises
+    ------
+    ValueError
+        Invalid Discord markdown timestamp string.
     """
 
     return bool(re.match(regex_patterns.UNIX_TIMESTAMP, string))
 
 
 def code_block(string: str, max_characters: int = 2048, code_type: str = "") -> str:
-    """
-    Formats text into discord code blocks
-    """
+    """Formats text into discord code blocks"""
     string = string.replace("```", "\u200b`\u200b`\u200b`\u200b")
     len_ticks = 7 + len(code_type)
 
@@ -473,33 +506,32 @@ def have_permissions_in_channels(
     to evaluate this kind of query: Do/Does ... the given member(s) or role(s) have ...
     the given permission(s) in ... the given channel(s)?
 
-    Args:
-        members_or_roles (Union[
-            discord.Member, discord.Role, Sequence[Union[discord.Member, discord.Role]]
-        ]):
-          The target Discord member(s) or role(s).
-        channels (Union[
-            discord.abc.GuildChannel,
-            discord.DMChannel,
-            Sequence[Union[discord.abc.GuildChannel, discord.DMChannel]],
-        ]):
-          The target channel(s) to check permissions on.
-        *permissions (str): The lowercase attribute name(s) to check for
-          the `discord.Permissions` data class, which represent the different available
-          permissions.
-        member_role_bool_func (Callable[[Iterable[Any]], bool], optional): A function
-          that takes in the result of `channel_bool_func()` for every of the given
-          role(s) or member(s) as an iterable and returns a boolean value.
-          Defaults to `all`.
-        permission_bool_func (Callable[[Iterable[Any]], bool], optional): A function
-          that takes in an iterable of the boolean values for every permission
-          and returns a boolean value. Defaults to `all`.
-        channel_bool_func (Callable[[Iterable[Any]], bool], optional): A function
-          that takes in the result of `permission_bool_func()` for every of the given
-          channel(s) as an iterable and returns a boolean value. Defaults to `all`.
+    Parameters
+    ----------
+    members_or_roles : Union[discord.Member, discord.Role, Sequence[Union[discord.Member, discord.Role]]]
+        The target Discord member(s) or role(s).
+    channels : Union[discord.abc.GuildChannel, discord.DMChannel, Sequence[Union[discord.abc.GuildChannel, discord.DMChannel]]]
+        The target channel(s) to check permissions on.
+    *permissions : str
+        The lowercase attribute name(s) to check for
+        the `discord.Permissions` data class, which represent the different available
+        permissions. These must match those supported by `discord.py`.
+    member_role_bool_func : Callable[[Iterable[Any]], bool], optional
+        A function that takes in the result of `channel_bool_func()` for every of
+        the given role(s) or member(s) as an iterable and returns a boolean value.
+        Defaults to `all`.
+    permission_bool_func : Callable[[Iterable[Any]], bool], optional
+        A function that takes in an iterable of the boolean values for every permission
+        and returns a boolean value. Defaults to `all`.
+    channel_bool_func : Callable[[Iterable[Any]], bool], optional
+        A function that takes in the result of `permission_bool_func()` for every of
+        the given channel(s) as an iterable and returns a boolean value.
+        Defaults to `all`.
 
-    Returns:
-        bool: True/False
+    Returns
+    -------
+    bool
+        `True` if condition is met, `False` otherwise.
     """
 
     if isinstance(
@@ -524,8 +556,7 @@ def have_permissions_in_channels(
 def create_markdown_timestamp(
     dt: Union[int, float, datetime.datetime], tformat: str = "f"
 ) -> str:
-    """
-    Get a discord timestamp formatted string that renders it correctly on the
+    """Get a discord timestamp formatted string that renders it correctly on the
     discord end. dt can be UNIX timestamp or datetime object while tformat
     can be one of:
     "f" (default) short datetime
@@ -549,8 +580,7 @@ def recursive_mapping_compare(
     ignore_keys_missing_in_target: bool = False,
     _final_bool: bool = True,
 ):
-    """
-    Compare the key and values of one mapping with those of another,
+    """Compare the key and values of one mapping with those of another,
     But recursively do the same for mapping values that are mappings as well.
     based on the answers in
     https://stackoverflow.com/questions/3232943/update-value-of-a-nested-dictionary-of-varying-depth
@@ -595,8 +625,7 @@ def recursive_mapping_update(
     add_new_keys: bool = True,
     skip_value: str = UNSET,
 ):
-    """
-    Update one mapping with another, similar to `dict.update()`,
+    """Update one mapping with another, similar to `dict.update()`,
     But recursively update mapping values that are mappings as well.
     based on the answers in
     https://stackoverflow.com/questions/3232943/update-value-of-a-nested-dictionary-of-varying-depth
@@ -630,8 +659,7 @@ def recursive_mapping_delete(
     skip_value: str = UNSET,
     inverse: bool = False,
 ):
-    """
-    Delete mapping entries present in another,
+    """Delete mapping entries present in another,
     But recursively do the same for mapping values that are mappings as well.
     based on the answers in
     https://stackoverflow.com/questions/3232943/update-value-of-a-nested-dictionary-of-varying-depth
@@ -682,9 +710,9 @@ def recursive_mapping_delete(
 
 def recursive_mapping_cast(
     old_mapping: MutableMapping,
-    cast_to: Type[Mapping],
+    cast_to: type[Mapping],
     cast_from: Optional[
-        Union[Type[MutableMapping], tuple[Type[MutableMapping], ...]]
+        Union[type[MutableMapping], tuple[type[MutableMapping], ...]]
     ] = None,
 ):
     """Recursively cast the `MutableMapping` given as input to the `Mapping` type specified in `cast_to`,
@@ -692,17 +720,24 @@ def recursive_mapping_cast(
     a casted version of the mapping given as input. To prevent an original mapping from being modified,
     a deep-copied version of the mapping should be passed to this function.
 
-    Args:
-        old_mapping (MutableMapping): The input mapping.
-        cast_to (Type[Mapping]): The mapping type to cast to.
-        cast_from (Optional[Union[Type[MutableMapping], tuple[Type[MutableMapping], ...]]], optional):
-          The mapping type whose found instances should be casted. Defaults to None.
+    Parameters
+    ----------
+    old_mapping : MutableMapping
+        The input mapping.
+    cast_to : type[Mapping]
+        The mapping type to cast to.
+    cast_from : Optional[Union[type[MutableMapping], tuple[type[MutableMapping], ...]]], optional
+        The mapping type whose found instances should be casted. Defaults to None.
 
-    Raises:
-        TypeError: `old_mapping`, `cast_from` or `cast_to` were of an invalid type.
+    Raises
+    ------
+    TypeError
+        `old_mapping`, `cast_from` or `cast_to` were of an invalid type.
 
-    Returns:
-        Mapping: The casted version of a mapping given as input.
+    Returns
+    -------
+    Mapping
+        The casted version of a mapping given as input.
     """
 
     if not isinstance(old_mapping, MutableMapping):
@@ -731,8 +766,8 @@ def recursive_mapping_cast(
 
 def _recursive_mapping_cast(
     old_mapping: MutableMapping,
-    cast_to: Type[Mapping],
-    cast_from: Union[Type[MutableMapping], tuple[Type[MutableMapping], ...]],
+    cast_to: type[Mapping],
+    cast_from: Union[type[MutableMapping], tuple[type[MutableMapping], ...]],
 ):
     for k in old_mapping:
         if isinstance(old_mapping[k], cast_from):
@@ -745,12 +780,11 @@ class FastChainMap(collections.ChainMap):
     optimized versions of some of its superclass's methods.
     """
 
-    def __init__(self, *maps, ignore_defaultdicts: bool = False):
+    def __init__(self, *maps, ignore_defaultdicts: bool = False) -> None:
         """Initialize a FastChainMap by setting *maps* to the given mappings.
         If no mappings are provided, a single empty dictionary is used.
         *ignore_defaultdicts* can be used to speed up lookups by ignoring
         defaultdict objects during key lookup.
-
         """
         self.maps = list(maps) or [{}]  # always at least one map
         self.ignore_defaultdicts = ignore_defaultdicts
@@ -913,7 +947,7 @@ class BoundedOrderedDict(OrderedDict[_KT, _VT]):
     if a maximum length was set for it, similar to `deque`.
     """
 
-    def __init__(self, *args: Any, maxlen: Optional[int] = None, **kwds: Any):
+    def __init__(self, *args: Any, maxlen: Optional[int] = None, **kwds: Any) -> None:
         super().__init__(*args, **kwds)
         if maxlen is not None:
             if not isinstance(maxlen, int):
@@ -935,7 +969,7 @@ class BoundedOrderedDict(OrderedDict[_KT, _VT]):
             self._check_maxlen_reached()
 
     @property
-    def maxlen(self):
+    def maxlen(self) -> Optional[int]:
         return self.__maxlen
 
     def __setitem__(self, __key: _KT, __value: _VT) -> None:
@@ -956,7 +990,7 @@ class BoundedOrderedDict(OrderedDict[_KT, _VT]):
 
         return value
 
-    def _check_maxlen_reached(self):
+    def _check_maxlen_reached(self) -> None:
         length = len(self)
         maxlen = self.__maxlen
         if maxlen is not None and length > maxlen:
@@ -967,25 +1001,25 @@ class BoundedOrderedDict(OrderedDict[_KT, _VT]):
 class DequeProxy(Sequence[_T], Generic[_T]):
     __slots__ = ("__deque",)
 
-    def __init__(self, deque_obj: deque[_T]):
+    def __init__(self, deque_obj: deque[_T]) -> None:
         self.__deque = deque_obj
 
     @property
-    def maxlen(self):
+    def maxlen(self) -> Optional[int]:
         return self.__deque.maxlen
 
-    def __copy__(self):
+    def __copy__(self) -> Self:
         return self.__class__(self.__deque)
 
     copy = __copy__
 
-    def count(self, __x: Any):
+    def count(self, __x: Any) -> int:
         return self.__deque.count(__x)
 
     def index(self, __x: Any, **kwargs) -> int:
         return self.__deque.index(__x, **kwargs)
 
-    def __len__(self):
+    def __len__(self) -> int:
         return self.__deque.__len__()
 
     def __lt__(self, __other: deque, /):
@@ -1009,7 +1043,7 @@ class DequeProxy(Sequence[_T], Generic[_T]):
     def __bool__(self) -> bool:
         return bool(self.__deque)
 
-    def __contains__(self, __o: object):
+    def __contains__(self, __o: object) -> bool:
         return self.__deque.__contains__(__o)
 
     def __getitem__(self, __index: int, /):
@@ -1043,13 +1077,15 @@ _global_task_set: set[
 # to reference loss, not to be modified manually
 
 
-def hold_task(task: asyncio.Task):
+def hold_task(task: asyncio.Task[Any]) -> None:
     """Store an `asyncio.Task` object in a container to place a protective reference
     on it in order to prevent its loss at runtime. The given task will be given a
     callback that automatically removes it from the container when it is done.
 
-    Args:
-        task (asyncio.Task): The task.
+    Parameters
+    ----------
+    task : asyncio.Task[Any]
+        The task.
     """
     if task in _global_task_set:
         return

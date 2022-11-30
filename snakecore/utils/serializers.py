@@ -7,7 +7,7 @@ This file implements wrapper classes used to pickle Discord models and dataclass
 """
 
 import io
-from typing import Optional, Type
+from typing import Any, Optional, Type, Union
 
 import discord
 
@@ -15,6 +15,8 @@ from snakecore import config
 from snakecore.constants import NoneType
 from snakecore.exceptions import DeserializationError
 from snakecore.utils import recursive_mapping_compare
+
+from typing_extensions import Self
 
 _DISCORD_MODEL_SERIAL_MAP = {}
 
@@ -35,7 +37,7 @@ class BaseSerializer:
 
     DATA_FORMAT = {}
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._dict = None
 
     def __getstate__(self):
@@ -57,18 +59,24 @@ class BaseSerializer:
         return False
 
     @classmethod
-    def from_dict(cls, data: dict, _verify_format: bool = True):
+    def from_dict(cls, data: dict[str, Any], _verify_format: bool = True) -> Self:
         """Create a new serializer object of this type from the
         serialized input data.
 
-        Args:
-            data (dict): The serialized input data.
+        Parameters
+        ----------
+        data : dict[str, Any]
+            The serialized input data.
 
-        Raises:
-            TypeError: Invalid argument for `data`.
-            ValueError: Invalid data format.
+        Raises
+        ------
+        TypeError
+            Invalid argument for `data`.
+        ValueError
+            Invalid data format.
 
-        Returns:
+        Returns
+        -------
             object: The serializer object.
         """
         if not isinstance(data, dict):
@@ -86,39 +94,46 @@ class BaseSerializer:
         instance._dict = data.copy()
         return instance
 
-    def to_dict(self):
+    def to_dict(self) -> dict[str, Any]:
         """Return the serialized data of this serializer object as a dictionary.
 
-        Returns:
-            dict: The serialized data.
+        Returns
+        -------
+            dict[str, Any]: The serialized data.
         """
         return dict(**self._dict)  # type: ignore
 
     serialized = to_dict
 
-    def deserialized(self):
+    def deserialized(self) -> Any:
         """A method meant to be overloaded,
         which is for deserializing the serialized data of this
         serializer object back into a specific python object
         it was made for.
 
-        Raises:
-            NotImplementedError: This method must be overloaded in subclasses.
+        Raises
+        ------
+        NotImplementedError
+            This method must be overloaded in subclasses.
         """
         raise NotImplementedError()
 
-    async def deserialized_async(self, *args, **kwargs):
+    async def deserialized_async(self, *args, **kwargs) -> Any:
         """An asynchronous version of `deserialized()`
         that other `BaseSerializer` subclasses are
         meant to overload. The default implementation
         of this method calls the `deserialized()`
         method and returns its output.
 
-        Returns:
-            object: The reconstruction output.
+        Returns
+        -------
+        Any
+            The reconstruction output.
 
-        Raises:
-            NotImplementedError: No reconstruction methods were implemented.
+        Raises
+        ------
+        NotImplementedError
+            No reconstruction methods were implemented.
         """
         if not self.IS_ASYNC:
             return self.deserialized(*args, **kwargs)
@@ -134,7 +149,7 @@ class UserSerializer(DiscordObjectBaseSerializer):
     IS_ASYNC = True
     DATA_FORMAT = {"user_id": int}
 
-    def __init__(self, user: discord.User):
+    def __init__(self, user: discord.User) -> None:
         self._dict = {
             "user_id": user.id,
         }
@@ -166,7 +181,7 @@ class MemberSerializer(DiscordObjectBaseSerializer):
         "guild_id": int,
     }
 
-    def __init__(self, member: discord.Member):
+    def __init__(self, member: discord.Member) -> None:
         self._dict = {"member_id": member.id, "guild_id": member.guild.id}
 
     async def deserialized_async(
@@ -208,7 +223,7 @@ class GuildSerializer(DiscordObjectBaseSerializer):
         "guild_id": int,
     }
 
-    def __init__(self, guild: discord.Guild):
+    def __init__(self, guild: discord.Guild) -> None:
         self._dict = {
             "guild_id": guild.id,
         }
@@ -238,7 +253,7 @@ class EmojiSerializer(DiscordObjectBaseSerializer):
         "emoji_id": int,
     }
 
-    def __init__(self, emoji: discord.Emoji):
+    def __init__(self, emoji: discord.Emoji) -> None:
         self._dict = {
             "emoji_id": emoji.id,
         }
@@ -263,7 +278,7 @@ class PartialEmojiSerializer(DiscordObjectBaseSerializer):
         },
     }
 
-    def __init__(self, emoji: discord.PartialEmoji):
+    def __init__(self, emoji: discord.PartialEmoji) -> None:
         self._dict = {
             "partial_emoji": emoji.to_dict(),
         }
@@ -280,7 +295,7 @@ class FileSerializer(DiscordObjectBaseSerializer):
         "spoiler": bool,
     }
 
-    def __init__(self, file: discord.File):
+    def __init__(self, file: discord.File) -> None:
         self._dict = {"filename": file.filename, "spoiler": file.spoiler}
         if isinstance(file.fp, str):
             self._dict.update(
@@ -334,7 +349,7 @@ class RoleSerializer(DiscordObjectBaseSerializer):
         "guild_id": int,
     }
 
-    def __init__(self, role: discord.Role):
+    def __init__(self, role: discord.Role) -> None:
         self._dict = {"role_id": role.id, "guild_id": role.guild.id}
 
     async def deserialized_async(
@@ -358,6 +373,7 @@ class RoleSerializer(DiscordObjectBaseSerializer):
                 f'{self._dict["role_id"]}'
             ) from None
 
+        assert guild
         role = guild.get_role(self._dict["role_id"])
         if role is None:
             if always_fetch:
@@ -384,7 +400,7 @@ class PermissionsSerializer(DiscordObjectBaseSerializer):
         "permission_value": int,
     }
 
-    def __init__(self, permissions: discord.Permissions):
+    def __init__(self, permissions: discord.Permissions) -> None:
         self._dict = {"permission_value": permissions.value}
 
     def deserialized(self):
@@ -397,7 +413,7 @@ class PermissionOverwriteSerializer(DiscordObjectBaseSerializer):
         "permission_overwrite_deny_value": int,
     }
 
-    def __init__(self, permission_overwrite: discord.PermissionOverwrite):
+    def __init__(self, permission_overwrite: discord.PermissionOverwrite) -> None:
         allow, deny = permission_overwrite.pair()
         self._dict = {
             "permission_overwrite_allow_value": allow.value,
@@ -421,16 +437,16 @@ class AllowedMentionsSerializer(DiscordObjectBaseSerializer):
         "users": (bool, list),
     }
 
-    def __init__(self, allowed_mentions: discord.AllowedMentions):
+    def __init__(self, allowed_mentions: discord.AllowedMentions) -> None:
         self._dict = {
             "everyone": bool(allowed_mentions.everyone),
             "replied_user": bool(allowed_mentions.replied_user),
             "roles": bool(allowed_mentions.roles)
             if not isinstance(allowed_mentions.roles, list)
-            else [RoleSerializer(role).serialized() for role in allowed_mentions.roles],
+            else [RoleSerializer(role).serialized() for role in allowed_mentions.roles],  # type: ignore
             "users": bool(allowed_mentions.users)
             if not isinstance(allowed_mentions.users, list)
-            else [UserSerializer(user).serialized() for user in allowed_mentions.users],
+            else [UserSerializer(user).serialized() for user in allowed_mentions.users],  # type: ignore
         }
 
     async def deserialized_async(self, always_fetch: Optional[bool] = None):
@@ -455,7 +471,7 @@ class AllowedMentionsSerializer(DiscordObjectBaseSerializer):
 class ColourSerializer(DiscordObjectBaseSerializer):
     DATA_FORMAT = {"color": int}
 
-    def __init__(self, color: discord.Color):
+    def __init__(self, color: discord.Color) -> None:
         self._dict = {"color": color.value}
 
     def deserialized(self):
@@ -468,7 +484,7 @@ ColorSerializer = ColourSerializer
 class ActivitySerializer(DiscordObjectBaseSerializer):
     DATA_FORMAT = {"dict": dict}
 
-    def __init__(self, activity: discord.Activity):
+    def __init__(self, activity: discord.Activity) -> None:
         self._dict = {"dict": activity.to_dict()}
 
     def deserialized(self):
@@ -480,7 +496,7 @@ class GameSerializer(DiscordObjectBaseSerializer):
         "game": {"type": int, "name": str, "timestamps": {"start": int, "end": int}}
     }
 
-    def __init__(self, game: discord.Game):
+    def __init__(self, game: discord.Game) -> None:
         self._dict = {"game": game.to_dict()}
 
     def deserialized(self):
@@ -498,7 +514,7 @@ class StreamingSerializer(DiscordObjectBaseSerializer):
         }
     }
 
-    def __init__(self, streaming: discord.Streaming):
+    def __init__(self, streaming: discord.Streaming) -> None:
         self._dict = {"streaming": streaming.to_dict()}
 
     def deserialized(self):
@@ -508,7 +524,7 @@ class StreamingSerializer(DiscordObjectBaseSerializer):
 class IntentsSerializer(DiscordObjectBaseSerializer):
     DATA_FORMAT = {"intents": int}
 
-    def __init__(self, intents: discord.Intents):
+    def __init__(self, intents: discord.Intents) -> None:
         self._dict = {"intents": intents.value}
 
     def deserialized(self):
@@ -520,7 +536,7 @@ class IntentsSerializer(DiscordObjectBaseSerializer):
 class MemberCacheFlagsSerializer(DiscordObjectBaseSerializer):
     DATA_FORMAT = {"member_cache_flags": int}
 
-    def __init__(self, member_cache_flags: discord.MemberCacheFlags):
+    def __init__(self, member_cache_flags: discord.MemberCacheFlags) -> None:
         self._dict = {"member_cache_flags": member_cache_flags.value}
 
     def deserialized(self):
@@ -532,7 +548,7 @@ class MemberCacheFlagsSerializer(DiscordObjectBaseSerializer):
 class SystemChannelFlagsSerializer(DiscordObjectBaseSerializer):
     DATA_FORMAT = {"system_channel_flags": int}
 
-    def __init__(self, system_channel_flags: discord.SystemChannelFlags):
+    def __init__(self, system_channel_flags: discord.SystemChannelFlags) -> None:
         self._dict = {"system_channel_flags": system_channel_flags.value}
 
     def deserialized(self):
@@ -544,7 +560,7 @@ class SystemChannelFlagsSerializer(DiscordObjectBaseSerializer):
 class MessageFlagsSerializer(DiscordObjectBaseSerializer):
     DATA_FORMAT = {"message_flags": int}
 
-    def __init__(self, message_flags: discord.MessageFlags):
+    def __init__(self, message_flags: discord.MessageFlags) -> None:
         self._dict = {"message_flags": message_flags.value}
 
     def deserialized(self):
@@ -556,7 +572,7 @@ class MessageFlagsSerializer(DiscordObjectBaseSerializer):
 class PublicUserFlagsSerializer(DiscordObjectBaseSerializer):
     DATA_FORMAT = {"public_user_flags": int}
 
-    def __init__(self, public_user_flags: discord.PublicUserFlags):
+    def __init__(self, public_user_flags: discord.PublicUserFlags) -> None:
         self._dict = {"public_user_flags": public_user_flags.value}
 
     def deserialized(self):
@@ -574,7 +590,7 @@ class MessageSerializer(DiscordObjectBaseSerializer):
         "message_id": int,
     }
 
-    def __init__(self, message: discord.Message):
+    def __init__(self, message: discord.Message) -> None:
         self._dict = {
             "guild_id": message.guild.id if message.guild is not None else None,
             "message_id": message.id,
@@ -630,7 +646,8 @@ class MessageSerializer(DiscordObjectBaseSerializer):
                         f'{self._dict["message_id"]}'
                     ) from None
 
-        message = await channel.fetch_message(self._dict["message_id"])
+        assert channel
+        message = await channel.fetch_message(self._dict["message_id"])  # type: ignore
         return message
 
 
@@ -642,17 +659,17 @@ class MessageReferenceSerializer(DiscordObjectBaseSerializer):
         "fail_if_not_exists": bool,
     }
 
-    def __init__(self, message_reference: discord.MessageReference):
+    def __init__(self, message_reference: discord.MessageReference) -> None:
         self._dict = {"dict": message_reference.to_dict()}
 
     def deserialized(self):
-        return discord.MessageReference(**self._dict["dict"])
+        return discord.MessageReference(**self._dict["dict"])  # type: ignore
 
 
 class EmbedSerializer(DiscordObjectBaseSerializer):
     DATA_FORMAT = {"embed": dict}
 
-    def __init__(self, embed: discord.Embed):
+    def __init__(self, embed: discord.Embed) -> None:
         self._dict = {
             "embed": embed.to_dict(),
         }
@@ -665,7 +682,12 @@ class ChannelSerializer(DiscordObjectBaseSerializer):
     IS_ASYNC = True
     DATA_FORMAT = {"channel_id": int}
 
-    def __init__(self, channel: discord.abc.Messageable):
+    def __init__(
+        self,
+        channel: Union[
+            discord.abc.GuildChannel, discord.Thread, discord.abc.PrivateChannel
+        ],
+    ) -> None:
         self._dict = {
             "channel_id": channel.id,
         }
@@ -693,7 +715,7 @@ class ChannelSerializer(DiscordObjectBaseSerializer):
 class GuildChannelSerializer(ChannelSerializer):
     DATA_FORMAT = {"channel_id": int, "guild_id": int}
 
-    def __init__(self, channel: discord.abc.GuildChannel):
+    def __init__(self, channel: discord.abc.GuildChannel) -> None:
         super().__init__(channel=channel)
         self._dict.update(guild_id=channel.guild.id)
 
@@ -789,7 +811,7 @@ class ThreadSerializer(DiscordObjectBaseSerializer):
                         f'{self._dict["guild_id"]}'
                     ) from None
 
-            thread = channel.get_thread(self._dict["thread_id"])
+            thread = channel.get_thread(self._dict["thread_id"])  # type: ignore
 
             if thread is None:
                 if always_fetch:
@@ -805,32 +827,32 @@ class ThreadSerializer(DiscordObjectBaseSerializer):
 
 
 class TextChannelSerializer(GuildChannelSerializer):
-    def __init__(self, channel: discord.TextChannel):
+    def __init__(self, channel: discord.TextChannel) -> None:
         super().__init__(channel=channel)
 
 
 class VoiceChannelSerializer(GuildChannelSerializer):
-    def __init__(self, channel: discord.VoiceChannel):
+    def __init__(self, channel: discord.VoiceChannel) -> None:
         super().__init__(channel=channel)
 
 
 class StageChannelSerializer(GuildChannelSerializer):
-    def __init__(self, channel: discord.StageChannel):
+    def __init__(self, channel: discord.StageChannel) -> None:
         super().__init__(channel=channel)
 
 
 class _PrivateChannelSerializer(ChannelSerializer):
-    def __init__(self, channel: discord.abc.PrivateChannel):
+    def __init__(self, channel: discord.abc.PrivateChannel) -> None:
         super().__init__(channel=channel)
 
 
 class GroupChannelSerializer(_PrivateChannelSerializer):
-    def __init__(self, channel: discord.GroupChannel):
+    def __init__(self, channel: discord.GroupChannel) -> None:
         super().__init__(channel=channel)
 
 
 class DMChannelSerializer(_PrivateChannelSerializer):
-    def __init__(self, channel: discord.DMChannel):
+    def __init__(self, channel: discord.DMChannel) -> None:
         super().__init__(channel=channel)
 
 

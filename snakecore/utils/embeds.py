@@ -13,11 +13,12 @@ from ast import literal_eval
 from typing import (
     Any,
     Literal,
-    MutableMapping,
+    Mapping,
     Optional,
     Sequence,
     TypedDict,
     Union,
+    overload,
 )
 
 import black
@@ -222,19 +223,26 @@ def create_embed_mask_dict(
     modifying embed dictionaries. All embed attributes are set to `None` by default,
     which will be ignored by `discord.Embed`.
 
-    Args:
-        attributes (str, optional): The attribute string. Defaults to "", which will
+    Parameters
+    ----------
+    attributes : str, optional
+        The attribute string. Defaults to "", which will
         returned all valid attributes of an embed.
-        allow_system_attributes (bool, optional): Whether to include embed attributes
-        that can not be manually set by bot users. Defaults to False.
-        fields_as_field_dict (bool, optional): Whether the embed `fields` attribute
-          returned in the output dictionary of this function should be a dictionary
-          that maps stringized indices to embed field dictionaries. Defaults to False.
+    allow_system_attributes : bool, optional
+        Whether to include embed attributes that can not be manually set by bot users.
+        Defaults to False.
+    fields_as_field_dict : bool, optional
+        Whether the embed `fields` attribute
+        returned in the output dictionary of this function should be a dictionary
+        that maps stringized indices to embed field dictionaries. Defaults to False.
 
-    Raises:
-        ValueError: Invalid embed attribute string.
+    Raises
+    ------
+    ValueError
+        Invalid embed attribute string.
 
-    Returns:
+    Returns
+    -------
         dict: The generated embed with the specified attributes set to None.
     """
 
@@ -433,21 +441,26 @@ def create_embed_mask_dict(
 
 
 def split_embed_dict(
-    embed_dict: MutableMapping[str, Any], divide_code_blocks: bool = True
-):
+    embed_dict: dict[str, Any], divide_code_blocks: bool = True
+) -> list[dict[str, Any]]:
     """Split an embed dictionary into multiple valid embed dictionaries based on embed text
     attribute character limits and the total character limit of a single embed in a single
     message. This function will not correct invalid embed attributes or add any missing
     required ones.
 
-    Args:
-        embed_dict (dict): The target embed.
-        divide_code_blocks (bool, optional): Whether to divide code blocks into two
-           valid ones, if they contain a division point of an embed text attribute.
-          Defaults to True.
+    Parameters
+    ----------
+    embed_dict : dict[str, Any]
+        The target embed dictionary.
+    divide_code_blocks : bool, optional
+        Whether to divide code blocks into two
+        valid ones, if they contain a division point of an embed text attribute.
+        Defaults to True.
 
-    Returns:
-        list[dict]: A list of newly generated embed dictionaries.
+    Returns
+    -------
+    list[dict[str, Any]]
+        A list of newly generated embed dictionaries.
     """
 
     embed_dict = copy_embed_dict(embed_dict)
@@ -1073,14 +1086,18 @@ def split_embed_dict(
     return embed_dicts
 
 
-def check_embed_dict_char_count(embed_dict: MutableMapping[str, Any]) -> int:
+def check_embed_dict_char_count(embed_dict: Mapping[str, Any]) -> int:
     """Count the number of characters in the text fields of an embed dictionary.
 
-    Args:
-        embed_dict (dict): The target embed dictionary.
+    Parameters
+    ----------
+    embed_dict : Mapping[str, Any]
+        The target embed dictionary.
 
-    Returns:
-        int: The character count.
+    Returns
+    -------
+    int
+        The character count.
     """
     count = 0
 
@@ -1100,15 +1117,19 @@ def check_embed_dict_char_count(embed_dict: MutableMapping[str, Any]) -> int:
     return count
 
 
-def validate_embed_dict_char_count(embed_dict: MutableMapping[str, Any]) -> bool:
+def validate_embed_dict_char_count(embed_dict: Mapping[str, Any]) -> bool:
     """Check if all text attributes of an embed dictionary are below their respective
     character limits.
 
-    Args:
-        embed_dict (dict): The target embed dictionary.
+    Parameters
+    ----------
+    embed_dict : Mappint[str, Any]
+        The target embed dictionary.
 
-    Returns:
-        bool: The result.
+    Returns
+    -------
+    bool
+        The result.
     """
 
     count = 0
@@ -1161,15 +1182,19 @@ def validate_embed_dict_char_count(embed_dict: MutableMapping[str, Any]) -> bool
     return count <= EMBED_TOTAL_CHAR_LIMIT
 
 
-def validate_embed_dict(embed_dict: MutableMapping[str, Any]) -> bool:
+def validate_embed_dict(embed_dict: Mapping[str, Any]) -> bool:
     """Checks if an embed dictionary can produce
     a viable embed on Discord. This also includes keeping to character limits on all
     embed attributes.
 
-    Args:
-        embed_dict (dict): The target embed dictionary
+    Parameters
+    ----------
+    embed_dict : Mapping[str, Any]
+        The target embed dictionary.
 
-    Returns:
+    Returns
+    -------
+    bool
         A boolean indicating the validity of the
         given input embed dictionary.
 
@@ -1248,23 +1273,39 @@ def validate_embed_dict(embed_dict: MutableMapping[str, Any]) -> bool:
     return validate_embed_dict_char_count(embed_dict)
 
 
+@overload
+def filter_embed_dict(embed_dict: dict[str, Any]) -> None:
+    ...
+
+
+@overload
 def filter_embed_dict(
-    embed_dict: MutableMapping[str, Any], in_place: bool = True
-) -> Optional[MutableMapping[str, Any]]:
+    embed_dict: dict[str, Any], in_place: bool = True
+) -> dict[str, Any]:
+    ...
+
+
+def filter_embed_dict(
+    embed_dict: dict[str, Any], in_place: bool = True
+) -> Optional[dict[str, Any]]:
     """Delete invalid embed attributes in the given embed dictionary that would cause
     exceptionsfor structural errors. Note that the output embed dictionary of this
     function might still not be a viable embed dictionary to be sent to Discord's
     servers.
 
-    Args:
-        embed_dict (dict): The target embed dictionary.
-        in_place (bool, optional): Whether to do this operation on the given embed
-          dictionary "in place" and to return `None` instead of a new dictionary.
-          Defaults to True.
+    Parameters
+    ----------
+    embed_dict : dict[str, Any]
+        The target embed dictionary.
+    in_place : bool, optional
+        Whether to do this operation on the given embed
+        dictionary "in place" and to return `None` instead of a new dictionary.
+         Defaults to True.
 
-    Returns:
-        Optional[MutableMapping[str, Any]]: A new filtered embed dictionary or `None` depending on the
-          given arguments.
+    Returns
+    -------
+    Optional[dict[str, Any]]
+        A new filtered embed dictionary or `None` depending on the given arguments.
     """
 
     if not in_place:
@@ -1348,20 +1389,38 @@ def filter_embed_dict(
     return None
 
 
+@overload
 def handle_embed_dict_timestamp(
-    embed_dict: MutableMapping[str, Any], *, in_place: bool = True
-) -> Optional[MutableMapping[str, Any]]:
+    embed_dict: dict[str, Any],
+) -> None:
+    ...
+
+
+@overload
+def handle_embed_dict_timestamp(
+    embed_dict: dict[str, Any], *, in_place: bool = True
+) -> dict[str, Any]:
+    ...
+
+
+def handle_embed_dict_timestamp(
+    embed_dict: dict[str, Any], *, in_place: bool = True
+) -> Optional[dict[str, Any]]:
     """Correct or delete the `"timestamp"` key's value in an embed dictionary.
 
-    Args:
-        embed_dict (dict): The embed dictionary.
-        in_place (bool, optional): Whether to do this operation on the given embed
-          dictionary "in place" and to return `None` instead of a new dictionary.
-          Defaults to True.
+    Parameters
+    ----------
+    embed_dict : dict
+        The embed dictionary.
+    in_place : bool, optional
+        Whether to do this operation on the given embed
+        dictionary "in place" and to return `None` instead of a new dictionary.
+         Defaults to True.
 
-    Returns:
-        Optional[MutableMapping[str, Any]]: A new embed dictionary, depending on which arguments were
-          given.
+    Returns
+    -------
+    Optional[dict[str, Any]]
+        A new embed dictionary, depending on which arguments were given.
     """
 
     if not in_place:
@@ -1387,14 +1446,17 @@ def handle_embed_dict_timestamp(
     return
 
 
-def copy_embed_dict(embed_dict: MutableMapping[str, Any]) -> dict:
+def copy_embed_dict(embed_dict: Mapping[str, Any]) -> dict[str, Any]:
     """Make a shallow copy of the given embed dictionary,
     and embed fields (if present).
 
-    Args:
-        embed_dict (dict): The target embed dictionary.
+    Parameters
+    ----------
+    embed_dict : Mapping[str, Any]
+        The target embed dictionary.
 
-    Returns:
+    Returns
+    -------
         dict: The copy.
     """
     # prevents shared reference bugs to attributes shared by the outputs of
@@ -1412,17 +1474,19 @@ def copy_embed_dict(embed_dict: MutableMapping[str, Any]) -> dict:
 
 def parse_embed_field_strings(
     *strings: str,
-) -> list[dict[str, Union[str, bool]]]:
+) -> list[dict[str, Any]]:
     """Extract embed field string syntax from the given string(s).
     Syntax of an embed field string: `<name|value[|inline]>`.
 
-    Args:
-        *strings (str): The target strings to extract from.
-        return_field_lists (bool, optional): _description_. Defaults to True.
+    Parameters
+    ----------
+    *strings : str
+        The target strings to extract from.
 
-    Returns:
-        list[dict[str, Union[str, bool]]]: A list of embed
-          field dictionaries with keys `"name"`, `"value"` and `"inline"`.
+    Returns
+    -------
+    list[dict[str, Any]]:
+        A list of embed field dictionaries with keys `"name"`, `"value"` and `"inline"`.
     """
     # syntax: <name|value[|inline=False]>
     field_regex = r"(<.*\|.*(\|True|\|False|\|1|\|0|)>)"
@@ -1457,8 +1521,7 @@ def parse_embed_field_strings(
 
 
 def parse_condensed_embed_list(embed_list: Union[list, tuple]) -> FlattenedEmbedDict:
-    """
-    Parses the condensed embed list syntax used in some embed creation
+    """Parses the condensed embed list syntax used in some embed creation
     commands. The syntax is:
     ```py
     [
@@ -1616,7 +1679,7 @@ def create_embed_as_dict(
     footer_text: Optional[str] = None,
     footer_icon_url: Optional[str] = None,
     timestamp: Optional[Union[str, datetime.datetime]] = None,
-) -> dict:
+) -> dict[str, Any]:
 
     embed_dict = {}
 
@@ -1689,7 +1752,8 @@ def create_embed(
 ) -> discord.Embed:
     """Create an embed using the specified arguments.
 
-    Args:
+    Parameters
+    ----------
         author_name (Optional[str], optional): The value for `author.name`.
           Defaults to None.
         author_url (Optional[str], optional): The value for `author.url`.
@@ -1722,11 +1786,14 @@ def create_embed(
         timestamp (Optional[Union[str, datetime.datetime]], optional): The value for
           `timestamp`. Defaults to None.
 
-    Returns:
+    Returns
+    -------
         Embed: The created embed.
 
-    Raises:
-        TypeError: invalid argument types.
+    Raises
+    ------
+        TypeError
+            invalid argument types.
     """
     embed = discord.Embed(
         title=title,
@@ -1798,7 +1865,8 @@ def edit_embed(
 
     """Edit a given embed using the specified arguments.
 
-    Args:
+    Parameters
+    ----------
         embed (discord.Embed): The target embed.
         in_place (bool, optional): Whether to do this operation on the given embed
           "in place" and to return `None` instead of a new embed.
@@ -1841,12 +1909,16 @@ def edit_embed(
         timestamp (Optional[Union[str, datetime.datetime]], optional): The value for
           `timestamp`. Defaults to None.
 
-    Returns:
+    Returns
+    -------
         Optional[discord.Embed]: A new embed with edits applied or `None`.
 
-    Raises:
-        ValueError: Invalid argument structure.
-        TypeError: Invalid argument type.
+    Raises
+    ------
+        ValueError
+            Invalid argument structure.
+        TypeError
+            Invalid argument type.
     """
 
     if in_place:
@@ -1961,7 +2033,7 @@ def edit_embed(
             embed.set_footer(text=footer_text, icon_url=footer_icon_url)
 
     else:
-        old_embed_dict: MutableMapping[str, Any] = embed.to_dict()  # type: ignore
+        old_embed_dict: dict[str, Any] = embed.to_dict()  # type: ignore
         update_embed_dict = create_embed_as_dict(
             author_name=author_name,
             author_url=author_url,
@@ -2032,7 +2104,8 @@ async def send_embed(
     """Create an embed using the given arguments and send it to a
     `discord.abc.Messageable` and return the resulting message.
 
-    Args:
+    Parameters
+    ----------
         channel (discord.abc.Messageable): The messageable object to send
           an embed into.
         author_name (Optional[str], optional): The value for `author.name`.
@@ -2067,7 +2140,8 @@ async def send_embed(
         timestamp (Optional[Union[str, datetime.datetime]], optional): The value for
           `timestamp`. Defaults to None.
 
-    Returns:
+    Returns
+    -------
         Message: The message of the embed.
     """
 
@@ -2113,7 +2187,8 @@ async def replace_embed_at(
     """Create an embed using the specified arguments and use it to replace
     another embed of a given message at the specified index.
 
-    Args:
+    Parameters
+    ----------
         message (discord.Message): The target message.
         index (Optional[int], optional): The optional index of the embed to replace. A value of
           `None` means that all existing embeds will be removed and replaced with the
@@ -2153,7 +2228,8 @@ async def replace_embed_at(
         timestamp (Optional[Union[str, datetime.datetime]], optional): The value for
           `timestamp`. Defaults to None.
 
-    Returns:
+    Returns
+    -------
         Message: The edited message or the input message depending on the given
           arguments.
     """
@@ -2216,7 +2292,8 @@ async def edit_embed_at(
     """Edit an embed of the given message at the specified index using the specified
     arguments.
 
-    Args:
+    Parameters
+    ----------
         message (discord.Embed): The message of the target embed.
         index (int, optional): The optional index of the embed to replace. If the
           supplied index is out of the range for the message's list of embeds,
@@ -2261,12 +2338,16 @@ async def edit_embed_at(
         timestamp (Optional[Union[str, datetime.datetime]], optional): The value for
           `timestamp`. Defaults to None.
 
-    Returns:
+    Returns
+    -------
         discord.Message: A new message with edits applied or the input message.
 
-    Raises:
-        ValueError: Invalid argument structure.
-        TypeError: Invalid argument type.
+    Raises
+    ------
+        ValueError
+            Invalid argument structure.
+        TypeError
+            Invalid argument type.
     """
 
     embeds = message.embeds.copy()
@@ -2299,13 +2380,15 @@ async def edit_embed_at(
     return await message.edit(embeds=embeds)
 
 
-def create_embed_from_dict(embed_dict: MutableMapping[str, Any]) -> discord.Embed:
+def create_embed_from_dict(embed_dict: dict[str, Any]) -> discord.Embed:
     """Create an embed from a given embed dictionary.
 
-    Args:
+    Parameters
+    ----------
         data (dict): The embed dictionary.
 
-    Returns:
+    Returns
+    -------
         discord.Embed: The new embed.
     """
     embed_dict = copy_embed_dict(embed_dict)
@@ -2323,13 +2406,14 @@ async def send_embeds_from_dicts(channel: discord.abc.Messageable, *embed_dicts:
 
 async def replace_embed_from_dict_at(
     message: discord.Message,
-    embed_dict: MutableMapping[str, Any],
+    embed_dict: dict[str, Any],
     index: Optional[int] = None,
 ):
     """Create an embed using the specified embed dictionary and use it to replace
     another embed of a given message at the specified index.
 
-    Args:
+    Parameters
+    ----------
         message (discord.Message): The target message.
         index (Optional[int], optional): The optional index of the embed to replace. A value of
           `None` means that all existing embeds will be removed and replaced with the
@@ -2339,7 +2423,8 @@ async def replace_embed_from_dict_at(
           `10` and above `-11`. Defaults to None.
         embed_dict (dict): The embed dictionary used for replacement.
 
-    Returns:
+    Returns
+    -------
         discord.Message: The edited message or the input message depending on the given
           arguments.
     """
@@ -2365,7 +2450,7 @@ async def replace_embed_from_dict_at(
 
 async def edit_embed_from_dict_at(
     message: discord.Message,
-    embed_dict: MutableMapping[str, Any],
+    embed_dict: dict[str, Any],
     index: int = 0,
     add_attributes: bool = True,
     edit_inner_fields: bool = False,
@@ -2373,7 +2458,8 @@ async def edit_embed_from_dict_at(
     """Edit an embed of a given message at the specified index using the given embed
     dictionary.
 
-    Args:
+    Parameters
+    ----------
         message (discord.Message): The target message.
         index (int, optional): The index of the embed to edit.
           If the supplied index is out of the range for the message's list of embeds,
@@ -2381,7 +2467,8 @@ async def edit_embed_from_dict_at(
           also supported. Defaults to 0.
         embed_dict (dict): The embed dictionary used for editing.
 
-    Returns:
+    Returns
+    -------
         discord.Message: The edited message or the input message depending on the given
           arguments.
     """
@@ -2412,14 +2499,15 @@ async def edit_embed_from_dict_at(
 
 def edit_embed_from_dict(
     embed: discord.Embed,
-    update_embed_dict: MutableMapping[str, Any],
+    update_embed_dict: dict[str, Any],
     in_place: bool = True,
     add_attributes: bool = True,
     edit_inner_fields: bool = False,
 ) -> Optional[discord.Embed]:
     """Edit the attributes of a given embed using another dictionary.
 
-    Args:
+    Parameters
+    ----------
         embed (discord.Embed): The target embed.
         update_embed_dict (dict): The embed dictionary used for modification.
         in_place (bool, optional): Whether to do this operation on the given embed
@@ -2630,15 +2718,16 @@ def edit_embed_from_dict(
 
 
 def edit_embed_dict_from_dict(
-    old_embed_dict: MutableMapping[str, Any],
-    update_embed_dict: MutableMapping[str, Any],
+    old_embed_dict: dict[str, Any],
+    update_embed_dict: dict[str, Any],
     in_place: bool = True,
     add_attributes: bool = True,
     edit_inner_fields: bool = False,
-) -> Optional[MutableMapping[str, Any]]:
+) -> Optional[dict[str, Any]]:
     """Edit the attributes of a given embed dictionary using another dictionary.
 
-    Args:
+    Parameters
+    ----------
         old_embed_dict (dict): The target embed dictionary.
         update_embed_dict (dict): The embed dictionary used for modification.
         in_place (bool, optional): Whether to do this operation on the given embed
@@ -2650,8 +2739,9 @@ def edit_embed_dict_from_dict(
           of an embed as one unit or to modify the embeds fields themselves, one by
           one. Defaults to False.
 
-    Returns:
-        Optional[MutableMapping[str, Any]]: A new embed dictionary or `None` depending on the given
+    Returns
+    -------
+        Optional[dict[str, Any]]: A new embed dictionary or `None` depending on the given
           arguments.
     """
 
@@ -2742,18 +2832,23 @@ def add_embed_fields_from_dicts(
 ) -> Optional[discord.Embed]:
     """Add embed fields to an embed from the given embed field dictionaries.
 
-    Args:
+    Parameters
+    ----------
         embed (discord.Embed): The target embed.
         in_place (bool, optional): Whether to do this operation on the given embed
           "in place" and to return `None` instead of a new embed. Defaults to True.
 
-    Returns:
+    Returns
+    -------
         Optional[discord.Embed]: A new embed or `None` depending on the given
           arguments.
 
-    Raises:
-        TypeError: Invalid argument types.
-        ValueError: Invalid argument structure.
+    Raises
+    ------
+        TypeError
+            Invalid argument types.
+        ValueError
+            Invalid argument structure.
     """
 
     if not in_place:
@@ -2803,14 +2898,16 @@ def insert_embed_fields_from_dicts(
     """Insert embed fields to an embed at a specified index from the given
     embed field dictionaries.
 
-    Args:
+    Parameters
+    ----------
         embed (discord.Embed): The target embed.
         index (int): The index to insert the fields at.
         *field_dicts (dict): The embed field dictionaries.
         in_place (bool, optional): Whether to do this operation on the given embed
           "in place" and to return `None` instead of a new embed. Defaults to True.
 
-    Returns:
+    Returns
+    -------
         Optional[discord.Embed]: A new embed or `None` depending on the given
           arguments.
     """
@@ -2874,9 +2971,7 @@ def edit_embed_field_from_dict(
 def edit_embed_fields_from_dicts(
     embed: discord.Embed, *field_dicts: dict, in_place: bool = True
 ) -> Optional[discord.Embed]:
-    """
-    Edits embed fields in the embed of a message from dictionaries
-    """
+    """Edits embed fields in the embed of a message from dictionaries"""
 
     if not in_place:
         embed = embed.copy()
@@ -2914,8 +3009,7 @@ def edit_embed_fields_from_dicts(
 async def remove_embed_fields(
     embed: discord.Embed, *field_indices: int, in_place: bool = True
 ) -> Optional[discord.Embed]:
-    """
-    Removes multiple embed fields of the embed of a message from a
+    """Removes multiple embed fields of the embed of a message from a
     dictionary
     """
 
@@ -2942,8 +3036,7 @@ async def remove_embed_fields(
 def swap_embed_fields(
     embed: discord.Embed, index_a: int, index_b: int, in_place: bool = True
 ) -> Optional[discord.Embed]:
-    """
-    Swaps two embed fields of the embed of a message from a
+    """Swaps two embed fields of the embed of a message from a
     dictionary
     """
 
@@ -2970,9 +3063,7 @@ def swap_embed_fields(
 
 
 async def clone_embed_field(embed: discord.Embed, index: int, in_place: bool = True):
-    """
-    Duplicates an embed field
-    """
+    """Duplicates an embed field"""
 
     if not in_place:
         embed = embed.copy()
@@ -3001,8 +3092,7 @@ async def clone_embed_fields(
     insertion_index: Optional[Union[int, Sequence[int]]] = None,
     in_place: bool = True,
 ):
-    """
-    Duplicates multiple embed fields of the embed of a message
+    """Duplicates multiple embed fields of the embed of a message
     from a dictionary
     """
 
@@ -3071,8 +3161,7 @@ def import_embed_data(
     ] = "JSON_STRING",
     output_format: Literal["STRING", "DICTIONARY"] = "DICTIONARY",
 ):
-    """
-    Import embed data from a file or a string containing JSON
+    """Import embed data from a file or a string containing JSON
     or a Python dictionary and return it as a Python dictionary or string.
     """
 
@@ -3211,9 +3300,7 @@ def export_embed_data(
     as_json: bool = True,
     always_return: bool = False,
 ) -> Optional[str]:
-    """
-    Export embed data to serialized JSON or a Python dictionary and store it in a file or a string.
-    """
+    """Export embed data to serialized JSON or a Python dictionary and store it in a file or a string."""
 
     if as_json:
         return_data = None

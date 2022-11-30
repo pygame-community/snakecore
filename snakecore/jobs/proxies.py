@@ -21,6 +21,7 @@ from typing import (
     TypedDict,
     Union,
     no_type_check,
+    overload,
 )
 
 from snakecore import events
@@ -50,7 +51,7 @@ class JobProxy:
         "_job_bools",
     )
 
-    def __init__(self, job: "jobs.JobBase"):
+    def __init__(self, job: "jobs.JobBase") -> None:
         self.__j: Optional["jobs.JobBase"] = job
         self._cache_current_job_state()
 
@@ -104,12 +105,12 @@ class JobProxy:
 
     @property
     def creator(self) -> Optional["JobProxy"]:
-        """The `JobProxy` of the creator of this job."""
+        """`Optional[JobProxy]`: The `JobProxy` of the creator of this job."""
         return self.__creator
 
     @property
     def guardian(self) -> Optional["JobProxy"]:
-        """The `JobProxy` of the current guardian of this job."""
+        """`Optional[JobProxy]`: The `JobProxy` of the current guardian of this job."""
         return self.__j._guardian if self.__j is not None else None
 
     @property
@@ -342,7 +343,7 @@ class JobOutputQueueProxy:
         "_output_queue_proxy_dict",
     )
 
-    def __init__(self, job: jobs.JobBase):
+    def __init__(self, job: jobs.JobBase) -> None:
         self.__j = job
         self.__job_class = job.__class__
         self.__job_proxy = job._proxy
@@ -356,12 +357,8 @@ class JobOutputQueueProxy:
         self._default_queue_config = {"use_rescue_buffer": False}
 
     @property
-    def job_proxy(self):
-        """The job this output queue proxy is pointing to.
-
-        Returns:
-            JobProxy: The job proxy.
-        """
+    def job_proxy(self) -> "JobProxy":
+        """`JobProxy`: The job this output queue proxy is pointing to."""
         return self.__job_proxy
 
     def verify_output_queue_support(
@@ -371,19 +368,27 @@ class JobOutputQueueProxy:
         output queue proxy's job. Disabled output queue names are seen
         as unsupported.
 
-        Args:
-            queue_name (str): The name of the output queue to set.
-            raise_exceptions (Optional[bool], optional): Whether exceptions should
-              be raised. Defaults to False.
+        Parameters
+        ----------
+        queue_name : str
+            The name of the output queue to set.
+        raise_exceptions : Optional[bool], optional
+            Whether exceptions should be raised. Defaults to False.
 
-        Raises:
-            TypeError: `queue_name` is not a string.
-            ValueError: The specified queue name was marked as disabled.
-            LookupError: The specified queue name is not defined by this
-              output queue proxy's job.
+        Raises
+        ------
+        TypeError
+            `queue_name` is not a string.
+        ValueError
+            The specified queue name was marked as disabled.
+        LookupError
+            The specified queue name is not defined by this
+            output queue proxy's job.
 
-        Returns:
-            bool: True/False
+        Returns
+        -------
+        bool
+            ``True`` if condition is met, ``False`` otherwise.
         """
         return self.__job_class.verify_output_queue_support(
             queue_name, raise_exceptions=raise_exceptions
@@ -391,14 +396,17 @@ class JobOutputQueueProxy:
 
     def config_output_queue(
         self, queue_name: str, use_rescue_buffer: Optional[bool] = None
-    ):
+    ) -> None:
         """Configure settings for a specified output queue.
 
-        Args:
-            queue_name (str): The name of the output queue to set.
-            use_rescue_buffer (Optional[bool], optional): Set up a rescue buffer for
-              the specified output queue, which automatically collects queue values
-              when a job cleares a queue. Defaults to None.
+        Parameters
+        ----------
+        queue_name : str
+            The name of the output queue to set.
+        use_rescue_buffer : Optional[bool], optional
+            Set up a rescue buffer for the specified output queue, which
+            automatically collects queue values when a job cleares a
+            queue. Defaults to None.
         """
         self.verify_output_queue_support(queue_name, raise_exceptions=True)
 
@@ -414,19 +422,22 @@ class JobOutputQueueProxy:
         elif use_rescue_buffer is False:
             self._output_queue_proxy_dict[queue_name]["rescue_buffer"] = None
 
-    def config_output_queue_defaults(self, use_rescue_buffer: Optional[bool] = None):
+    def config_output_queue_defaults(
+        self, use_rescue_buffer: Optional[bool] = None
+    ) -> None:
         """Configure default settings for output queues.
 
-        Args:
-            use_rescue_buffer (Optional[bool], optional): Set up a rescue buffer for
-              an output queue, which automatically collects queue values
-              when a job cleares a queue. Defaults to None.
+        Parameters
+        ----------
+        use_rescue_buffer : Optional[bool], optional
+            Set up a rescue buffer for an output queue, which automatically collects
+            queue values when a job cleares a queue. Defaults to None.
         """
 
         if use_rescue_buffer is not None:
             self._default_queue_config["use_rescue_buffer"] = bool(use_rescue_buffer)
 
-    def _output_queue_clear_alert(self, queue_name: str):
+    def _output_queue_clear_alert(self, queue_name: str) -> None:
         # Alerts OutputQueueProxy objects that their job
         # object is about to clear its output queues.
         queue_dict = self._output_queue_proxy_dict[queue_name]
@@ -436,7 +447,7 @@ class JobOutputQueueProxy:
 
         queue_dict["index"] = 0
 
-    def _new_output_queue_alert(self, queue_name: str, queue_dict: list):
+    def _new_output_queue_alert(self, queue_name: str, queue_dict: list) -> None:
         if queue_name not in self._output_queue_proxy_dict:
             self._output_queue_proxy_dict[queue_name] = {
                 "index": 0,
@@ -449,27 +460,44 @@ class JobOutputQueueProxy:
         if self._default_queue_config["use_rescue_buffer"]:
             self._output_queue_proxy_dict[queue_name]["rescue_buffer"] = deque()
 
+    @overload
+    def pop_output_queue(self, queue_name: str, amount: Optional[int] = None) -> Any:
+        ...
+
+    @overload
     def pop_output_queue(
         self, queue_name: str, amount: Optional[int] = None, all_values: bool = False
-    ):
+    ) -> list[Any]:
+        ...
+
+    def pop_output_queue(
+        self, queue_name: str, amount: Optional[int] = None, all_values: bool = False
+    ) -> Union[list[Any], Any]:
         """Get the oldest or a list of the specified amount of oldest entries in the
         specified output queue.
 
-        Args:
-            queue_name (str): The name of the target output queue.
-            amount (Optional[int], optional): The maximum amount of entries to return.
-              If there are less entries available than this amount, only
-              Defaults to None.
-            all_entries (bool, optional): Whether all entries should be released at once.
-              Defaults to False.
+        Parameters
+        ----------
+        queue_name : str
+            The name of the target output queue.
+        amount : Optional[int], optional
+            The maximum amount of entries to return.
+            If there are less entries available than this amount, only
+            Defaults to None.
+        all_entries : bool, optional
+            Whether all entries should be released at once. Defaults to False.
 
-        Raises:
-            LookupError: The target queue is exhausted, or empty.
+        Returns
+        -------
+        Union[list[Any], Any]
+            The oldest value, or a list of the specified amount of them, if possible.
 
-        Returns:
-            object: The oldest value, or a list of the specified amount of them, if
-              possible.
+        Raises
+        ------
+        LookupError
+            The target queue is exhausted, or empty.
         """
+
         self.verify_output_queue_support(queue_name, raise_exceptions=True)
 
         queue_dict = self._output_queue_proxy_dict[queue_name]
@@ -512,21 +540,31 @@ class JobOutputQueueProxy:
 
         raise TypeError(f"argument 'amount' must be None or a positive integer")
 
-    def output_queue_is_empty(self, queue_name: str, ignore_rescue_buffer=False):
+    def output_queue_is_empty(
+        self, queue_name: str, ignore_rescue_buffer: bool = False
+    ) -> bool:
         """Whether the specified output queue is empty.
 
-        Args:
-            queue_name (str): The name of the target output queue.
-            ignore_rescue_buffer (bool): Whether the contents of the rescue buffer
-              should be considered as well. Defaults to False.
+        Parameters
+        ----------
+        queue_name : str
+            The name of the target output queue.
+        ignore_rescue_buffer : bool
+            Whether the contents of the rescue buffer
+            should be considered as well. Defaults to False.
 
-        Raises:
-            TypeError: `queue_name` is not a string.
-            LookupError: The specified queue name is not defined by this output
+        Returns
+        -------
+        bool
+            ``True`` if condition is met, ``False`` otherwise.
+
+        Raises
+        ------
+        TypeError
+            `queue_name` is not a string.
+        LookupError
+            The specified queue name is not defined by this output
             queue proxy's job.
-
-        Returns:
-            bool: True/False
         """
 
         self.verify_output_queue_support(queue_name, raise_exceptions=True)
@@ -537,23 +575,30 @@ class JobOutputQueueProxy:
         queue_dict = self._output_queue_proxy_dict[queue_name]
         return not queue_dict["rescue_buffer"] and not queue_dict["job_output_queue"]
 
-    def output_queue_is_exhausted(self, queue_name: str):
+    def output_queue_is_exhausted(self, queue_name: str) -> bool:
         """Whether the specified output queue is exhausted,
         meaning that no new values are available.
 
-        Args:
-            queue_name (str): The name of the target output queue.
-            ignore_rescue_buffer (bool): Whether the contents of
-            the rescue buffer should be considered as well.
+        Parameters
+        ----------
+        queue_name : str
+            The name of the target output queue.
+        ignore_rescue_buffer : bool
+            Whether the contents of the rescue buffer should be considered as well.
             Defaults to False.
 
-        Raises:
-            TypeError: `queue_name` is not a string.
-            LookupError: The specified queue name is not defined by
-              this output queue proxy's job.
+        Returns
+        -------
+        bool
+            ``True`` if condition is met, ``False`` otherwise.
 
-        Returns:
-            bool: True/False
+        Raises
+        ------
+            TypeError
+            `queue_name` is not a string.
+            LookupError
+            The specified queue name is not defined by
+              this output queue proxy's job.
         """
 
         self.verify_output_queue_support(queue_name, raise_exceptions=True)
@@ -577,23 +622,30 @@ class JobOutputQueueProxy:
         """Wait for the job object of this output queue proxy to add to the specified
         output queue while it is running, using the coroutine output of this method.
 
-        Args:
-            timeout (float, optional): The maximum amount of time to wait in seconds.
-              Defaults to None.
-            cancel_if_cleared (bool): Whether `asyncio.CancelledError` should be
-              raised if the output queue is cleared. If set to `False`, `UNSET`
-              will be the result of the coroutine. Defaults to False.
+        Parameters
+        ----------
+        timeout : float, optional
+            The maximum amount of time to wait in seconds. Defaults to None.
+        cancel_if_cleared : bool
+            Whether `asyncio.CancelledError` should be raised if the output queue is
+            cleared. If set to `False`, `UNSET` will be the result of the coroutine.
+            Defaults to False.
 
-        Raises:
-            TypeError: Output fields aren't supported for this job, or `field_name`
-              is not a string.
-            LookupError: The specified field name is not defined by this job
-            JobIsDone: This job object is already done.
-            asyncio.TimeoutError: The timeout was exceeded.
-            asyncio.CancelledError:
-                The job was killed, or the output queue was cleared.
+        Raises
+        ------
+        TypeError
+            Output fields aren't supported for this job, or `field_name` is not a string.
+        LookupError
+            The specified field name is not defined by this job
+        JobIsDone
+            This job object is already done.
+        asyncio.TimeoutError
+            The timeout was exceeded.
+        asyncio.CancelledError:
+            The job was killed, or the output queue was cleared.
 
-        Returns:
+        Returns
+        -------
             Coroutine: A coroutine that evaluates to the most recent output queue
               value, or `UNSET` if the queue is cleared.
         """
@@ -624,7 +676,7 @@ class JobManagerProxy:
         "_job_bools",
     )
 
-    def __init__(self, mgr: manager.JobManager, job: jobs.JobBase):
+    def __init__(self, mgr: manager.JobManager, job: jobs.JobBase) -> None:
         self.__mgr: manager.JobManager = mgr
         self.__j: jobs.JobBase = job
         self._job_stop_timeout = None
@@ -648,18 +700,13 @@ class JobManagerProxy:
         self._check_if_ejected()
         return self.__mgr._loop
 
-    def get_job_stop_timeout(self):
-        """Get the maximum time period in seconds for the job object managed
+    def get_job_stop_timeout(self) -> Optional[float]:
+        """`Optional[float]`: Get the maximum time period in seconds for the job object managed
         by this `JobManagerProxy` to stop when halted from the
         job manager, either due to stopping, restarted or killed.
         By default, this method returns the global job timeout set for the
         current job manager, but that can be overridden with a custom
         timeout when trying to stop the job object.
-
-        Returns:
-            float: The timeout in seconds.
-            None: No timeout was set for the job object or globally for the
-              current job manager.
         """
         self._check_if_ejected()
         return (
@@ -672,24 +719,26 @@ class JobManagerProxy:
         self,
         op: JobOps,
         target: Optional[JobProxy] = None,
-        target_cls: Optional[Type[jobs.ManagedJobBase]] = None,
+        target_cls: Optional[type[jobs.ManagedJobBase]] = None,
         register_permission_level: Optional[JobPermissionLevels] = None,
     ) -> bool:
         """Check if the permissions of the job of this `JobManagerProxy` object
         are sufficient for carrying out the specified operation on the given input.
 
-        Args:
-            op (str): The operation. Must be one of the operations defined in the
-              `JobOps` class namespace.
-            target (Optional[JobProxy], optional): The target job's proxy for an
-              operation.
-              Defaults to None.
-            target_cls (Optional[Type[jobs.ManagedJobBase]],
-              optional):
-              The target job class for an operation. Defaults to None.
+        Parameters
+        ----------
+        op : JobOps
+            The operation. Must be one of the operations defined in the `JobOps`
+            class namespace.
+        target : Optional[JobProxy], optional
+            The target job's proxy for an operation. Defaults to None.
+        target_cls : Optional[type[ManagedJobBase]], optional
+            The target job class for an operation. Defaults to None.
 
-        Returns:
-            bool: The result of the permission check.
+        Returns
+        -------
+        bool
+            The result of the permission check.
         """
         self._check_if_ejected()
         return self.__mgr._verify_permissions(
@@ -707,7 +756,7 @@ class JobManagerProxy:
 
     def create_job(
         self,
-        cls: Type[jobs.ManagedJobBase],
+        cls: type[jobs.ManagedJobBase],
         *args,
         **kwargs,
     ):
@@ -728,7 +777,7 @@ class JobManagerProxy:
 
     async def create_and_register_job(
         self,
-        cls: Type[jobs.ManagedJobBase],
+        cls: type[jobs.ManagedJobBase],
         *args,
         **kwargs,
     ) -> JobProxy:
@@ -809,8 +858,7 @@ class JobManagerProxy:
         return self.__mgr.guard_on_job(job_proxy, _iv=self.__j)  # type: ignore
 
     def _eject(self):
-        """
-        Irreversible job death. Do not call this method without ensuring that
+        """Irreversible job death. Do not call this method without ensuring that
         a job is killed.
         """
         self._check_if_ejected()
@@ -844,9 +892,9 @@ class JobManagerProxy:
         *,
         classes: Optional[
             Union[
-                Type[jobs.ManagedJobBase],
+                type[jobs.ManagedJobBase],
                 tuple[
-                    Type[jobs.ManagedJobBase],
+                    type[jobs.ManagedJobBase],
                     ...,
                 ],
             ]
@@ -898,7 +946,7 @@ class JobManagerProxy:
 
     def wait_for_event(
         self,
-        *event_types: Type[events.BaseEvent],
+        *event_types: type[events.BaseEvent],
         check: Optional[Callable[[events.BaseEvent], bool]] = None,
         timeout: Optional[float] = None,
     ):
@@ -918,10 +966,12 @@ class JobManagerProxy:
         """Whether a specific job object is currently in this
         job manager.
 
-        Args:
+        Parameters
+        ----------
             job_proxy (JobProxy): The target job's proxy.
 
-        Returns:
+        Returns
+        -------
             bool: True/False
         """
         return self.__mgr.has_job(job_proxy)

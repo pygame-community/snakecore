@@ -59,7 +59,7 @@ class GenericManagedJob(jobs.ManagedJobBase):
         time: Union[datetime.time, Sequence[datetime.time]] = UNSET,
         count: Union[int, NoneType] = UNSET,
         reconnect: bool = UNSET,
-    ):
+    ) -> None:
         supercls = jobs.ManagedJobBase
         supercls.__init__(self, interval, time, count, reconnect)
         self._name = name or self.__class__.__qualname__

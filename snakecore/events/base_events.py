@@ -37,27 +37,34 @@ def get_event_class_from_runtime_id(
 
 
 def get_event_class_runtime_id(
-    cls: Type["BaseEvent"],
+    cls: type["BaseEvent"],
     default: Any = UNSET,
     /,
 ) -> Union[str, Any]:
     """Get a event class by its runtime id string. This is the safe way
     of looking up event class runtime ids.
 
-    Args:
-        cls (Type[BaseEvent]): The event class whose identifier should be fetched.
-        default (Any): A default value which will be returned if this function
-          fails to produce the desired output. If omitted, exceptions will be
-          raised.
+    Parameters
+    ----------
+    cls : type[BaseEvent]
+        The event class whose identifier should be fetched.
+    default Any, optional
+        A default value which will be returned if this function fails to produce the
+        desired output. If omitted, exceptions will be raised.
 
-    Raises:
-        TypeError: 'cls' does not inherit from a event base class.
-        LookupError: The given event class does not exist in the event class registry.
-          This exception should not occur if event classes inherit their base classes
-          correctly.
+    Raises
+    ------
+    TypeError
+        'cls' does not inherit from a event base class.
+    LookupError
+        The given event class does not exist in the event class registry.
+        This exception should not occur if event classes inherit their base classes
+        correctly.
 
-    Returns:
-        str: The string identifier.
+    Returns
+    -------
+    str
+        The string identifier.
     """
 
     if not issubclass(cls, BaseEvent):
@@ -151,26 +158,30 @@ class BaseEvent:
         cls.__base_slots__ = tuple(get_all_slot_names(cls))
 
     def __init__(
-        self, event_created_at: Optional[datetime.datetime] = None, dispatcher=None
-    ):
-        self._real_event_created_at_ts = time.time()
+        self,
+        event_created_at: Optional[datetime.datetime] = None,
+        dispatcher: Optional[Any] = None,
+    ) -> None:
+        self._real_event_created_at_ts: float = time.time()
         if event_created_at is None:
             self._event_created_at_ts = self._real_event_created_at_ts
         else:
             self._event_created_at_ts = event_created_at.timestamp()
 
-        self._runtime_id = (
+        self._runtime_id: str = (
             f"{self.__class__._RUNTIME_ID}:"
             f"{int(self._real_event_created_at_ts*1_000_000_000)}"
         )
-        self._dispatcher = dispatcher
+        self._dispatcher: Optional[Any] = dispatcher
 
     @classmethod
     def get_class_runtime_id(cls) -> str:
         """Get the runtime id of this event class.
 
-        Returns:
-            str: The runtime id.
+        Returns
+        -------
+        str
+            The runtime id.
         """
         return cls._RUNTIME_ID
 
@@ -178,8 +189,10 @@ class BaseEvent:
     def runtime_id(self) -> str:
         """The runtime id of this event object.
 
-        Returns:
-            str: The runtime id.
+        Returns
+        -------
+        str
+            The runtime id.
         """
 
         return self._runtime_id
@@ -189,8 +202,10 @@ class BaseEvent:
         """The time at which this event object was
         created at.
 
-        Returns:
-            datetime.datetime: The time.
+        Returns
+        -------
+        datetime.datetime
+            The time.
         """
         return datetime.datetime.fromtimestamp(
             self._real_event_created_at_ts,
@@ -203,8 +218,10 @@ class BaseEvent:
         which can be optionally set during instantiation.
         Defaults to the time of instantiation of the event object.
 
-        Returns:
-            datetime.datetime: The time.
+        Returns
+        -------
+        datetime.datetime
+            The time.
         """
         return datetime.datetime.fromtimestamp(
             self._event_created_at_ts,
@@ -212,7 +229,7 @@ class BaseEvent:
         )
 
     @property
-    def dispatcher(self):
+    def dispatcher(self) -> Optional[Any]:
         """The object that dispatched this event, if available."""
         return self._dispatcher
 
@@ -221,8 +238,10 @@ class BaseEvent:
         All shallow copies of this event retain the exact
         same attributes and properties.
 
-        Returns:
-            BaseEvent: The new copy.
+        Returns
+        -------
+        BaseEvent
+            The new copy.
         """
         new_obj = self.__class__.__new__(self.__class__)
 
@@ -239,8 +258,10 @@ class BaseEvent:
         This event object will also become the dispatcher
         of the new unique copy.
 
-        Returns:
-            BaseEvent: The new unique copy.
+        Returns
+        -------
+        BaseEvent
+            The new unique copy.
         """
         unique_copy = self.copy()
         old_real_event_created_at_ts = unique_copy._real_event_created_at_ts

@@ -15,7 +15,7 @@ from snakecore.constants import UNSET, _UnsetType, NoneType
 from snakecore.constants.enums import JobBoolFlags as JF
 from snakecore.exceptions import JobInitializationError
 
-from snakecore.jobs.jobs import _JobCore
+from snakecore.jobs.jobs import _JobCore, JobNamespace
 from snakecore.jobs.loops import JobLoop
 
 
@@ -55,7 +55,7 @@ class MiniJobBase(_JobCore):
         time: Union[datetime.time, Sequence[datetime.time]] = UNSET,
         count: Optional[int] = UNSET,
         reconnect: bool = UNSET,
-    ):
+    ) -> None:
         """Create a new `MiniJobBase` instance."""
 
         super().__init__()
@@ -91,30 +91,34 @@ class MiniJobBase(_JobCore):
         self._job_loop.error(self._on_run_error)  # type: ignore
 
     @property
-    def external_data(self):
-        """The `JobNamespace` instance bound to this job
+    def external_data(self) -> JobNamespace:
+        """`JobNamespace`: The `JobNamespace` instance bound to this job
         object for storing data to be read externally.
         """
         return self._external_data
 
-    def next_iteration(self):
-        """When the next iteration of `.on_run()` will occur.
-        If not known, this method will return `None`.
-
-        Returns:
-            Optional[datetime.datetime]: The time at which
-              the next iteration will occur, if available.
-        """
+    def next_iteration(self) -> Optional[datetime.datetime]:
+        """`Optional[datetime.datetime]`: When the next iteration of `.on_run()` will occur."""
         return self._job_loop.next_iteration
 
     def get_interval(self) -> Optional[tuple[float, float, float]]:
-        """Returns a tuple of the seconds, minutes and hours at which this job
-        object is executing its `.on_run()` method.
-
-        Returns:
-            tuple: `(seconds, minutes, hours)`
+        """`Optional[tuple[float, float, float]]`: Returns a tuple of the seconds,
+        minutes and hours at which this job object is executing its `.on_run()`
+        method.
         """
-        return ((secs := self._job_loop.seconds), (mins := self._job_loop.minutes), (hrs := self._job_loop.hours)) if not (secs is None or mins is None or hrs is None) else None  # type: ignore
+        return (
+            (  # type: ignore
+                secs,
+                mins,
+                hrs,
+            )
+            if not (
+                (secs := self._job_loop.seconds) is None
+                or (mins := self._job_loop.minutes) is None
+                or (hrs := self._job_loop.hours) is None
+            )
+            else None
+        )
 
     def change_interval(
         self,
@@ -127,12 +131,16 @@ class MiniJobBase(_JobCore):
         """Change the interval at which this job will run its `on_run()` method,
         as soon as possible.
 
-        Args:
-            seconds (float, optional): Defaults to 0.
-            minutes (float, optional): Defaults to 0.
-            hours (float, optional): Defaults to 0.
-            time (Union[datetime.time, Sequence[datetime.time]], optional):
-              Defaults to 0.
+        Parameters
+        ----------
+        seconds : float, optional
+            Defaults to 0.
+        minutes : float, optional
+            Defaults to 0.
+        hours : float, optional
+            Defaults to 0.
+        time : Union[datetime.time, Sequence[datetime.time]], optional
+            Defaults to 0.
         """
         self._job_loop.change_interval(
             seconds=seconds,
@@ -170,8 +178,10 @@ class MiniJobBase(_JobCore):
         The code to run at the set interval.
         This method must be overloaded in subclasses.
 
-        Raises:
-            NotImplementedError: This method must be overloaded in subclasses.
+        Raises
+        ------
+        NotImplementedError
+            This method must be overloaded in subclasses.
         """
         raise NotImplementedError()
 
@@ -182,15 +192,22 @@ class MiniJobBase(_JobCore):
 async def initialize_minijob(job: MiniJobBase) -> bool:
     """Initialize the given mini job object.
 
-    Args:
-        job (MiniJobBase): The minijob.
+    Parameters
+    ----------
+    job : MiniJobBase
+        The minijob.
 
-    Returns:
-        bool: Whether the operation was successful.
+    Returns
+    -------
+    bool
+        Whether the operation was successful.
 
-    Raises:
-        TypeError: The given job instance was not a mini job.
-        JobInitializationError: The given job object has already been initialized.
+    Raises
+    ------
+    TypeError
+        The given job instance was not a mini job.
+    JobInitializationError
+        The given job object has already been initialized.
     """
     if not isinstance(job, MiniJobBase):
         raise TypeError(
@@ -213,15 +230,22 @@ async def initialize_minijob(job: MiniJobBase) -> bool:
 def start_minijob(job: MiniJobBase) -> bool:
     """Start the given mini job object.
 
-    Args:
-        job (MiniJobBase): The minijob.
+    Parameters
+    ----------
+    job : MiniJobBase
+        The minijob.
 
-    Returns:
-        bool: Whether the operation was successful.
+    Returns
+    -------
+    bool
+        Whether the operation was successful.
 
-    Raises:
-        TypeError: The given job instance was not a mini job.
-        JobInitializationError: The given job object was not initialized.
+    Raises
+    ------
+    TypeError
+        The given job instance was not a mini job.
+    JobInitializationError
+        The given job object was not initialized.
     """
     if not isinstance(job, MiniJobBase):
         raise TypeError(
@@ -237,16 +261,22 @@ def start_minijob(job: MiniJobBase) -> bool:
 def stop_minijob(job: MiniJobBase, force: bool = False) -> bool:
     """Stop the given mini job object.
 
-    Args:
-        job (MiniJobBase): The minijob.
-        force (bool): Whether to suspend all operations of the
-          job forcefully.
+    Parameters
+    ----------
+    job : MiniJobBase
+        The minijob.
+    force : bool
+        Whether to suspend all operations of the job forcefully.
 
-    Returns:
-        bool: Whether the operation was successful.
+    Returns
+    -------
+    bool
+        Whether the operation was successful.
 
-    Raises:
-        TypeError: The given job instance was not a mini job.
+    Raises
+    ------
+    TypeError
+        The given job instance was not a mini job.
     """
     if not isinstance(job, MiniJobBase):
         raise TypeError(
@@ -259,14 +289,20 @@ def stop_minijob(job: MiniJobBase, force: bool = False) -> bool:
 def restart_minijob(job: MiniJobBase) -> bool:
     """Restart the given mini job object.
 
-    Args:
-        job (MiniJobBase): The minijob.
+    Parameters
+    ----------
+    job : MiniJobBase
+        The minijob.
 
-    Returns:
-        bool: Whether the operation was successful.
+    Returns
+    -------
+    bool
+        Whether the operation was successful.
 
-    Raises:
-        TypeError: The given job instance was not a mini job.
+    Raises
+    ------
+    TypeError
+        The given job instance was not a mini job.
     """
     if not isinstance(job, MiniJobBase):
         raise TypeError(

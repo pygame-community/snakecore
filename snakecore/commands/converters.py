@@ -102,10 +102,11 @@ _QUOTES = {
 class DateTimeConverter(commands.Converter[datetime.datetime]):
     """A converter that parses timestamps to `datetime` objects.
 
-    Syntax:
-        - `<t:{6969...}[:t|T|d|D|f|F|R]> -> datetime(seconds=6969...)`
-        - `YYYY-MM-DD[*HH[:MM[:SS[.fff[fff]]]][+HH:MM[:SS[.ffffff]]]] -> datetime`
-        - `November 18th, 2069 12:30:30.55 am; -3 -> datetime.datetime(2029, 11, 18, 0, 30, 30, 550000, tzinfo=tzoffset(None, 10800))
+    Examples
+    --------
+    - `<t:{6969...}[:t|T|d|D|f|F|R]> -> datetime(seconds=6969...)`
+    - `YYYY-MM-DD[*HH[:MM[:SS[.fff[fff]]]][+HH:MM[:SS[.ffffff]]]] -> datetime`
+    - `November 18th, 2069 12:30:30.55 am; -3 -> datetime.datetime(2029, 11, 18, 0, 30, 30, 550000, tzinfo=tzoffset(None, 10800))
     """
 
     async def convert(
@@ -139,10 +140,11 @@ class DateTimeConverter(commands.Converter[datetime.datetime]):
 class TimeConverter(commands.Converter[datetime.time]):
     """A converter that parses time to `time` objects.
 
-    Syntax:
-        - `<t:{6969...}[:t|T|d|D|f|F|R]> -> time`
-        - `HH[:MM[:SS]][+HH:MM[:SS]] -> time`
-        - `12:30:30 am; -3 -> datetime.time(0, 30, 30, 550000, tzinfo=tzoffset(None, -10800))
+    Examples
+    --------
+    - `<t:{6969...}[:t|T|d|D|f|F|R]> -> time`
+    - `HH[:MM[:SS]][+HH:MM[:SS]] -> time`
+    - `12:30:30 am; -3 -> datetime.time(0, 30, 30, 550000, tzinfo=tzoffset(None, -10800))
     """
 
     async def convert(
@@ -228,11 +230,12 @@ class TimeConverter(commands.Converter[datetime.time]):
 class TimeDeltaConverter(commands.Converter[datetime.timedelta]):
     """A converter that parses time intervals to `timedelta` objects.
 
-    Syntax:
-        - `<t:{6969...}[:t|T|d|D|f|F|R]> -> datetime(second=6969...) - datetime.now(timezone.utc)`
-        - `HH[:MM[:SS[.fff[fff]]]][+HH:MM[:SS[.ffffff]]] -> time`
-        - `300d[ay[s]] 40m[in[ute[s]|s]] -> timedelta(days=30, minutes=40)``
-        - `6:30:05 -> timedelta(hours=6, minutes=30, seconds=5)`
+    Examples
+    --------
+    - `<t:{6969...}[:t|T|d|D|f|F|R]> -> datetime(second=6969...) - datetime.now(timezone.utc)`
+    - `HH[:MM[:SS[.fff[fff]]]][+HH:MM[:SS[.ffffff]]] -> time`
+    - `300d[ay[s]] 40m[in[ute[s]|s]] -> timedelta(days=30, minutes=40)``
+    - `6:30:05 -> timedelta(hours=6, minutes=30, seconds=5)`
     """
 
     async def convert(
@@ -291,14 +294,15 @@ class ClosedRangeConverter(commands.Converter[range]):
     Both a hyphen-based notation is supported (as used in English phrases) which always
     includes endpoints, as well as a mathematical notation using comparison operators.
 
-    Syntax:
-        - `start-stop -> range(start, stop+1)`
-        - `start-stop|[+]step -> range(start, stop+1, +step)` *
-        - `start-stop|-step -> range(start, stop+1, -step)` *
+    Examples
+    --------
+    - `start-stop -> range(start, stop+1)`
+    - `start-stop|[+]step -> range(start, stop+1, +step)` *
+    - `start-stop|-step -> range(start, stop+1, -step)` *
 
-        - `start>|>=|≥x>|>=|≥stop -> range(start[+1], stop[+1])`
-        - `start>|>=|≥x>|>=|≥stop|[+]step -> range(start[+1], stop[+1], +step)` *
-        - `start>|>=|≥x>|>=|≥stop|-step -> range(start[+1], stop[+1], -step)` *
+    - `start>|>=|≥x>|>=|≥stop -> range(start[+1], stop[+1])`
+    - `start>|>=|≥x>|>=|≥stop|[+]step -> range(start[+1], stop[+1], +step)` *
+    - `start>|>=|≥x>|>=|≥stop|-step -> range(start[+1], stop[+1], -step)` *
 
     *The last '|' is considered as part of the syntax.
     """
@@ -417,11 +421,11 @@ class CodeBlock:
     the code block contents. To get the raw code block text from an
     instance, cast it into a string.
 
-    This converter does not parse successfully if specified inside a tuple
-    annotation of `discord.ext.commands.flags.Flag`, inside a subclass of
-    `discord.ext.commands`'s default `FlagConverter`. To migitate this, it
-    is recommended to subclass `snakecore.commands.converters.FlagConverter`
-    instead.
+    This class does not parse successfully if specified inside a tuple
+    annotation of `discord.ext.commands.flags.Flag`, when defined inside a
+    subclass of `discord.ext.commands`'s default `FlagConverter`.
+    To migitate this, it is recommended to subclass
+    `snakecore.commands.converters.FlagConverter` instead.
     """
 
     _MULTILINE_PATTERN = re.compile(regex_patterns.CODE_BLOCK)
@@ -429,7 +433,7 @@ class CodeBlock:
 
     def __init__(
         self, code: str, language: Optional[str] = None, inline: Optional[bool] = None
-    ):
+    ) -> None:
         self.code = code
         self.language = language
         self.inline = inline if inline is not None else not (language or "\n" in code)
@@ -558,9 +562,7 @@ class _StringConverter(commands.Converter[str]):
 
     @staticmethod
     def escape(string: str) -> str:
-        """
-        Convert a "raw" string to one where characters are escaped
-        """
+        """Convert a "raw" string to one where characters are escaped."""
         index = 0
         newstr = []
         while index < len(string):
@@ -617,9 +619,10 @@ class StringConverter(_StringConverter, Generic[_T]):
 
     Note that some Unicode glyphs, e.g. emojis, may consist of 2 or more characters.
 
-    Syntax:
-        - `"'abc'" -> 'abc'`
-        - `'"ab\\"c"' -> 'ab"c'`
+    Examples
+    --------
+    - `"'abc'" -> 'abc'`
+    - `'"ab\\"c"' -> 'ab"c'`
     """
 
     def __init__(self, size: Any = None) -> None:
@@ -842,17 +845,18 @@ class ParensConverter(commands.Converter[tuple]):
     is recommended to subclass `snakecore.commands.converters.FlagConverter`
     instead.
 
-    Syntax:
-        - `"( 1 2 4 5.5 )" -> (1, 2, 4, 5.5)`
-        - `'( 1 ( 4 ) () ( ( 6 ( "a" ) ) ) 0 )' -> (1, (4,), (), ((6,("a",),),), 0)`
+    Examples
+    --------
+    - `"( 1 2 4 5.5 )" -> (1, 2, 4, 5.5)`
+    - `'( 1 ( 4 ) () ( ( 6 ( "a" ) ) ) 0 )' -> (1, (4,), (), ((6,("a",),),), 0)`
     """
 
     OPENING = "("
     CLOSING = ")"
 
-    def __init__(self, converters) -> None:
+    def __init__(self, converters: Sequence[type]) -> None:
         super().__init__()
-        self.converters = converters
+        self.converters = tuple(converters)
         self.parens_depth = 1
         self._increment_nested_parens_depth()
 
@@ -862,7 +866,7 @@ class ParensConverter(commands.Converter[tuple]):
                 converter.parens_depth = self.parens_depth + 1
                 converter._increment_nested_parens_depth()
 
-    def __class_getitem__(cls, params: Any):
+    def __class_getitem__(cls, params: Any) -> Self:
         if not isinstance(params, tuple):
             params = (params,)
         if len(params) == 2 and params[1] is Ellipsis:
@@ -1186,9 +1190,10 @@ if TYPE_CHECKING:  # type checker deception
 
         Note that some Unicode glyphs, e.g. emojis, may consist of 2 or more characters.
 
-        Syntax:
-            - `"'abc'" -> 'abc'`
-            - `'"ab\\"c"' -> 'ab"c'`
+        Examples
+        --------
+        - `"'abc'" -> 'abc'`
+        - `'"ab\\"c"' -> 'ab"c'`
         """
 
         def __class_getitem__(cls, size: Union[StringParams, StringParamsTuple]):
@@ -1201,9 +1206,10 @@ if TYPE_CHECKING:  # type checker deception
         be treated as user-facing example formats, shown in an error message when inputs
         fail to match.
 
-        Syntax:
-            - `"'abc'" -> 'abc'`
-            - `'"ab\\"c"' -> 'ab"c'`
+        Examples
+        --------
+        - `"'abc'" -> 'abc'`
+        - `'"ab\\"c"' -> 'ab"c'`
         """
 
         def __class_getitem__(cls, regex_and_examples: Union[str, tuple[str, ...]]):

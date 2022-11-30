@@ -43,11 +43,9 @@ class JobGroup:
         cls.__job_class_members__ = tuple(members)
 
     @classmethod
-    def members(cls) -> tuple[Type[Union[JobBase, MiniJobBase]]]:
-        """Get the job classes that are members of this job group.
-
-        Returns:
-            tuple: The job classes.
+    def members(cls) -> tuple[type[Union[JobBase, MiniJobBase]], ...]:
+        """`tuple[type[Union[JobBase, MiniJobBase]], ...]`:
+        Get the job classes that are members of this job group.
         """
         return cls.__job_class_members__
 
@@ -55,8 +53,15 @@ class JobGroup:
     def has_class(cls, job_cls: Union[JobBase, MiniJobBase]) -> bool:
         """Whether a specified job class is contained in this job group.
 
-        Args:
-            job_cls (Union[JobBase, MiniJobBase]): The target job class.
+        Parameters
+        ----------
+        job_cls : Union[JobBase, MiniJobBase]
+            The target job class.
+
+        Returns
+        -------
+        bool
+
         """
 
         return job_cls in cls.__frozen_job_class_members__
@@ -68,11 +73,13 @@ class JobGroup:
         """Whether the specified job is an instance of one of the jobs
         within this job group.
 
-        Args:
-            job_or_proxy (Union[JobBase, proxies.JobProxy]): The target job instance, or its
-              proxy.
+        Parameters
+        ----------
+        job_or_proxy : Union[JobBase, proxies.JobProxy], optional
+            The target job instance, or its proxy.
 
-        Returns:
+        Returns
+        -------
             bool: True/False
         """
 
@@ -233,16 +240,23 @@ class OutputNameRecord(NameRecord):
         of the specified output name has been marked as disabled, which
         means that the value of the name equals 'DISABLED'.
 
-        Args:
+        Parameters
+        ----------
             name (str): The output name.
 
-        Raises:
-            ValueError: Invalid output name format.
-            LookupError: Output name doesn't yet exist.
+        Raises
+        ------
+        ValueError
+            Invalid output name format.
+        LookupError
+            Output name doesn't yet exist.
 
-        Returns:
-            bool: True/False
+        Returns
+        -------
+        bool
+            ``True`` if condition is met, ``False`` otherwise.
         """
+
         if not isinstance(name, str):
             raise TypeError("argument 'name' must be a string")
         elif name.startswith("_"):

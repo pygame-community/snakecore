@@ -27,8 +27,7 @@ _T = TypeVar("_T")
 
 
 class DiscordStorage(LocalStorage[_T]):
-    """
-    DiscordStorage is an implemenation of the AbstractStorage interface for storing data
+    """DiscordStorage is an implemenation of the AbstractStorage interface for storing data
     in memory just like LocalStorage, but also backing up the data on a discord
     channel
     """
@@ -43,8 +42,7 @@ class DiscordStorage(LocalStorage[_T]):
 
 
 async def init_discord_storage():
-    """
-    Initialise local cache and storage channel. Call this function when the
+    """Initialise local cache and storage channel. Call this function when the
     bot boots up.
     """
     if config.conf.storage_channel is None:
@@ -58,9 +56,7 @@ async def init_discord_storage():
 
 
 async def quit_discord_storage():
-    """
-    Flushes local cache for moving data to the Storage, and cleans up
-    """
+    """Flushes local cache for moving data to the Storage, and cleans up"""
     if config.conf.storage_channel is None:
         # quit has no effect if storage_channel is None
         return

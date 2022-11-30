@@ -23,8 +23,7 @@ from .abc import AbstractStorage
 
 
 class _StorageLockedRecord(asyncio.Lock):
-    """
-    A _StorageLockedRecord is an internal structure used to store a record. For data
+    """A _StorageLockedRecord is an internal structure used to store a record. For data
     safety, this needs an async lock held during access to data. This inherits
     the asyncio Lock primitive and defines three attributes.
 
@@ -34,7 +33,7 @@ class _StorageLockedRecord(asyncio.Lock):
     'deleted' is a bool that stores whether data was deleted
     """
 
-    def __init__(self, init_data: bytes):
+    def __init__(self, init_data: bytes) -> None:
         super().__init__()
 
         # no need for lock to be held while initialising data. This stores data
@@ -53,16 +52,14 @@ _T = TypeVar("_T")
 
 
 class LocalStorage(AbstractStorage[_T]):
-    """
-    LocalStorage is an implemenation of the AbstractStorage interface for storing data
+    """LocalStorage is an implemenation of the AbstractStorage interface for storing data
     in memory in a async-safe manner.
     """
 
     _storage_records: dict[str, _StorageLockedRecord] = {}
 
-    def __init__(self, name: str, obj_type: Type[_T] = dict):
-        """
-        Initialise a DiscordStorage object.
+    def __init__(self, name: str, obj_type: type[_T] = dict) -> None:
+        """Initialise a DiscordStorage object.
         'name' is the key of the record.
         'obj_type' is the type of the record. This type object is also used for
         constructing the default value of 'obj'
@@ -83,22 +80,16 @@ class LocalStorage(AbstractStorage[_T]):
 
     @property
     def is_init(self) -> bool:
-        """
-        Indicates whether the backend used by the storage is init.
-        """
+        """Indicates whether the backend used by the storage is init."""
         return True
 
     @property
     def _record(self):
-        """
-        Get a reference to the record of the current storage
-        """
+        """Get a reference to the record of the current storage"""
         return self._storage_records[self.name]
 
     def _check_active(self):
-        """
-        Raise error on operation on a locked record
-        """
+        """Raise error on operation on a locked record"""
         if not self._record.locked() or not self.is_init:
             raise StorageException("Operation on unlocked data object")
 
@@ -141,9 +132,7 @@ class LocalStorage(AbstractStorage[_T]):
 
     @property
     def obj(self):
-        """
-        Get object stored in a record
-        """
+        """Get object stored in a record"""
         self._check_active()
         if self._record.deleted:
             raise AttributeError("Cannot access a deleted record")
@@ -152,9 +141,7 @@ class LocalStorage(AbstractStorage[_T]):
 
     @obj.setter
     def obj(self, set_obj: _T):
-        """
-        Sets obj
-        """
+        """Sets obj"""
         self._check_active()
         self._temp_obj = set_obj
 
@@ -163,9 +150,7 @@ class LocalStorage(AbstractStorage[_T]):
 
     @obj.deleter
     def obj(self):
-        """
-        Deletes obj
-        """
+        """Deletes obj"""
         self._check_active()
         if self._record.deleted:
             raise AttributeError("Cannot re-delete a deleted record")

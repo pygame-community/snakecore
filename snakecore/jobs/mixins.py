@@ -13,7 +13,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 import datetime
 import time
-from typing import Optional, Union
+from typing import Any, Optional, Union
 
 from snakecore.constants import (
     JobBoolFlags as JF,
@@ -63,7 +63,7 @@ class BaseEventJobMixin(JobMixin):
     #     "_event_queue_futures",
     # )
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
         max_event_queue_size = self.DEFAULT_MAX_EVENT_QUEUE_SIZE
 
@@ -122,7 +122,8 @@ class BaseEventJobMixin(JobMixin):
     @property
     def event_queue(self) -> DequeProxy:
         """A read-only proxy to this job's event queue.
-        Returns:
+        Returns
+        -------
             DequeProxy: The event queue proxy.
         """
         return DequeProxy(self._event_queue)
@@ -159,8 +160,11 @@ class BaseEventJobMixin(JobMixin):
         """A method for subclasses that can be overloaded to perform validations on a `BaseEvent`
         instance that was dispatched to them. Must return a boolean value indicating the
         validaiton result. If not overloaded, this method will always return `True`.
-        Args:
-            event (events.BaseEvent): The event object to run checks upon.
+
+        Parameters
+        ----------
+        event : events.BaseEvent
+            The event object to run checks upon.
         """
         return True
 
@@ -180,7 +184,7 @@ class BaseEventJobMixin(JobMixin):
 
         return True
 
-    async def mixin_routine(self):
+    async def mixin_routine(self) -> None:
         if not self._event_queue and self._bools & JF.STOP_ON_EMPTY_EVENT_QUEUE:
             self._bools |= JF.STOPPING_BY_EMPTY_EVENT_QUEUE  # True
             self.stop()
@@ -199,20 +203,18 @@ class BaseEventJobMixin(JobMixin):
             self._bools |= JF.EVENT_DISPATCH_ENABLED  # True
 
     def event_queue_is_blocked(self) -> bool:
-        """Whether event dispatching to this event job's event queue
+        """`bool`: Whether event dispatching to this event job's event queue
         is disabled and its event queue is blocked.
-        Returns:
-            bool: True/False
         """
         return not self._bools & JF.EVENT_DISPATCH_ENABLED
 
-    def block_queue(self):
+    def block_queue(self) -> None:
         """Block the event queue of this event job, thereby disabling
         event dispatch to it.
         """
         self._bools &= ~JF.EVENT_DISPATCH_ENABLED  # False
 
-    def unblock_queue(self):
+    def unblock_queue(self) -> None:
         """Unblock the event queue of this event job, thereby enabling
         event dispatch to it.
         """
@@ -223,7 +225,7 @@ class BaseEventJobMixin(JobMixin):
         reason: Optional[
             Union[JobStopReasons.Internal, JobStopReasons.External]
         ] = None,
-    ):
+    ) -> None:
         for fut in self._event_queue_futures:
             if not fut.done():
                 fut.cancel("Job has stopped running.")
@@ -288,7 +290,7 @@ class EventJobMixin(BaseEventJobMixin):
     def __init_subclass__(
         cls,
         class_uuid: Optional[str] = None,
-    ):
+    ) -> None:
         if not cls.EVENTS:
             raise TypeError("the 'EVENTS' class attribute must not be empty")
 
@@ -310,7 +312,7 @@ class EventJobMixin(BaseEventJobMixin):
     def __init__(
         self,
         **kwargs,
-    ):
+    ) -> None:
         super().__init__(**kwargs)
 
         oe_max_event_handlings = self.DEFAULT_OE_MAX_EVENT_HANDLINGS
@@ -455,7 +457,7 @@ class EventJobMixin(BaseEventJobMixin):
         reason: Optional[
             Union[JobStopReasons.Internal, JobStopReasons.External]
         ] = None,
-    ):
+    ) -> None:
         super()._stop_cleanup(reason=reason)
 
         self._bools &= ~(
@@ -502,9 +504,6 @@ class EventJobMixin(BaseEventJobMixin):
 class EventSession:
     """A class that represents an asynchronous event handling session
     of a `MultiEventJobMixin` class.
-
-    Returns:
-        _type_: _description_
     """
 
     __slots__ = (
@@ -520,7 +519,7 @@ class EventSession:
         task: asyncio.Task,
         data: jobs.JobNamespace,
         timestamp: Optional[datetime.datetime] = None,
-    ):
+    ) -> None:
         self._event: events.BaseEvent = event
         self._task: asyncio.Task = task
         self._data: jobs.JobNamespace = data
@@ -579,7 +578,7 @@ class MultiEventJobMixin(EventJobMixin):
     #     "_oe_data",
     # )
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
 
         max_event_queue_size = self.DEFAULT_MAX_EVENT_QUEUE_SIZE
@@ -632,7 +631,7 @@ class MultiEventJobMixin(EventJobMixin):
     def _max_on_event_concurrency_reached(self) -> bool:
         return len(self._active_event_sessions) >= self._oe_max_concurrency
 
-    async def _on_event(self, event: events.BaseEvent, oe_data: OENamespace):
+    async def _on_event(self, event: events.BaseEvent, oe_data: OENamespace) -> None:
         token = self._oe_data.set(oe_data)
         try:
             await self.on_event(event)
@@ -642,7 +641,7 @@ class MultiEventJobMixin(EventJobMixin):
         finally:
             self._oe_data.reset(token)
 
-    def _create_event_session(self, event: events.BaseEvent):
+    def _create_event_session(self, event: events.BaseEvent) -> bool:
 
         oe_data = self.OENamespace()
 
@@ -673,12 +672,12 @@ class MultiEventJobMixin(EventJobMixin):
 
         return True
 
-    def _wait_for_on_event_concurrency_space(self):
+    def _wait_for_on_event_concurrency_space(self) -> asyncio.Future[Any]:
         fut = self._manager._loop.create_future()
         self._oe_concurrency_space_futures.append(fut)
         return fut
 
-    async def mixin_routine(self):
+    async def mixin_routine(self) -> None:
         if not self._event_queue and self._bools & JF.STOP_ON_EMPTY_EVENT_QUEUE:
             self._bools |= JF.STOPPING_BY_EMPTY_EVENT_QUEUE  # True
             self.stop()
