@@ -11,26 +11,17 @@ from collections.abc import Mapping, MutableMapping
 import collections
 import datetime
 import itertools
-from numbers import Number
-import os
-import platform
 import re
-import sys
-import traceback
 from typing import (
     Any,
     Callable,
     Generic,
     Iterable,
     Literal,
-    MutableSequence,
     Optional,
-    Reversible,
     Sequence,
-    Type,
     TypeVar,
     Union,
-    overload,
 )
 
 import discord
@@ -263,43 +254,6 @@ def format_byte(
                 return f"{size / unit_value} {name}"
             else:
                 return f"{size / unit_value:.0{decimal_places}f} {name}"
-
-
-def split_long_message(message: str, limit: int = 2000):
-    """Splits message string by 2000 characters with safe newline splitting"""
-    split_output: list[str] = []
-    lines = message.split("\n")
-    temp = ""
-
-    for line in lines:
-        if len(temp) + len(line) + 1 > limit:
-            split_output.append(temp[:-1])
-            temp = line + "\n"
-        else:
-            temp += line + "\n"
-
-    if temp:
-        split_output.append(temp)
-
-    return split_output
-
-
-def format_code_exception(exc, pops: int = 1):
-    """Provide a formatted exception for code snippets"""
-    tbs = traceback.format_exception(type(exc), exc, exc.__traceback__)
-    # Pop out the first entry in the traceback, because that's
-    # this function call itself
-
-    if len(tbs) >= pops + 1:
-        for _ in range(pops):
-            tbs.pop(1)
-
-    ret = "".join(tbs).replace(os.getcwd(), "Bot")
-    if platform.system() == "Windows":
-        # Hide path to python on windows
-        ret = ret.replace(os.path.dirname(sys.executable), "Python")
-
-    return ret
 
 
 def extract_markdown_mention_id(markdown_mention: str) -> int:
