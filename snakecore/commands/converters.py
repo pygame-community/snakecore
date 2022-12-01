@@ -104,9 +104,9 @@ class DateTimeConverter(commands.Converter[datetime.datetime]):
 
     Examples
     --------
-    - `<t:{6969...}[:t|T|d|D|f|F|R]> -> datetime(seconds=6969...)`
-    - `YYYY-MM-DD[*HH[:MM[:SS[.fff[fff]]]][+HH:MM[:SS[.ffffff]]]] -> datetime`
-    - `November 18th, 2069 12:30:30.55 am; -3 -> datetime.datetime(2029, 11, 18, 0, 30, 30, 550000, tzinfo=tzoffset(None, 10800))
+    - `<t:{6969...}[:t|T|d|D|f|F|R]>` -> `datetime(seconds=6969...)`
+    - `YYYY-MM-DD[*HH[:MM[:SS[.fff[fff]]]][+HH:MM[:SS[.ffffff]]]]` -> `datetime`
+    - `November 18th, 2069 12:30:30.55 am; -3` -> `datetime.datetime(2029, 11, 18, 0, 30, 30, 550000, tzinfo=tzoffset(None, 10800))`
     """
 
     async def convert(
@@ -142,9 +142,9 @@ class TimeConverter(commands.Converter[datetime.time]):
 
     Examples
     --------
-    - `<t:{6969...}[:t|T|d|D|f|F|R]> -> time`
-    - `HH[:MM[:SS]][+HH:MM[:SS]] -> time`
-    - `12:30:30 am; -3 -> datetime.time(0, 30, 30, 550000, tzinfo=tzoffset(None, -10800))
+    - `<t:{6969...}[:t|T|d|D|f|F|R]>` -> `time`
+    - `HH[:MM[:SS]][+HH:MM[:SS]]` -> `time`
+    - `12:30:30 am; -3` -> `datetime.time(0, 30, 30, 550000, tzinfo=tzoffset(None, -10800))`
     """
 
     async def convert(
@@ -232,10 +232,10 @@ class TimeDeltaConverter(commands.Converter[datetime.timedelta]):
 
     Examples
     --------
-    - `<t:{6969...}[:t|T|d|D|f|F|R]> -> datetime(second=6969...) - datetime.now(timezone.utc)`
-    - `HH[:MM[:SS[.fff[fff]]]][+HH:MM[:SS[.ffffff]]] -> time`
-    - `300d[ay[s]] 40m[in[ute[s]|s]] -> timedelta(days=30, minutes=40)``
-    - `6:30:05 -> timedelta(hours=6, minutes=30, seconds=5)`
+    - `<t:{6969...}[:t|T|d|D|f|F|R]>` -> `datetime(second=6969...) - datetime.now(timezone.utc)`
+    - `HH[:MM[:SS[.fff[fff]]]][+HH:MM[:SS[.ffffff]]]` -> `time`
+    - `300d[ay[s]] 40m[in[ute[s]|s]]` -> `timedelta(days=30, minutes=40)``
+    - `6:30:05` -> `timedelta(hours=6, minutes=30, seconds=5)`
     """
 
     async def convert(
@@ -296,13 +296,13 @@ class ClosedRangeConverter(commands.Converter[range]):
 
     Examples
     --------
-    - `start-stop -> range(start, stop+1)`
-    - `start-stop|[+]step -> range(start, stop+1, +step)` *
-    - `start-stop|-step -> range(start, stop+1, -step)` *
+    - `start-stop` -> `range(start, stop+1)`
+    - `start-stop|[+]step` -> `range(start, stop+1, +step)` *
+    - `start-stop|-step` -> `range(start, stop+1, -step)` *
 
-    - `start>|>=|≥x>|>=|≥stop -> range(start[+1], stop[+1])`
-    - `start>|>=|≥x>|>=|≥stop|[+]step -> range(start[+1], stop[+1], +step)` *
-    - `start>|>=|≥x>|>=|≥stop|-step -> range(start[+1], stop[+1], -step)` *
+    - `start>|>=|≥x>|>=|≥stop` -> `range(start[+1], stop[+1])`
+    - `start>|>=|≥x>|>=|≥stop|[+]step` -> `range(start[+1], stop[+1], +step)` *
+    - `start>|>=|≥x>|>=|≥stop|-step` -> `range(start[+1], stop[+1], -step)` *
 
     *The last '|' is considered as part of the syntax.
     """
@@ -621,8 +621,8 @@ class StringConverter(_StringConverter, Generic[_T]):
 
     Examples
     --------
-    - `"'abc'" -> 'abc'`
-    - `'"ab\\"c"' -> 'ab"c'`
+    - `"'abc'"` -> `'abc'`
+    - `'"ab\\"c"'` -> `'ab"c'`
     """
 
     def __init__(self, size: Any = None) -> None:
@@ -847,8 +847,8 @@ class ParensConverter(commands.Converter[tuple]):
 
     Examples
     --------
-    - `"( 1 2 4 5.5 )" -> (1, 2, 4, 5.5)`
-    - `'( 1 ( 4 ) () ( ( 6 ( "a" ) ) ) 0 )' -> (1, (4,), (), ((6,("a",),),), 0)`
+    - `"( 1 2 4 5.5 )"` -> `(1, 2, 4, 5.5)`
+    - `'( 1 ( 4 ) () ( ( 6 ( "a" ) ) ) 0 )'` -> `(1, (4,), (), ((6,("a",),),), 0)`
     """
 
     OPENING = "("
@@ -1168,13 +1168,113 @@ class ParensConverter(commands.Converter[tuple]):
         return repr(obj)
 
 
+class UnicodeEmojiConverter(commands.Converter[str]):
+    """A converter that converts emoji shortcodes or unicode
+    character escapes into valid unicode emojis. Already valid
+    inputs are ignored.
+
+    Syntax
+    ------
+    - `":eggplant:"` -> `"🍆"`
+    - `"\\u270c\\u1f3fd"` -> `"✌🏽"`
+    """
+
+    async def convert(self, ctx: commands.Context[BotT], argument: str) -> str:
+        argument = StringConverter.escape(argument)
+
+        if snakecore.utils.is_emoji_shortcode(argument):
+            return snakecore.utils.shortcode_to_unicode_emoji(argument)
+
+        elif snakecore.utils.is_unicode_emoji(argument):
+            return argument
+
+        raise commands.BadArgument(
+            "argument must be a valid unicode emoji or emoji shortcode"
+        )
+
+
+UnicodeEmoji = Annotated[str, UnicodeEmojiConverter]
+"""A converter that converts emoji shortcodes or unicode
+character escapes into valid unicode emojis. Already valid
+inputs are ignored.
+
+Syntax
+------
+- `":eggplant:"` -> `"🍆"`
+- `"\\u270c\\u1f3fd"` -> `"✌🏽"`
+"""
 DateTime = Annotated[datetime.datetime, DateTimeConverter]
+"""A converter that parses timestamps to `datetime` objects.
+
+Examples
+--------
+- `<t:{6969...}[:t|T|d|D|f|F|R]>` -> `datetime(seconds=6969...)`
+- `YYYY-MM-DD[*HH[:MM[:SS[.fff[fff]]]][+HH:MM[:SS[.ffffff]]]]` -> `datetime`
+- `November 18th, 2069 12:30:30.55 am; -3` -> `datetime.datetime(2029, 11, 18, 0, 30, 30, 550000, tzinfo=tzoffset(None, 10800))`
+"""
 Time = Annotated[datetime.time, TimeConverter]
+"""A converter that parses time to `time` objects.
+
+Examples
+--------
+- `<t:{6969...}[:t|T|d|D|f|F|R]>` -> `time`
+- `HH[:MM[:SS]][+HH:MM[:SS]]` -> `time`
+- `12:30:30 am; -3` -> `datetime.time(0, 30, 30, 550000, tzinfo=tzoffset(None, -10800))`
+"""
 TimeDelta = Annotated[datetime.timedelta, TimeDeltaConverter]
+"""A converter that parses time intervals to `timedelta` objects.
+
+Examples
+--------
+- `<t:{6969...}[:t|T|d|D|f|F|R]>` -> `datetime(second=6969...) - datetime.now(timezone.utc)`
+- `HH[:MM[:SS[.fff[fff]]]][+HH:MM[:SS[.ffffff]]]` -> `time`
+- `300d[ay[s]] 40m[in[ute[s]|s]]` -> `timedelta(days=30, minutes=40)``
+- `6:30:05` -> `timedelta(hours=6, minutes=30, seconds=5)`
+"""
 ClosedRange = Annotated[range, ClosedRangeConverter]
+"""A converter that parses closed integer ranges to Python `range` objects.
+Both a hyphen-based notation is supported (as used in English phrases) which always
+includes endpoints, as well as a mathematical notation using comparison operators.
+
+Examples
+--------
+- `start-stop` -> `range(start, stop+1)`
+- `start-stop|[+]step` -> `range(start, stop+1, +step)` *
+- `start-stop|-step` -> `range(start, stop+1, -step)` *
+
+- `start>|>=|≥x>|>=|≥stop` -> `range(start[+1], stop[+1])`
+- `start>|>=|≥x>|>=|≥stop|[+]step` -> `range(start[+1], stop[+1], +step)` *
+- `start>|>=|≥x>|>=|≥stop|-step` -> `range(start[+1], stop[+1], -step)` *
+
+*The last '|' is considered as part of the syntax.
+"""
 
 if TYPE_CHECKING:  # type checker deception
     Parens = tuple
+    """A special converter that establishes its own scope of arguments
+    and parses argument tuples.
+
+    The recognized arguments are converted into their desired formats
+    using the converters given to it as input, which are then converted
+    into a tuple of arguments. This can be used to implement parsing
+    of argument tuples. Nesting is also supported, as well as variadic
+    parsing of argument tuples. The syntax is similar to type annotations
+    using the `tuple` type (tuple[int, ...] = Parens[int, ...], etc.).
+
+    Arguments for this converter must be surrounded by whitespace, followed
+    by round parentheses on both sides (`'( ... ... ... )'`).
+
+    This converter does not parse successfully if specified inside a tuple
+    annotation of `discord.ext.commands.flags.Flag`, inside a subclass of
+    `discord.ext.commands`'s default `FlagConverter`. To migitate this, it
+    is recommended to subclass `snakecore.commands.converters.FlagConverter`
+    instead.
+
+    Examples
+    --------
+    - `"( 1 2 4 5.5 )"` -> `(1, 2, 4, 5.5)`
+    - `'( 1 ( 4 ) () ( ( 6 ( "a" ) ) ) 0 )'` -> `(1, (4,), (), ((6,("a",),),), 0)`
+    """
 
     class String(str):  # type: ignore
         """A converter that parses string literals to string objects,
@@ -1192,8 +1292,8 @@ if TYPE_CHECKING:  # type checker deception
 
         Examples
         --------
-        - `"'abc'" -> 'abc'`
-        - `'"ab\\"c"' -> 'ab"c'`
+        - `"'abc'"` -> `'abc'`
+        - `'"ab\\"c"'` -> `'ab"c'`
         """
 
         def __class_getitem__(cls, size: Union[StringParams, StringParamsTuple]):
@@ -1208,8 +1308,8 @@ if TYPE_CHECKING:  # type checker deception
 
         Examples
         --------
-        - `"'abc'" -> 'abc'`
-        - `'"ab\\"c"' -> 'ab"c'`
+        - `"'abc'"` -> `'abc'`
+        - `'"ab\\"c"'` -> `'ab"c'`
         """
 
         def __class_getitem__(cls, regex_and_examples: Union[str, tuple[str, ...]]):

@@ -25,6 +25,7 @@ from typing import (
 )
 
 import discord
+import emoji
 
 from snakecore.constants import UNSET, _UnsetType
 from . import regex_patterns
@@ -359,9 +360,8 @@ def is_markdown_custom_emoji(string: str) -> bool:
 
 
 def is_emoji_shortcode(string: str) -> bool:
-    """Whether the given string matches the structure of an emoji shortcode,
-    which is ':{unicode_characters}:'. No whitespace is allowed.
-    Does not validate for the existence of the emoji shortcodes on Discord.
+    """Whether the given string is a valid unicode emoji shortcode or alias shortcode.
+    This function uses the `emoji` package for validation.
 
     Parameters
     ----------
@@ -373,8 +373,45 @@ def is_emoji_shortcode(string: str) -> bool:
     bool
         `True` if condition is met, `False` otherwise.
     """
-    return bool(re.match(regex_patterns.EMOJI_SHORTCODE, string))
+    return (
+        bool(re.match(regex_patterns.EMOJI_SHORTCODE, string))
+        and emoji.emojize(string) != string
+    )
 
+def is_unicode_emoji(string: str) -> bool:
+    """Whether the given string matches a valid unicode emoji.
+    This function uses the `emoji` package for validation.
+
+    Parameters
+    ----------
+    string : str
+        The string to check for.
+
+    Returns
+    -------
+    bool
+        `True` if condition is met, `False` otherwise.
+    """
+    return emoji.is_emoji(string)
+
+def shortcode_to_unicode_emoji(string: str) -> str:
+    """Convert the given emoji shortcode to a valid unicode emoji,
+    if possible. This function uses the `emoji` package for shortcode parsing.
+
+    Parameters
+    ----------
+    string : str
+        The emoji shortcode.
+
+    Returns
+    -------
+    str
+        The unicode emoji.
+    """
+    if is_emoji_shortcode(string):
+        return emoji.emojize(string, language="alias")
+
+    return string
 
 def extract_markdown_timestamp(markdown_timestamp: str) -> int:
     """Extract the UNIX timestamp '123456789696969' from a Discord markdown
