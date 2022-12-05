@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import pytest
 
 # test only LocalStorage for now, figure out DiscordStorage later
-from snakecore.storage import LocalStorage
+from snakecore._storage import LocalStorage
 from snakecore.exceptions import StorageException
 
 
