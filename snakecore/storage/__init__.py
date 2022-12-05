@@ -3,7 +3,7 @@ This file is a part of the source code for snakecore.
 This project has been licensed under the MIT license.
 Copyright (c) 2022-present pygame-community
 
-This file exports the Storage Interface API. Experimental.
+This file exports the Storage Interface API.
 """
 
 import discord
@@ -33,16 +33,16 @@ async def init(global_client: discord.Client | None = None) -> None:
 
     if not is_init():
         await init_discord_storage()
-        config.conf.init_mods[config.ModuleName._STORAGE] = True
+        config.conf.init_mods[config.ModuleName.STORAGE] = True
 
 
 async def quit() -> None:
     """Quit this module."""
     if is_init():
         await quit_discord_storage()
-        config.conf.init_mods[config.ModuleName._STORAGE] = False
+        config.conf.init_mods[config.ModuleName.STORAGE] = False
 
 
 def is_init() -> bool:
     """`bool`: Whether this module has been sucessfully initialized."""
-    return config.conf.init_mods.get(config.ModuleName._STORAGE, False)
+    return config.conf.init_mods.get(config.ModuleName.STORAGE, False)

@@ -16,7 +16,7 @@ Some cons:
 import asyncio
 import pickle
 from types import GenericAlias
-from typing import Type, TypeVar
+from typing import TypeVar
 
 from snakecore.exceptions import StorageException
 from .abc import AbstractStorage

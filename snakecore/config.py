@@ -341,7 +341,7 @@ class ModuleName(Enum):
     UTILS = auto()
     _EVENTS = auto()
     _JOBS = auto()
-    _STORAGE = auto()
+    STORAGE = auto()
     COMMANDS = auto()
 
 

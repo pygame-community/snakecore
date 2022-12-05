@@ -807,7 +807,7 @@ class StringExprConverter(_StringConverter, Generic[Unpack[_TVT]]):  # type: ign
         return string
 
 
-class StringExprMatchConverter(StringExprConverter, Generic[_TVT]):  # type: ignore
+class StringExprMatchConverter(StringExprConverter, Generic[Unpack[_TVT]]):  # type: ignore
     async def convert(
         self, ctx: commands.Context[_DECBotT], argument: str
     ) -> re.Match[str]:

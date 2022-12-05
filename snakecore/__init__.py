@@ -12,6 +12,7 @@ from . import (
     commands,
     config,
     constants,
+    storage,
     exceptions,
     utils,
 )
@@ -156,8 +157,23 @@ async def init_async(
         config.conf.global_client = global_client
 
     success_failure_list = [0, 0]
-    config.conf.init_mods[config.ModuleName.SNAKECORE_ASYNC] = True
-    return success_failure_list
+
+    if not storage.is_init():
+
+        try:
+            await storage.init()
+        except Exception:
+            if raise_module_exceptions:
+                raise
+
+            success_failure_list[1] += 1
+        else:
+            success_failure_list[0] += 1
+
+    if success_failure_list[0]:
+        config.conf.init_mods[config.ModuleName.SNAKECORE_ASYNC] = True
+
+    return tuple(success_failure_list)
 
 
 async def quit():
@@ -203,6 +219,9 @@ async def quit_async():
     it does not fully uninitialize snakecore. This function will only attempt to quit
     modules that are still initialized and can be called multiple times.
     """
+
+    if storage.is_init():
+        await storage.quit()
     config.conf.init_mods[config.ModuleName.SNAKECORE_ASYNC] = False
 
 

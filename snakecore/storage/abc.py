@@ -9,7 +9,7 @@ inherit 'AbstractStorage' and implement API.
 """
 
 from abc import ABC, abstractmethod
-from typing import Generic, Type, TypeVar
+from typing import Generic, TypeVar
 
 
 _T = TypeVar("_T")
