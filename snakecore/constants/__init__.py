@@ -7,21 +7,13 @@ This file defines some constants used across the library.
 """
 
 import asyncio
-from typing import Any, Optional
+from typing import Any
 from aiohttp import ClientError
 
 import discord
 
 from . import enums
 from .enums import *
-
-import sys
-
-if sys.version_info >= (3, 10):
-    from types import NoneType, UnionType
-else:
-    NoneType = type(None)
-    UnionType = type(int | None)
 
 
 class _SingletonMeta(type):
@@ -72,7 +64,7 @@ UNSET: Any = _UnsetType()
 DEFAULT_FILESIZE_LIMIT = 8_000_000  # bytes
 
 # jobs
-DEFAULT_JOB_EXCEPTION_ALLOWLIST = (
+_DEFAULT_JOB_EXCEPTION_ALLOWLIST = (
     OSError,
     discord.GatewayNotFound,
     discord.ConnectionClosed,

@@ -3,22 +3,22 @@ This file is a part of the source code for snakecore.
 This project has been licensed under the MIT license.
 Copyright (c) 2022-present pygame-community
 
-This file implements job classes for scheduling Discord communication methods as jobs. 
+This file implements job classes for scheduling Discord communication methods as _jobs. 
 """
 
 import io
-from typing import Optional, Union
+from types import NoneType
 
 import discord
 
-from snakecore import config, jobs
-from snakecore.constants import NoneType
-from snakecore.jobs import groupings
+from snakecore import config
+import snakecore._jobs as _jobs
+from snakecore._jobs import groupings
 from snakecore.utils import embeds, serializers
 
 
 class MessageSend(
-    jobs.ManagedJobBase,
+    _jobs.ManagedJobBase,
     class_uuid="87b81031-d606-4a95-b86a-2eb72b7eb7b1",
 ):
     """A job class for sending a message into a
@@ -40,8 +40,8 @@ class MessageSend(
         channel: int | discord.abc.Messageable | serializers.ChannelSerializer,
         content: str | None = None,
         tts: bool = False,
-        embed: discord.Embed | serializers.EmbedSerializer | dict | NoneType = None,
-        file: discord.File | serializers.FileSerializer | NoneType = None,
+        embed: discord.Embed | serializers.EmbedSerializer | dict | None = None,
+        file: discord.File | serializers.FileSerializer | None = None,
         files: list[discord.File | serializers.FileSerializer] | None = None,
         delete_after: float | None = None,
         nonce: int | None = None,
@@ -52,7 +52,7 @@ class MessageSend(
         | discord.MessageReference
         | serializers.MessageSerializer
         | serializers.MessageReferenceSerializer
-        | NoneType = None,
+        | None = None,
         mention_author: bool | None = None,
         kill_if_failed: bool = True,
     ) -> None:
@@ -199,7 +199,7 @@ PartialMessageableChannel = (
 MessageableChannel = PartialMessageableChannel | discord.GroupChannel
 
 
-class _MessageModify(jobs.ManagedJobBase):
+class _MessageModify(_jobs.ManagedJobBase):
     """A intermediary job class for modifying a message in a
     Discord text channel. Does not do anything on its own.
     """
@@ -209,7 +209,7 @@ class _MessageModify(jobs.ManagedJobBase):
 
     def __init__(
         self,
-        channel: int | MessageableChannel | serializers.ChannelSerializer | NoneType,
+        channel: int | MessageableChannel | serializers.ChannelSerializer | None,
         message: int | discord.Message | serializers.MessageSerializer,
         kill_if_failed: bool = True,
     ) -> None:
@@ -276,10 +276,10 @@ class MessageEdit(
 
     def __init__(
         self,
-        channel: int | MessageableChannel | serializers.ChannelSerializer | NoneType,
+        channel: int | MessageableChannel | serializers.ChannelSerializer | None,
         message: int | discord.Message | serializers.MessageSerializer,
         content: str | None = None,
-        embed: discord.Embed | serializers.EmbedSerializer | dict | NoneType = None,
+        embed: discord.Embed | serializers.EmbedSerializer | dict | None = None,
         delete_after: float | None = None,
         allowed_mentions: discord.AllowedMentions
         | serializers.AllowedMentionsSerializer
@@ -345,7 +345,7 @@ class MessageDelete(_MessageModify, class_uuid="860055c6-4971-4046-925c-7cafae67
 
     def __init__(
         self,
-        channel: int | MessageableChannel | serializers.ChannelSerializer | NoneType,
+        channel: int | MessageableChannel | serializers.ChannelSerializer | None,
         message: int | discord.Message | serializers.MessageSerializer,
         delay: float | None = None,
         **kwargs,
@@ -381,7 +381,7 @@ class ReactionAdd(_MessageModify, class_uuid="151cf1a5-73c8-4542-ad17-9b9956d0eb
 
     def __init__(
         self,
-        channel: int | MessageableChannel | serializers.ChannelSerializer | NoneType,
+        channel: int | MessageableChannel | serializers.ChannelSerializer | None,
         message: int | discord.Message | serializers.MessageSerializer,
         emoji: int
         | discord.Reaction
@@ -437,7 +437,7 @@ class ReactionsAdd(_MessageModify, class_uuid="f26bdcb2-8d04-4bf5-82f8-778c7a8af
 
     def __init__(
         self,
-        channel: int | MessageableChannel | serializers.ChannelSerializer | NoneType,
+        channel: int | MessageableChannel | serializers.ChannelSerializer | None,
         message: int | discord.Message | serializers.MessageSerializer,
         *emojis: int
         | discord.Reaction
@@ -516,7 +516,7 @@ class ReactionRemove(_MessageModify, class_uuid="e1c474dd-1c56-43b9-91f4-7b74a1d
 
     def __init__(
         self,
-        channel: int | MessageableChannel | serializers.ChannelSerializer | NoneType,
+        channel: int | MessageableChannel | serializers.ChannelSerializer | None,
         message: int | discord.Message | serializers.MessageSerializer,
         emoji: int
         | discord.Reaction
@@ -582,7 +582,7 @@ class ReactionClearEmoji(
 
     def __init__(
         self,
-        channel: int | MessageableChannel | serializers.ChannelSerializer | NoneType,
+        channel: int | MessageableChannel | serializers.ChannelSerializer | None,
         message: int | discord.Message,
         emoji: int
         | discord.Reaction

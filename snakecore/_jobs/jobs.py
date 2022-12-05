@@ -10,6 +10,7 @@ import datetime
 import inspect
 import sys
 import time
+import traceback
 from types import FunctionType, MappingProxyType, SimpleNamespace
 from typing import (
     Any,
@@ -17,17 +18,15 @@ from typing import (
     Coroutine,
     Literal,
     Mapping,
-    Optional,
+    ParamSpec,
     Sequence,
-    Type,
     TypeVar,
-    Union,
     overload,
 )
 
 import discord.utils
 from snakecore.constants import (
-    DEFAULT_JOB_EXCEPTION_ALLOWLIST,
+    _DEFAULT_JOB_EXCEPTION_ALLOWLIST,
     JobPermissionLevels,
     JobStatus,
     JobStopReasons,
@@ -43,16 +42,9 @@ from snakecore.exceptions import (
 from snakecore import utils
 from snakecore.constants import (
     UNSET,
-    _UnsetType,
-    NoneType,
 )
-from snakecore.jobs.loops import JobLoop
+from snakecore._jobs.loops import JobLoop
 from snakecore.utils import FastChainMap
-
-if sys.version_info >= (3, 10):  # type: ignore
-    from typing import ParamSpec
-else:
-    from typing_extensions import ParamSpec, Self
 
 if sys.version_info >= (3, 11):  # type: ignore
     from typing import Self
@@ -652,7 +644,7 @@ class _JobCore:
         """
         print(
             f"An exception occured in 'on_start' method of job " f"'{self!r}':\n\n",
-            utils.format_code_exception(exc),
+            traceback.format_tb(exc.__traceback__),
             file=sys.stderr,
         )
 
@@ -674,7 +666,7 @@ class _JobCore:
         """
         print(
             f"An exception occured in 'on_run' method of job " f"'{self!r}':\n\n",
-            utils.format_code_exception(exc),
+            traceback.format_tb(exc.__traceback__),
             file=sys.stderr,
         )
 
@@ -691,7 +683,7 @@ class _JobCore:
         """
         print(
             f"An exception occured in 'on_stop' method of job " f"'{self!r}':\n\n",
-            utils.format_code_exception(exc),
+            traceback.format_tb(exc.__traceback__),
             file=sys.stderr,
         )
 
@@ -799,7 +791,7 @@ class _JobCore:
         """
         self._job_loop.clear_exception_types()
         if keep_default:
-            self._job_loop.add_exception_type(*DEFAULT_JOB_EXCEPTION_ALLOWLIST)
+            self._job_loop.add_exception_type(*_DEFAULT_JOB_EXCEPTION_ALLOWLIST)
 
     def get_last_stopping_reason(
         self,
@@ -3255,7 +3247,7 @@ class JobBase(JobCore):
             f"A job mixin exception occured in '{mixin_cls.__qualname__}.mixin_run()' "
             "for job "
             f"'{self!r}':\n\n",
-            utils.format_code_exception(exc),
+            traceback.format_tb(exc.__traceback__),
             file=sys.stderr,
         )
 
@@ -3289,7 +3281,7 @@ class ManagedJobBase(JobBase):
         self,
         interval: datetime.timedelta = UNSET,
         time: datetime.time | Sequence[datetime.time] = UNSET,
-        count: int | NoneType = UNSET,
+        count: int | None = UNSET,
         reconnect: bool = UNSET,
     ) -> None:
         """Create a new `ManagedJobBase` instance."""
@@ -3441,4 +3433,4 @@ class JobManagerJob(ManagedJobBase):
         await self.await_done()
 
 
-from . import proxies, groupings, mixins  # allow these modules to finish initialization
+from . import proxies, groupings  # allow these modules to finish initialization

@@ -10,22 +10,16 @@ from asyncio import AbstractEventLoop
 from collections import deque
 import datetime
 import itertools
-from types import FunctionType
 from typing import (
-    TYPE_CHECKING,
     Any,
     Callable,
     Literal,
-    Optional,
-    Type,
     TypedDict,
-    Union,
-    no_type_check,
     overload,
 )
 
-from snakecore import events
-from snakecore.constants import UNSET, _UnsetType, JobPermissionLevels
+import snakecore._events as _events
+from snakecore.constants import UNSET, JobPermissionLevels
 from snakecore.constants.enums import JobBoolFlags as JF, JobOps
 from snakecore.exceptions import JobIsDone
 
@@ -939,8 +933,8 @@ class JobManagerProxy:
 
     def wait_for_event(
         self,
-        *event_types: type[events.BaseEvent],
-        check: Callable[[events.BaseEvent], bool] | None = None,
+        *event_types: type[_events.BaseEvent],
+        check: Callable[[_events.BaseEvent], bool] | None = None,
         timeout: float | None = None,
     ):
         self._check_if_ejected()
@@ -951,7 +945,7 @@ class JobManagerProxy:
             _iv=self.__j,  # type: ignore
         )
 
-    def dispatch_event(self, event: events.BaseEvent):
+    def dispatch_event(self, event: _events.BaseEvent):
         event._dispatcher = self.__j._proxy
         return self.__mgr.dispatch_event(event, _iv=self.__j)  # type: ignore
 

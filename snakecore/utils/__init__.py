@@ -7,16 +7,12 @@ This module defines some utility functionality for the library and general bot
 development.
 """
 
-from typing import Optional
-
 import discord
 
 from snakecore import config
 
 from .utils import *
 from . import embeds, pagination, regex_patterns, serializers
-
-embed_utils = embeds
 
 
 def init(global_client: discord.Client | None = None) -> None:

@@ -7,20 +7,16 @@ and `discord.ext.commands.AutoShardedBot` with more features.
 """
 
 import asyncio
-import importlib
-import inspect
 import logging
-import sys
-import types
-from typing import TYPE_CHECKING, Any, Mapping, Optional, Union
+from typing import TYPE_CHECKING, Any, Mapping
+
 from discord.ext import commands
 from discord.ext.commands import errors
+import discord.ext.commands.bot
 
 from snakecore.constants import UNSET
 
 __all__ = (
-    "ExtBot",
-    "ExtAutoShardedBot",
     "Bot",
     "AutoShardedBot",
 )
@@ -28,11 +24,7 @@ __all__ = (
 _logger = logging.getLogger(__name__)
 
 
-def _is_submodule(parent: str, child: str) -> bool:
-    return parent == child or child.startswith(parent + ".")
-
-
-class ExtBotBase(commands.bot.BotBase):
+class BotBase(discord.ext.commands.bot.BotBase):
     if TYPE_CHECKING:  # reuse constructor of superclass
         _extension_configs: dict[str, Mapping[str, Any]]
     else:
@@ -230,19 +222,13 @@ class ExtBotBase(commands.bot.BotBase):
         return tsks
 
 
-class ExtBot(ExtBotBase, commands.Bot):
+class Bot(BotBase, commands.Bot):
     """A drop-in replacement for `discord.ext.commands.Bot` with more extension-loading features."""
 
     pass
 
 
-class ExtAutoShardedBot(ExtBotBase, commands.AutoShardedBot):
+class AutoShardedBot(BotBase, commands.AutoShardedBot):
     """A drop-in replacement for `discord.ext.commands.AutoShardedBot` with more extension-loading features."""
 
     pass
-
-
-Bot = ExtBot  # export with familiar name
-"""A drop-in replacement for `discord.ext.commands.Bot` with more features."""
-AutoShardedBot = ExtAutoShardedBot
-"""A drop-in replacement for `discord.ext.commands.AutoShardedBot` with more features."""

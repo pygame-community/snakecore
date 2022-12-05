@@ -9,12 +9,12 @@ throughout the codebase.
 
 from abc import ABC, abstractmethod
 from enum import Enum, auto
-from types import GenericAlias
-from typing import Any, Callable, Generic, Optional, Protocol, TypeVar, Union, overload
+from types import GenericAlias, UnionType
+from typing import Any, Callable, Generic, Protocol, TypeVar, overload
 
 import discord
 
-from snakecore.constants import UNSET, _UnsetType, UnionType
+from snakecore.constants import UNSET, _UnsetType
 
 _T = TypeVar("_T", bound=object)
 
@@ -339,9 +339,9 @@ class ModuleName(Enum):
     SNAKECORE_SYNC = auto()  # fake module for synchronously initialized modules
     SNAKECORE_ASYNC = auto()  # fake module for asynchronously initialized modules
     UTILS = auto()
-    EVENTS = auto()
-    JOBS = auto()
-    STORAGE = auto()
+    _EVENTS = auto()
+    _JOBS = auto()
+    _STORAGE = auto()
     COMMANDS = auto()
 
 

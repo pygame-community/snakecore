@@ -8,26 +8,17 @@ their behavior.
 
 import functools
 import inspect
-import sys
 import types
-import typing
-from typing import Any, Callable, Coroutine, Optional, Type, TypeVar, Union
+from typing import Any, Callable, ParamSpec, TypeVar, Union
 
 import discord
 from discord.ext import commands
 from discord.ext.commands.flags import FlagsMeta, Flag
-from snakecore.commands.bot import ExtAutoShardedBot, ExtBot
-
-from snakecore.commands.converters import FlagConverter as _FlagConverter, Parens
-from snakecore.commands.parser import parse_command_str
+import snakecore.commands as sc_commands
+from .converters import FlagConverter as _FlagConverter
 from ._types import AnyCommandType
 
 _T = TypeVar("_T")
-
-if sys.version_info >= (3, 10):
-    from typing import ParamSpec
-else:
-    from typing_extensions import ParamSpec
 
 _P = ParamSpec("_P")
 
@@ -225,101 +216,9 @@ def flagconverter_kwargs(
     return flagconverter_kwargs_inner_deco  # type: ignore
 
 
-def custom_parsing(
-    *, inside_class: bool = False, inject_message_reference: bool = False
-) -> Callable[[Callable[_P, _T]], Callable[_P, _T]]:
-    """A decorator that registers a `discord.ext.commands` command function to
-    use snakecore's custom argument parser. This returns a wrapper function that
-    bypasses `discord.ext.commands` parsing system, parses the input string from
-    a command invocation using the signature of the command function and calls the
-    command function with the parsed arguments. The input string will remain
-    available in an injected `raw_command_input` attribute of the `Context` object
-    passed into the input command function.
-
-    This decorator must be applied as the very first decorator when defining a command.
-
-    Note that since the command invocation context
-    (`commands.Context`) is always passed in as the first argument in a command,
-    The first argument of the given command function will always be `commands.Context`
-    object. Note that the output wrapper function will have a different signature
-    than the input command function, and hence is not meant to be called directly.
-
-    The generated wrapper function doesn't expose the wrapped function
-    using a `__wrapped__` attribute, but by using a custom `__wrapped_func__`
-    attribute instead.
-
-    Parameters
-    ----------
-    inside_class : bool, optional
-        Whether the input function is being defined inside a class, such as a
-        `commands.Cog` subclass. Defaults to False.
-    inject_message_reference : bool, optional
-        Whether the referenced message of the command invocation message should be,
-        if available, injected as the first argument of a command function if that
-        function's signature allows for it. Defaults to False.
-
-    Returns
-    -------
-    Callable[..., Coroutine[Any, Any, Any]]
-        A wrapper callable object.
-    """
-
-    def custom_parsing_inner_deco(func: Callable[_P, _T]) -> Callable[_P, _T]:
-        if inside_class:
-
-            async def cmd_func_wrapper(  # type: ignore
-                self, ctx: commands.Context, *, raw_command_input: str = ""
-            ):
-                signature = cmd_func_wrapper.__wrapped_func_signature__
-                setattr(ctx, "raw_command_input", raw_command_input)
-                parsed_args, parsed_kwargs = await parse_command_str(
-                    ctx,
-                    raw_command_input,
-                    signature,
-                    inject_message_reference=inject_message_reference,
-                )
-
-                return await func(self, ctx, *parsed_args, **parsed_kwargs)  # type: ignore
-
-        else:
-
-            async def cmd_func_wrapper(
-                ctx: commands.Context, *, raw_command_input: str = ""
-            ):
-                signature = cmd_func_wrapper.__wrapped_func_signature__
-                setattr(ctx, "raw_command_input", raw_command_input)
-                parsed_args, parsed_kwargs = await parse_command_str(
-                    ctx,
-                    raw_command_input,
-                    signature,
-                    inject_message_reference=inject_message_reference,
-                )
-
-                return await func(ctx, *parsed_args, **parsed_kwargs)  # type: ignore
-
-        functools.update_wrapper(cmd_func_wrapper, func)
-        del cmd_func_wrapper.__wrapped__  # don't reveal wrapped function here
-
-        old_sig = inspect.signature(func)
-
-        new_sig = old_sig.replace(
-            parameters=tuple(old_sig.parameters.values())[2:]
-            if inside_class
-            else tuple(old_sig.parameters.values())[1:],
-            return_annotation=old_sig.return_annotation,
-        )
-
-        cmd_func_wrapper.__wrapped_func__ = func
-        cmd_func_wrapper.__wrapped_func_signature__ = new_sig
-
-        return cmd_func_wrapper  # type: ignore
-
-    return custom_parsing_inner_deco  # type: ignore
-
-
 def with_extras(**extras: Any) -> Callable[[AnyCommandType], AnyCommandType]:
     """A convenience decorator for adding data into the `extras`
-    attribute of a command object.
+    attribute of a `discord.ext.commands.Command` object.
 
     Parameters
     ----------
@@ -334,25 +233,30 @@ def with_extras(**extras: Any) -> Callable[[AnyCommandType], AnyCommandType]:
     return inner_with_extras
 
 
-def with_config_kwargs(setup: Callable[_P, Any]) -> Callable[[commands.Bot], Any]:
-    """A convenience decorator that allows extension `setup()` functions to support
-    receiving arguments from the `Ext(AutoSharded)Bot.get_extension_config(...)`
-    function's output mapping, if available.
+def with_config_kwargs(
+    setup_or_teardown: Callable[_P, Any]
+) -> Callable[[commands.Bot], Any]:
+    """A convenience decorator that allows extension `setup()` or `teardown()`
+    functions to support receiving arguments from the
+    `snakecore.commands.(AutoSharded)Bot.get_extension_config(...)` function's
+    output mapping, if available.
 
     Parameters
     ----------
-    func : Callable[[ExtBot | ExtAutoShardedBot, ...], None]
-        The `setup()` function.
+    setup_or_teardown : Callable[[snakecore.commands.Bot | snakecore.commands.AutoShardedBot, ...], None]
+        The `setup()` or `teardown()` function.
     """
 
-    async def setup_wrapper(bot: commands.Bot):
-        if isinstance(bot, (ExtBot, ExtAutoShardedBot)):
-            config_mapping = bot.get_extension_config(setup.__module__, {})
-            return await setup(
+    async def setup_teardown_wrapper(bot: commands.Bot):
+        if isinstance(bot, (sc_commands.Bot, sc_commands.AutoShardedBot)):
+            config_mapping = bot.get_extension_config(setup_or_teardown.__module__, {})
+            return await setup_or_teardown(
                 bot,  # type: ignore
                 **{
                     param.name: config_mapping[param.name]
-                    for param in tuple(inspect.signature(setup).parameters.values())[1:]
+                    for param in tuple(
+                        inspect.signature(setup_or_teardown).parameters.values()
+                    )[1:]
                     if param.kind in (param.POSITIONAL_OR_KEYWORD, param.KEYWORD_ONLY)
                     and param.name in config_mapping
                 },
@@ -360,4 +264,11 @@ def with_config_kwargs(setup: Callable[_P, Any]) -> Callable[[commands.Bot], Any
 
         return await setup(bot)  # type: ignore
 
-    return setup_wrapper
+    return setup_teardown_wrapper
+
+
+__all__ = (
+    "flagconverter_kwargs",
+    "with_extras",
+    "with_config_kwargs",
+)

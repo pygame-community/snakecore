@@ -19,10 +19,10 @@ packages = [
     "snakecore",
     "snakecore.commands",
     "snakecore.constants",
-    "snakecore.storage",
-    "snakecore.events",
-    "snakecore.jobs",
-    "snakecore.jobutils",
+    "snakecore._storage",
+    "snakecore._events",
+    "snakecore._jobs",
+    "snakecore._jobutils",
     "snakecore.utils",
 ]
 

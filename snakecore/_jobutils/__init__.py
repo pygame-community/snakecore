@@ -3,18 +3,18 @@ This file is a part of the source code for snakecore.
 This project has been licensed under the MIT license.
 Copyright (c) 2022-present pygame-community
 
-This module implements utility job classes. 
+This module implements utility job classes. Experimental.
 """
 import datetime
-from typing import Any, Callable, Coroutine, Optional, Sequence, Union
+from typing import Any, Callable, Coroutine, Sequence
 
-from snakecore import jobs
-from snakecore.constants import UNSET, _UnsetType, NoneType
+import snakecore._jobs as _jobs
+from snakecore.constants import UNSET
 
 from . import messaging
 
 
-class GenericManagedJob(jobs.ManagedJobBase):
+class GenericManagedJob(_jobs.ManagedJobBase):
     """A subclass of `ManagedJobBase` that uses callbacks passed to its
     constructor to manage its state. This can be a useful alternative
     to creating a subclass for every new job to implement.
@@ -34,32 +34,32 @@ class GenericManagedJob(jobs.ManagedJobBase):
     def __init__(
         self,
         name: str | None = None,
-        on_init: Callable[[jobs.ManagedJobBase], Coroutine[Any, Any, None]]
+        on_init: Callable[[_jobs.ManagedJobBase], Coroutine[Any, Any, None]]
         | None = None,
-        on_start: Callable[[jobs.ManagedJobBase], Coroutine[Any, Any, None]]
+        on_start: Callable[[_jobs.ManagedJobBase], Coroutine[Any, Any, None]]
         | None = None,
         on_start_error: Callable[
-            [jobs.ManagedJobBase, Exception], Coroutine[Any, Any, None]
+            [_jobs.ManagedJobBase, Exception], Coroutine[Any, Any, None]
         ]
         | None = None,
-        on_run: Callable[[jobs.ManagedJobBase], Coroutine[Any, Any, None]]
+        on_run: Callable[[_jobs.ManagedJobBase], Coroutine[Any, Any, None]]
         | None = None,
         on_run_error: Callable[
-            [jobs.ManagedJobBase, Exception], Coroutine[Any, Any, None]
+            [_jobs.ManagedJobBase, Exception], Coroutine[Any, Any, None]
         ]
         | None = None,
-        on_stop: Callable[[jobs.ManagedJobBase], Coroutine[Any, Any, None]]
+        on_stop: Callable[[_jobs.ManagedJobBase], Coroutine[Any, Any, None]]
         | None = None,
         on_stop_error: Callable[
-            [jobs.ManagedJobBase, Exception], Coroutine[Any, Any, None]
+            [_jobs.ManagedJobBase, Exception], Coroutine[Any, Any, None]
         ]
         | None = None,
         interval: datetime.timedelta = UNSET,
         time: datetime.time | Sequence[datetime.time] = UNSET,
-        count: int | NoneType = UNSET,
+        count: int | None = UNSET,
         reconnect: bool = UNSET,
     ) -> None:
-        supercls = jobs.ManagedJobBase
+        supercls = _jobs.ManagedJobBase
         supercls.__init__(self, interval, time, count, reconnect)
         self._name = name or self.__class__.__qualname__
         self._on_init_func = on_init or supercls.on_init
@@ -108,7 +108,7 @@ class GenericManagedJob(jobs.ManagedJobBase):
         )
 
 
-class SingleRunJob(jobs.ManagedJobBase):
+class SingleRunJob(_jobs.ManagedJobBase):
     """A subclass of `ManagedJobBase` whose subclasses's
     job objects will only run once and then complete themselves
     if they fail automatically. For more control, use `ManagedJobBase` directly.

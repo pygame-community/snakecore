@@ -7,7 +7,7 @@ All classes inherit from `ClientEvent`, which inherits from `BaseEvent`.
 """
 
 import datetime
-from typing import Optional, Sequence, Union
+from typing import Sequence
 
 import discord
 from snakecore import config

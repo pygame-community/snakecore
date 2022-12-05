@@ -9,21 +9,16 @@ import datetime
 import re
 import sys
 import types
-from time import perf_counter
 from typing import (
     TYPE_CHECKING,
     Annotated,
     Any,
     Generic,
-    Iterator,
     Literal,
-    Optional,
     Sequence,
-    SupportsIndex,
     Tuple,
     TypeVar,
     Union,
-    overload,
 )
 
 import dateutil.parser
@@ -31,7 +26,6 @@ import dateutil.tz
 import discord
 import discord.app_commands
 from discord.ext import commands
-from discord.ext.commands import flags as _flags
 from discord.ext.commands.view import StringView
 from typing_extensions import Self, TypeVarTuple, Unpack
 
@@ -41,8 +35,9 @@ from snakecore.utils import regex_patterns
 from .bot import AutoShardedBot, Bot
 
 _T = TypeVar("_T")
-BotT = Bot | AutoShardedBot
-DECBotT = commands.Bot | commands.AutoShardedBot
+
+_BotT = Bot | AutoShardedBot
+_DECBotT = commands.Bot | commands.AutoShardedBot
 
 ellipsis = type(Ellipsis)
 
@@ -110,7 +105,7 @@ class DateTimeConverter(commands.Converter[datetime.datetime]):
     """
 
     async def convert(
-        self, ctx: commands.Context[DECBotT], argument: str
+        self, ctx: commands.Context[_DECBotT], argument: str
     ) -> datetime.datetime:
         arg = argument.strip().replace("`", "")
         if snakecore.utils.is_markdown_timestamp(arg):
@@ -148,7 +143,7 @@ class TimeConverter(commands.Converter[datetime.time]):
     """
 
     async def convert(
-        self, ctx: commands.Context[DECBotT], argument: str
+        self, ctx: commands.Context[_DECBotT], argument: str
     ) -> datetime.time:
 
         arg = argument.strip().replace("`", "")
@@ -239,7 +234,7 @@ class TimeDeltaConverter(commands.Converter[datetime.timedelta]):
     """
 
     async def convert(
-        self, ctx: commands.Context[DECBotT], argument: str
+        self, ctx: commands.Context[_DECBotT], argument: str
     ) -> datetime.timedelta:
 
         arg = argument.strip().replace("`", "")
@@ -312,7 +307,7 @@ class ClosedRangeConverter(commands.Converter[range]):
     )
     HYPHEN_NOTATION = re.compile(r"(-?\d+)-(-?\d+)(?:\|([-+]?\d+))?")
 
-    async def convert(self, ctx: commands.Context[DECBotT], argument: str) -> range:
+    async def convert(self, ctx: commands.Context[_DECBotT], argument: str) -> range:
         hyphen_match = self.HYPHEN_NOTATION.match(argument)
         comparison_match = self.COMPARISON_NOTATION.match(argument)
 
@@ -439,7 +434,7 @@ class CodeBlock:
         self.inline = inline if inline is not None else not (language or "\n" in code)
 
     @classmethod
-    async def convert(cls, ctx: commands.Context[DECBotT], argument: str) -> Self:
+    async def convert(cls, ctx: commands.Context[_DECBotT], argument: str) -> Self:
         view: StringView = getattr(ctx, "_current_view", ctx.view)
 
         if argument.startswith("```"):
@@ -540,7 +535,7 @@ StringParamsTuple = TypeVar(
 
 
 class _StringConverter(commands.Converter[str]):
-    async def convert(self, ctx: commands.Context[DECBotT], argument: str) -> str:
+    async def convert(self, ctx: commands.Context[_DECBotT], argument: str) -> str:
         try:
             string = self.escape(argument)
         except ValueError as verr:
@@ -734,7 +729,7 @@ class StringConverter(_StringConverter, Generic[_T]):
 
         return cls(size=size_tuple)
 
-    async def convert(self, ctx: commands.Context[DECBotT], argument: str) -> str:
+    async def convert(self, ctx: commands.Context[_DECBotT], argument: str) -> str:
         string = await super().convert(ctx, argument)
         if (
             isinstance(self.size[0], int)
@@ -772,10 +767,10 @@ class StringConverter(_StringConverter, Generic[_T]):
         )
 
 
-TVT = TypeVarTuple("TVT")
+_TVT = TypeVarTuple("_TVT")
 
 
-class StringExprConverter(_StringConverter, Generic[TVT]):  # type: ignore
+class StringExprConverter(_StringConverter, Generic[Unpack[_TVT]]):  # type: ignore
     def __init__(self, regex: str, examples: tuple[str, ...]) -> None:
         super().__init__()
         self.regex_pattern = re.compile(regex)
@@ -796,7 +791,7 @@ class StringExprConverter(_StringConverter, Generic[TVT]):  # type: ignore
 
         return cls(regex, examples)
 
-    async def convert(self, ctx: commands.Context[DECBotT], argument: str) -> str:
+    async def convert(self, ctx: commands.Context[_DECBotT], argument: str) -> str:
         string = await super().convert(ctx, argument)
         if not self.regex_pattern.fullmatch(string):
             raise commands.BadArgument(
@@ -812,9 +807,9 @@ class StringExprConverter(_StringConverter, Generic[TVT]):  # type: ignore
         return string
 
 
-class StringExprMatchConverter(StringExprConverter, Generic[TVT]):  # type: ignore
+class StringExprMatchConverter(StringExprConverter, Generic[_TVT]):  # type: ignore
     async def convert(
-        self, ctx: commands.Context[DECBotT], argument: str
+        self, ctx: commands.Context[_DECBotT], argument: str
     ) -> re.Match[str]:
         string = await super().convert(ctx, argument)
         if not (match := self.regex_pattern.fullmatch(string)):
@@ -941,7 +936,7 @@ class ParensConverter(commands.Converter[tuple]):
         return None
 
     async def convert(
-        self, ctx: commands.Context[DECBotT], argument: str
+        self, ctx: commands.Context[_DECBotT], argument: str
     ) -> tuple[Any, ...]:
         if not argument.startswith(self.OPENING):
             raise commands.BadArgument(
@@ -1191,7 +1186,7 @@ class UnicodeEmojiConverter(commands.Converter[str]):
     - `"\\u270c\\u1f3fd"` -> `"✌🏽"`
     """
 
-    async def convert(self, ctx: commands.Context[BotT], argument: str) -> str:
+    async def convert(self, ctx: commands.Context[_BotT], argument: str) -> str:
         argument = StringConverter.escape(argument)
 
         if snakecore.utils.is_emoji_shortcode(argument):
@@ -1342,8 +1337,8 @@ else:
     Parens = ParensConverter
 
 
-async def tuple_convert_all(
-    ctx: commands.Context[DECBotT], argument: str, flag: commands.Flag, converter: Any
+async def _tuple_convert_all(
+    ctx: commands.Context[_DECBotT], argument: str, flag: commands.Flag, converter: Any
 ) -> Tuple[Any, ...]:
     view = StringView(argument)
     results = []
@@ -1372,8 +1367,8 @@ async def tuple_convert_all(
     return tuple(results)
 
 
-async def tuple_convert_flag(
-    ctx: commands.Context[DECBotT], argument: str, flag: commands.Flag, converters: Any
+async def _tuple_convert_flag(
+    ctx: commands.Context[_DECBotT], argument: str, flag: commands.Flag, converters: Any
 ) -> Tuple[Any, ...]:
     view = StringView(argument)
     results = []
@@ -1405,8 +1400,8 @@ async def tuple_convert_flag(
     return tuple(results)
 
 
-async def convert_flag(
-    ctx: commands.Context[DECBotT],
+async def _convert_flag(
+    ctx: commands.Context[_DECBotT],
     argument: str,
     flag: commands.Flag,
     annotation: Any = None,
@@ -1420,24 +1415,24 @@ async def convert_flag(
     else:
         if origin is tuple:
             if annotation.__args__[-1] is Ellipsis:
-                return await tuple_convert_all(
+                return await _tuple_convert_all(
                     ctx, argument, flag, annotation.__args__[0]
                 )
             else:
-                return await tuple_convert_flag(
+                return await _tuple_convert_flag(
                     ctx, argument, flag, annotation.__args__
                 )
         elif origin is list:
             # typing.List[x]
             annotation = annotation.__args__[0]
-            return await convert_flag(ctx, argument, flag, annotation)
+            return await _convert_flag(ctx, argument, flag, annotation)
         elif origin is Union and type(None) in annotation.__args__:
             # typing.Optional[x]
             annotation = Union[tuple(arg for arg in annotation.__args__ if arg is not type(None))]  # type: ignore
             return await commands.run_converters(ctx, annotation, argument, param)
         elif origin is dict:
             # typing.Dict[K, V] -> typing.Tuple[K, V]
-            return await tuple_convert_flag(ctx, argument, flag, annotation.__args__)
+            return await _tuple_convert_flag(ctx, argument, flag, annotation.__args__)
 
     try:
         return await commands.run_converters(ctx, annotation, argument, param)
@@ -1452,7 +1447,7 @@ class FlagConverter(commands.FlagConverter):
     """
 
     @classmethod
-    async def convert(cls, ctx: commands.Context[DECBotT], argument: str) -> Self:
+    async def convert(cls, ctx: commands.Context[_DECBotT], argument: str) -> Self:
         arguments = cls.parse_flags(argument)
         flags = cls.__commands_flags__
 
@@ -1480,7 +1475,7 @@ class FlagConverter(commands.FlagConverter):
 
             # Special case:
             if flag.max_args == 1:
-                value = await convert_flag(ctx, values[0], flag)
+                value = await _convert_flag(ctx, values[0], flag)
                 setattr(self, flag.attribute, value)
                 continue
 
@@ -1489,7 +1484,7 @@ class FlagConverter(commands.FlagConverter):
             # So, given flag: hello 20 as the input and Tuple[str, int] as the type hint
             # We would receive ('hello', 20) as the resulting value
             # This uses the same whitespace and quoting rules as regular parameters.
-            values = [await convert_flag(ctx, value, flag) for value in values]
+            values = [await _convert_flag(ctx, value, flag) for value in values]
 
             if flag.cast_to_dict:
                 values = dict(values)
@@ -1497,3 +1492,26 @@ class FlagConverter(commands.FlagConverter):
             setattr(self, flag.attribute, values)
 
         return self
+
+
+__all__ = (
+    "DateTimeConverter",
+    "DateTime",
+    "TimeConverter",
+    "Time",
+    "TimeDeltaConverter",
+    "TimeDelta",
+    "ClosedRangeConverter",
+    "ClosedRange",
+    "CodeBlock",
+    "StringConverter",
+    "String",
+    "StringExprConverter",
+    "StringExpr",
+    "StringExprMatchConverter",
+    "StringExprMatch",
+    "ParensConverter",
+    "Parens",
+    "UnicodeEmojiConverter",
+    "UnicodeEmoji",
+)

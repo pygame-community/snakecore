@@ -13,7 +13,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 import datetime
 import time
-from typing import Any, Optional, Union
+from typing import Any
 
 from snakecore.constants import (
     JobBoolFlags as JF,
@@ -23,7 +23,7 @@ from snakecore.constants import (
 from snakecore.utils import DequeProxy
 from . import jobs
 from .jobs import JobMixin
-from snakecore import events
+import snakecore._events as _events
 
 
 class BaseEventJobMixin(JobMixin):
@@ -36,7 +36,7 @@ class BaseEventJobMixin(JobMixin):
           default, all instances of `BaseEvent` will be propagated.
     """
 
-    EVENTS: tuple[type[events.BaseEvent], ...] = (events.BaseEvent,)
+    EVENTS: tuple[type[_events.BaseEvent], ...] = (_events.BaseEvent,)
 
     DEFAULT_MAX_EVENT_QUEUE_SIZE: int | None = None
 
@@ -128,7 +128,7 @@ class BaseEventJobMixin(JobMixin):
         """
         return DequeProxy(self._event_queue)
 
-    def _add_event(self, event: events.BaseEvent):
+    def _add_event(self, event: _events.BaseEvent):
         is_running = self.is_running() and not self._bools & JF.STOPPED
         if (
             not self._bools & JF.EVENT_DISPATCH_ENABLED
@@ -156,19 +156,19 @@ class BaseEventJobMixin(JobMixin):
                     fut.set_result(True)
             self._event_queue_futures.clear()
 
-    def event_check(self, event: events.BaseEvent) -> bool:
+    def event_check(self, event: _events.BaseEvent) -> bool:
         """A method for subclasses that can be overloaded to perform validations on a `BaseEvent`
         instance that was dispatched to them. Must return a boolean value indicating the
         validaiton result. If not overloaded, this method will always return `True`.
 
         Parameters
         ----------
-        event : events.BaseEvent
+        event : _events.BaseEvent
             The event object to run checks upon.
         """
         return True
 
-    async def next_event(self) -> events.BaseEvent:
+    async def next_event(self) -> _events.BaseEvent:
         if not self._event_queue:
             fut = self._manager._loop.create_future()
             self._event_queue_futures.append(fut)
@@ -297,7 +297,7 @@ class EventJobMixin(BaseEventJobMixin):
                 "the 'EVENTS' class attribute must be of type 'tuple' and "
                 "must contain one or more subclasses of `BaseEvent`"
             )
-        elif not all(issubclass(et, events.BaseEvent) for et in cls.EVENTS):
+        elif not all(issubclass(et, _events.BaseEvent) for et in cls.EVENTS):
             raise ValueError(
                 "the 'EVENTS' class attribute "
                 "must contain one or more subclasses of `BaseEvent`"
@@ -351,7 +351,7 @@ class EventJobMixin(BaseEventJobMixin):
             JF.STOPPING_BY_EMPTY_EVENT_QUEUE | JF.STOPPING_BY_EVENT_DISPATCH_TIMEOUT
         )  # False
 
-    async def on_event(self, event: events.BaseEvent):
+    async def on_event(self, event: _events.BaseEvent):
         """DO NOT CALL THIS METHOD MANUALLY, EXCEPT WHEN USING `super()` WITHIN
         OVERLOADED VERSIONS OF THIS METHOD TO ACCESS A SUPERCLASS METHOD.
 
@@ -359,11 +359,11 @@ class EventJobMixin(BaseEventJobMixin):
         """
         pass
 
-    async def on_event_error(self, exc: Exception, event: events.BaseEvent):
+    async def on_event_error(self, exc: Exception, event: _events.BaseEvent):
         """DO NOT CALL THIS METHOD MANUALLY, EXCEPT WHEN USING `super()` WITHIN
         OVERLOADED VERSIONS OF THIS METHOD TO ACCESS A SUPERCLASS METHOD.
 
-        The code to use to react to failed attempts to handle events.
+        The code to use to react to failed attempts to handle _events.
         """
         pass
 
@@ -511,18 +511,18 @@ class EventSession:
 
     def __init__(
         self,
-        event: events.BaseEvent,
+        event: _events.BaseEvent,
         task: asyncio.Task,
         data: jobs.JobNamespace,
         timestamp: datetime.datetime | None = None,
     ) -> None:
-        self._event: events.BaseEvent = event
+        self._event: _events.BaseEvent = event
         self._task: asyncio.Task = task
         self._data: jobs.JobNamespace = data
         self._timestamp = timestamp or datetime.datetime.now(datetime.timezone.utc)
 
     @property
-    def event(self) -> events.BaseEvent:
+    def event(self) -> _events.BaseEvent:
         return self._event
 
     @property
@@ -595,7 +595,7 @@ class MultiEventJobMixin(EventJobMixin):
         else:
             self._max_event_session_queue_size = None
 
-        self._active_event_sessions: dict[events.BaseEvent, EventSession] = {}
+        self._active_event_sessions: dict[_events.BaseEvent, EventSession] = {}
         self._oe_max_concurrency = max(int(self.DEFAULT_OE_MAX_CONCURRENCY), 1)
 
         self._event_session_queue: deque[EventSession] = deque(
@@ -627,7 +627,7 @@ class MultiEventJobMixin(EventJobMixin):
     def _max_on_event_concurrency_reached(self) -> bool:
         return len(self._active_event_sessions) >= self._oe_max_concurrency
 
-    async def _on_event(self, event: events.BaseEvent, oe_data: OENamespace) -> None:
+    async def _on_event(self, event: _events.BaseEvent, oe_data: OENamespace) -> None:
         token = self._oe_data.set(oe_data)
         try:
             await self.on_event(event)
@@ -637,7 +637,7 @@ class MultiEventJobMixin(EventJobMixin):
         finally:
             self._oe_data.reset(token)
 
-    def _create_event_session(self, event: events.BaseEvent) -> bool:
+    def _create_event_session(self, event: _events.BaseEvent) -> bool:
 
         oe_data = self.OENamespace()
 

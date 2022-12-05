@@ -18,7 +18,6 @@ from typing import (
     Generic,
     Iterable,
     Literal,
-    Optional,
     Sequence,
     TypeVar,
     Union,
@@ -27,7 +26,7 @@ from typing import (
 import discord
 import emoji
 
-from snakecore.constants import UNSET, _UnsetType
+from snakecore.constants import UNSET
 from . import regex_patterns
 
 from typing_extensions import Self

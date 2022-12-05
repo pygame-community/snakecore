@@ -8,15 +8,15 @@ which are stripped-down versions of the regular types of job objects.
 
 import datetime
 import time
-from typing import Optional, Sequence, Union
+from typing import Sequence
 
 import discord
-from snakecore.constants import UNSET, _UnsetType, NoneType
+from snakecore.constants import UNSET
 from snakecore.constants.enums import JobBoolFlags as JF
 from snakecore.exceptions import JobInitializationError
 
-from snakecore.jobs.jobs import _JobCore, JobNamespace
-from snakecore.jobs.loops import JobLoop
+from snakecore._jobs.jobs import _JobCore, JobNamespace
+from snakecore._jobs.loops import JobLoop
 
 
 class MiniJobBase(_JobCore):

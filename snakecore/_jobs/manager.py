@@ -17,14 +17,13 @@ from typing import (
     Callable,
     Coroutine,
     Literal,
-    Optional,
     Type,
     Union,
     overload,
 )
 from typing_extensions import Self
 
-from snakecore.constants import UNSET, _UnsetType, JobBoolFlags as JF, NoneType
+from snakecore.constants import UNSET, _UnsetType, JobBoolFlags as JF
 
 from snakecore.constants.enums import (
     _JOB_OPS_PRES_CONT,
@@ -40,7 +39,7 @@ from snakecore.exceptions import (
     JobStateError,
 )
 from snakecore.utils import FastChainMap
-from snakecore import events
+import snakecore._events as _events
 from . import jobs, loops, mixins
 
 
@@ -98,9 +97,9 @@ class JobManager:
             list[
                 tuple[
                     jobs.ManagedJobBase,
-                    tuple[type[events.BaseEvent], ...],
-                    Callable[[events.BaseEvent], bool] | None,
-                    asyncio.Future[events.BaseEvent],
+                    tuple[type[_events.BaseEvent], ...],
+                    Callable[[_events.BaseEvent], bool] | None,
+                    asyncio.Future[_events.BaseEvent],
                 ]
             ],
         ] = {}
@@ -1771,7 +1770,7 @@ class JobManager:
 
     def dispatch_event(
         self,
-        event: events.BaseEvent,
+        event: _events.BaseEvent,
         _iv: jobs.ManagedJobBase | None = None,
     ):
         """Dispatch an instance of a `BaseEvent` subclass to all event job
@@ -1788,15 +1787,15 @@ class JobManager:
         self._check_init_and_running()
 
         if isinstance(_iv, jobs.ManagedJobBase):
-            if isinstance(event, events.BaseEvent):
-                if isinstance(event, events.CustomEvent):
+            if isinstance(event, _events.BaseEvent):
+                if isinstance(event, _events.CustomEvent):
                     self._verify_permissions(_iv, op=JobOps.CUSTOM_EVENT_DISPATCH)
                 else:
                     self._verify_permissions(_iv, op=JobOps.EVENT_DISPATCH)
             else:
                 raise TypeError("argument 'event' must be an instance of BaseEvent")
         else:
-            if not isinstance(event, events.BaseEvent):
+            if not isinstance(event, _events.BaseEvent):
                 raise TypeError("argument 'event' must be an instance of BaseEvent")
             self._check_manager_misuse()
             _iv = self._manager_job
@@ -1851,11 +1850,11 @@ class JobManager:
 
     def wait_for_event(
         self,
-        *event_types: type[events.BaseEvent],
-        check: Callable[[events.BaseEvent], bool] | None = None,
+        *event_types: type[_events.BaseEvent],
+        check: Callable[[_events.BaseEvent], bool] | None = None,
         timeout: float | None = None,
         _iv: jobs.ManagedJobBase | None = None,
-    ) -> Coroutine[Any, Any, events.BaseEvent]:
+    ) -> Coroutine[Any, Any, _events.BaseEvent]:
         """Wait for a specific type of event to be dispatched
         and return it as an event object using the given coroutine.
 
@@ -1864,7 +1863,7 @@ class JobManager:
         *event_types : type[BaseEvent]
             The event type/types to wait for. If any of its/their instances is
             dispatched, that instance will be returned.
-        check : Callable[[events.BaseEvent], bool] | None, optional
+        check : Callable[[_events.BaseEvent], bool] | None, optional
             A callable obejct used to validate if a valid event that was
             received meets specific conditions. Defaults to None.
         timeout : float | None, optional
@@ -1892,7 +1891,7 @@ class JobManager:
         future = self._loop.create_future()
 
         if not all(
-            issubclass(event_type, events.BaseEvent) for event_type in event_types
+            issubclass(event_type, _events.BaseEvent) for event_type in event_types
         ):
             raise TypeError(
                 "argument 'event_types' must contain only subclasses of 'BaseEvent'"

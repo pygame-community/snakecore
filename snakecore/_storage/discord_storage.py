@@ -38,7 +38,7 @@ class DiscordStorage(LocalStorage[_T]):
 
     @property
     def is_init(self) -> bool:
-        return config.conf.init_mods.get(config.ModuleName.STORAGE, False)
+        return config.conf.init_mods.get(config.ModuleName._STORAGE, False)
 
 
 async def init_discord_storage():

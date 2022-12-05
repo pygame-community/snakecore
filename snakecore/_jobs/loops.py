@@ -9,13 +9,13 @@ which are used by job objects.
 import asyncio
 from contextvars import ContextVar
 import datetime
-from typing import Any, Optional, Sequence, Union
+from typing import Any, Sequence
 
 import discord
 from discord.ext import tasks
 from discord.backoff import ExponentialBackoff
 
-from snakecore.constants import DEFAULT_JOB_EXCEPTION_ALLOWLIST
+from snakecore.constants import _DEFAULT_JOB_EXCEPTION_ALLOWLIST
 
 _current_job = ContextVar("current_job")
 
@@ -40,7 +40,7 @@ class JobLoop(tasks.Loop):
         super().__init__(coro, seconds, hours, minutes, time, count, reconnect)
         self.job = job
         self.clear_exception_types()
-        self.add_exception_type(*DEFAULT_JOB_EXCEPTION_ALLOWLIST)
+        self.add_exception_type(*_DEFAULT_JOB_EXCEPTION_ALLOWLIST)
 
     def cancel(self) -> None:
         """Cancels the internal task, if it is running."""

@@ -7,12 +7,12 @@ This file implements wrapper classes used to pickle Discord models and dataclass
 """
 
 import io
-from typing import Any, Optional, Type, Union
+from types import NoneType
+from typing import Any, Type
 
 import discord
 
 from snakecore import config
-from snakecore.constants import NoneType
 from snakecore.exceptions import DeserializationError
 from snakecore.utils import recursive_mapping_compare
 

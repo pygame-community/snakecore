@@ -6,19 +6,13 @@ Copyright (c) 2022-present pygame-community
 A set of core APIs to facilitate the creation of feature-rich Discord bots.
 """
 
-from typing import Optional
-
 import discord
 
 from . import (
     commands,
     config,
     constants,
-    storage,
-    events,
     exceptions,
-    jobs,
-    jobutils,
     utils,
 )
 
@@ -110,8 +104,6 @@ def init_sync(
 
     for module in (
         commands,
-        events,
-        jobs,
         utils,
     ):  # might be extended in the future
         if not module.is_init():  # prevent multiple init calls, which can be allowed by
@@ -164,23 +156,8 @@ async def init_async(
         config.conf.global_client = global_client
 
     success_failure_list = [0, 0]
-
-    if not storage.is_init():
-
-        try:
-            await storage.init()
-        except Exception:
-            if raise_module_exceptions:
-                raise
-
-            success_failure_list[1] += 1
-        else:
-            success_failure_list[0] += 1
-
-    if success_failure_list[0]:
-        config.conf.init_mods[config.ModuleName.SNAKECORE_ASYNC] = True
-
-    return tuple(success_failure_list)
+    config.conf.init_mods[config.ModuleName.SNAKECORE_ASYNC] = True
+    return success_failure_list
 
 
 async def quit():
@@ -209,8 +186,6 @@ def quit_sync():
 
     for module in (
         commands,
-        events,
-        jobs,
         utils,
     ):  # might be extended in the future
         if module.is_init():
@@ -228,9 +203,6 @@ async def quit_async():
     it does not fully uninitialize snakecore. This function will only attempt to quit
     modules that are still initialized and can be called multiple times.
     """
-
-    if storage.is_init():
-        await storage.quit()
     config.conf.init_mods[config.ModuleName.SNAKECORE_ASYNC] = False
 
 

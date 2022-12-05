@@ -1,5 +1,3 @@
-from typing import Optional
-
 import pytest
 
 # import public API, all should be defined

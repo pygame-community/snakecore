@@ -2,14 +2,12 @@
 This project has been licensed under the MIT license.
 Copyright (c) 2022-present pygame-community
 
-A asynchronous job module based on OOP principles.
+A asynchronous job module based on OOP principles. Experimental.
 """
-
-from typing import Optional
 
 import discord
 
-from snakecore import config, events
+from snakecore import config, _events
 from .jobs import (
     get_job_class_from_runtime_id,
     JobNamespace,
@@ -47,15 +45,15 @@ def init(global_client: discord.Client | None = None) -> None:
     if global_client is not None and not config.conf.is_set("global_client"):
         config.conf.global_client = global_client
 
-    events.init()
-    config.conf.init_mods[config.ModuleName.JOBS] = True
+    _events.init()
+    config.conf.init_mods[config.ModuleName._JOBS] = True
 
 
 def quit() -> None:
     """Quit this module."""
-    config.conf.init_mods[config.ModuleName.JOBS] = False
+    config.conf.init_mods[config.ModuleName._JOBS] = False
 
 
 def is_init() -> bool:
     """`bool`: Whether this module has been sucessfully initialized."""
-    return config.conf.init_mods.get(config.ModuleName.JOBS, False)
+    return config.conf.init_mods.get(config.ModuleName._JOBS, False)

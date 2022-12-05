@@ -8,11 +8,10 @@ Discord.
 
 import asyncio
 import time
-from typing import Iterable, Optional, Sequence, Union
+from typing import Iterable, Sequence
 
 import discord
 from snakecore import config
-import snakecore
 from snakecore.constants import UNSET
 
 

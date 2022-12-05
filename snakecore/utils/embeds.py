@@ -10,7 +10,6 @@ import re
 from typing import (
     Any,
     Mapping,
-    Optional,
     Sequence,
     TypedDict,
     Union,

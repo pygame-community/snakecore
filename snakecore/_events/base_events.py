@@ -8,7 +8,7 @@ This file implements base classes used to capture or emit events.
 
 import datetime
 import time
-from typing import Any, Optional, Type, Union
+from typing import Any
 
 from snakecore.constants import UNSET
 
