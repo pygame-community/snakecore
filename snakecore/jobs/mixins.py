@@ -38,7 +38,7 @@ class BaseEventJobMixin(JobMixin):
 
     EVENTS: tuple[type[events.BaseEvent], ...] = (events.BaseEvent,)
 
-    DEFAULT_MAX_EVENT_QUEUE_SIZE: Optional[int] = None
+    DEFAULT_MAX_EVENT_QUEUE_SIZE: int | None = None
 
     DEFAULT_ALLOW_EVENT_QUEUE_OVERFLOW: bool = False
 
@@ -222,9 +222,7 @@ class BaseEventJobMixin(JobMixin):
 
     def _stop_cleanup(
         self,
-        reason: Optional[
-            Union[JobStopReasons.Internal, JobStopReasons.External]
-        ] = None,
+        reason: JobStopReasons.Internal | JobStopReasons.External | None = None,
     ) -> None:
         for fut in self._event_queue_futures:
             if not fut.done():
@@ -242,7 +240,7 @@ class EventJobMixin(BaseEventJobMixin):
     to implement this behavior and should not be used on its own anymore.
     """
 
-    DEFAULT_OE_MAX_EVENT_HANDLINGS: Optional[int] = None
+    DEFAULT_OE_MAX_EVENT_HANDLINGS: int | None = None
     """Max. amount of events to handle with `on_event()`
     in one job loop iteration. Note that if the maximum
     is not reached and no more events are available, `on_event()`
@@ -269,7 +267,7 @@ class EventJobMixin(BaseEventJobMixin):
     the waiting time. Defaults to True.
     """
 
-    DEFAULT_EVENT_DISPATCH_TIMEOUT: Union[float, datetime.timedelta, None] = None
+    DEFAULT_EVENT_DISPATCH_TIMEOUT: float | datetime.timedelta | None = None
     """The timeout period for awaiting another event, before ending the loop iteration.
     Defaults to None.
     """
@@ -289,7 +287,7 @@ class EventJobMixin(BaseEventJobMixin):
 
     def __init_subclass__(
         cls,
-        class_uuid: Optional[str] = None,
+        class_uuid: str | None = None,
     ) -> None:
         if not cls.EVENTS:
             raise TypeError("the 'EVENTS' class attribute must not be empty")
@@ -454,9 +452,7 @@ class EventJobMixin(BaseEventJobMixin):
 
     def _stop_cleanup(
         self,
-        reason: Optional[
-            Union[JobStopReasons.Internal, JobStopReasons.External]
-        ] = None,
+        reason: JobStopReasons.Internal | JobStopReasons.External | None = None,
     ) -> None:
         super()._stop_cleanup(reason=reason)
 
@@ -466,7 +462,7 @@ class EventJobMixin(BaseEventJobMixin):
 
     def get_stopping_reason(
         self,
-    ) -> Optional[Union[JobStopReasons.Internal, JobStopReasons.External]]:
+    ) -> JobStopReasons.Internal | JobStopReasons.External | None:
         if not self._bools & JF.IS_STOPPING:
             return
         elif (
@@ -518,7 +514,7 @@ class EventSession:
         event: events.BaseEvent,
         task: asyncio.Task,
         data: jobs.JobNamespace,
-        timestamp: Optional[datetime.datetime] = None,
+        timestamp: datetime.datetime | None = None,
     ) -> None:
         self._event: events.BaseEvent = event
         self._task: asyncio.Task = task
@@ -547,7 +543,7 @@ class MultiEventJobMixin(EventJobMixin):
     via `on_event()` concurrently.
     """
 
-    DEFAULT_MAX_EVENT_SESSION_QUEUE_SIZE: Optional[int] = None
+    DEFAULT_MAX_EVENT_SESSION_QUEUE_SIZE: int | None = None
     """The maximum amount of finished event sessions that
     can be held in the event session queue. If this
     maximum is reached or surpassed, handling events with

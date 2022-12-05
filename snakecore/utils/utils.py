@@ -53,7 +53,7 @@ def clamp(value, min_, max_):
 
 def is_emoji_equal(
     partial_emoji: discord.PartialEmoji,
-    emoji: Union[str, discord.Emoji, discord.PartialEmoji],
+    emoji: str | discord.Emoji | discord.PartialEmoji,
 ):
     """Utility to compare a partial emoji with any other kind of emoji"""
     if isinstance(emoji, discord.PartialEmoji):
@@ -68,7 +68,7 @@ def is_emoji_equal(
     return str(partial_emoji) == emoji
 
 
-def format_discord_link(link: str, guild_id_or_me: Union[int, Literal["@me"]]):
+def format_discord_link(link: str, guild_id_or_me: int | Literal["@me"]):
     """Format a discord link to a channel or message"""
     link = link.lstrip("<").rstrip(">").rstrip("/")
 
@@ -105,7 +105,7 @@ TIME_UNITS = (
 
 
 def format_time_by_units(
-    dt: Union[datetime.timedelta, int, float],
+    dt: datetime.timedelta | int | float,
     decimal_places: int = 4,
     value_unit_space: bool = True,
     full_unit_names: bool = False,
@@ -119,7 +119,7 @@ def format_time_by_units(
 
     Parameters
     ----------
-    dt : Union[datetime.timedelta, int, float]
+    dt : datetime.timedelta | int | float
         The relative input time in seconds.
     decimal_places : int, optional
         The decimal places to be used in the formatted output time. Only applies when
@@ -216,7 +216,7 @@ BASE_2_STORAGE_UNITS = (
 
 def format_byte(
     size: int,
-    decimal_places: Optional[int] = None,
+    decimal_places: int | None = None,
     full_unit_names: bool = False,
     base_2_units: bool = False,
 ):
@@ -228,7 +228,7 @@ def format_byte(
     ----------
     size : int
         The size in bytes.
-    decimal_places : Optional[int], optional
+    decimal_places : int | None, optional
         The exact decimal places to display in the formatting output.
         If omitted, the Python `float` class's string version will be used to
         automatically choose the needed decimal places. Defaults to None.
@@ -378,6 +378,7 @@ def is_emoji_shortcode(string: str) -> bool:
         and emoji.emojize(string) != string
     )
 
+
 def is_unicode_emoji(string: str) -> bool:
     """Whether the given string matches a valid unicode emoji.
     This function uses the `emoji` package for validation.
@@ -393,6 +394,7 @@ def is_unicode_emoji(string: str) -> bool:
         `True` if condition is met, `False` otherwise.
     """
     return emoji.is_emoji(string)
+
 
 def shortcode_to_unicode_emoji(string: str) -> str:
     """Convert the given emoji shortcode to a valid unicode emoji,
@@ -412,6 +414,7 @@ def shortcode_to_unicode_emoji(string: str) -> str:
         return emoji.emojize(string, language="alias")
 
     return string
+
 
 def extract_markdown_timestamp(markdown_timestamp: str) -> int:
     """Extract the UNIX timestamp '123456789696969' from a Discord markdown
@@ -479,14 +482,12 @@ def code_block(string: str, max_characters: int = 2048, code_type: str = "") -> 
 
 
 def have_permissions_in_channels(
-    members_or_roles: Union[
-        discord.Member, discord.Role, Sequence[Union[discord.Member, discord.Role]]
-    ],
-    channels: Union[
-        discord.abc.GuildChannel,
-        discord.Thread,
-        Sequence[Union[discord.abc.GuildChannel, discord.Thread]],
-    ],
+    members_or_roles: discord.Member
+    | discord.Role
+    | Sequence[Union[discord.Member, discord.Role]],
+    channels: discord.abc.GuildChannel
+    | discord.Thread
+    | Sequence[Union[discord.abc.GuildChannel, discord.Thread]],
     *permissions: str,
     member_role_bool_func: Callable[[Iterable[Any]], bool] = all,
     permission_bool_func: Callable[[Iterable[Any]], bool] = all,
@@ -499,9 +500,9 @@ def have_permissions_in_channels(
 
     Parameters
     ----------
-    members_or_roles : Union[discord.Member, discord.Role, Sequence[Union[discord.Member, discord.Role]]]
+    members_or_roles : discord.Member | discord.Role | Sequence[Union[discord.Member, discord.Role]]
         The target Discord member(s) or role(s).
-    channels : Union[discord.abc.GuildChannel, discord.DMChannel, Sequence[Union[discord.abc.GuildChannel, discord.DMChannel]]]
+    channels : discord.abc.GuildChannel | discord.DMChannel | Sequence[Union[discord.abc.GuildChannel, discord.DMChannel]]
         The target channel(s) to check permissions on.
     *permissions : str
         The lowercase attribute name(s) to check for
@@ -545,7 +546,7 @@ def have_permissions_in_channels(
 
 
 def create_markdown_timestamp(
-    dt: Union[int, float, datetime.datetime], tformat: str = "f"
+    dt: int | float | datetime.datetime, tformat: str = "f"
 ) -> str:
     """Get a discord timestamp formatted string that renders it correctly on the
     discord end. dt can be UNIX timestamp or datetime object while tformat
@@ -566,7 +567,7 @@ def create_markdown_timestamp(
 def recursive_mapping_compare(
     source_mapping: Mapping,
     target_mapping: Mapping,
-    compare_func: Optional[Callable[[Any, Any], bool]] = None,
+    compare_func: Callable[[Any, Any], bool] | None = None,
     ignore_keys_missing_in_source: bool = False,
     ignore_keys_missing_in_target: bool = False,
     _final_bool: bool = True,
@@ -702,9 +703,7 @@ def recursive_mapping_delete(
 def recursive_mapping_cast(
     old_mapping: MutableMapping,
     cast_to: type[Mapping],
-    cast_from: Optional[
-        Union[type[MutableMapping], tuple[type[MutableMapping], ...]]
-    ] = None,
+    cast_from: type[MutableMapping] | tuple[type[MutableMapping], ...] | None = None,
 ):
     """Recursively cast the `MutableMapping` given as input to the `Mapping` type specified in `cast_to`,
     whilst doing the same for its `MutableMapping` object values. This function is in-place, but returns
@@ -717,7 +716,7 @@ def recursive_mapping_cast(
         The input mapping.
     cast_to : type[Mapping]
         The mapping type to cast to.
-    cast_from : Optional[Union[type[MutableMapping], tuple[type[MutableMapping], ...]]], optional
+    cast_from : type[MutableMapping] | tuple[type[MutableMapping], ...] | None, optional
         The mapping type whose found instances should be casted. Defaults to None.
 
     Raises
@@ -758,7 +757,7 @@ def recursive_mapping_cast(
 def _recursive_mapping_cast(
     old_mapping: MutableMapping,
     cast_to: type[Mapping],
-    cast_from: Union[type[MutableMapping], tuple[type[MutableMapping], ...]],
+    cast_from: type[MutableMapping] | tuple[type[MutableMapping], ...],
 ):
     for k in old_mapping:
         if isinstance(old_mapping[k], cast_from):
@@ -851,7 +850,7 @@ def class_getattr_unique(
 def class_getattr_unique_mapping(
     cls: type,
     name: str,
-    filter_func: Optional[Callable[[Any], bool]] = None,
+    filter_func: Callable[[Any], bool] | None = None,
     check_dicts_only: bool = False,
     _id_set=None,
 ) -> dict[type, Any]:
@@ -938,7 +937,7 @@ class BoundedOrderedDict(OrderedDict[_KT, _VT]):
     if a maximum length was set for it, similar to `deque`.
     """
 
-    def __init__(self, *args: Any, maxlen: Optional[int] = None, **kwds: Any) -> None:
+    def __init__(self, *args: Any, maxlen: int | None = None, **kwds: Any) -> None:
         super().__init__(*args, **kwds)
         if maxlen is not None:
             if not isinstance(maxlen, int):
@@ -960,7 +959,7 @@ class BoundedOrderedDict(OrderedDict[_KT, _VT]):
             self._check_maxlen_reached()
 
     @property
-    def maxlen(self) -> Optional[int]:
+    def maxlen(self) -> int | None:
         return self.__maxlen
 
     def __setitem__(self, __key: _KT, __value: _VT) -> None:
@@ -968,9 +967,7 @@ class BoundedOrderedDict(OrderedDict[_KT, _VT]):
         self._check_maxlen_reached()
         return None
 
-    def setdefault(
-        self, key: _KT, default: Optional[_T] = None
-    ) -> Optional[Union[_T, _VT]]:
+    def setdefault(self, key: _KT, default: _T | None = None) -> _T | _VT | None:
         """Insert key with a value of default if key is not in the dictionary.
 
         Return the value for key if key is in the dictionary, else default.
@@ -996,7 +993,7 @@ class DequeProxy(Sequence[_T], Generic[_T]):
         self.__deque = deque_obj
 
     @property
-    def maxlen(self) -> Optional[int]:
+    def maxlen(self) -> int | None:
         return self.__deque.maxlen
 
     def __copy__(self) -> Self:

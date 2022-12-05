@@ -18,7 +18,7 @@ from discord.ext import commands
 from discord.ext.commands.flags import FlagsMeta, Flag
 from snakecore.commands.bot import ExtAutoShardedBot, ExtBot
 
-from snakecore.commands.converters import FlagConverter as _FlagConverter
+from snakecore.commands.converters import FlagConverter as _FlagConverter, Parens
 from snakecore.commands.parser import parse_command_str
 from ._types import AnyCommandType
 
@@ -36,7 +36,7 @@ UnionGenericAlias = type(Union[str, int])
 
 def flagconverter_kwargs(
     *,
-    prefix: Optional[str] = "",
+    prefix: str | None = "",
     delimiter: str = ":",
     cls: type[commands.FlagConverter] = _FlagConverter,
 ) -> Callable[[Callable[_P, _T]], Callable[_P, _T]]:
@@ -65,9 +65,9 @@ def flagconverter_kwargs(
 
     Parameters
     ----------
-    prefix : Optional[str], optional
+    prefix : str | None, optional
         The prefix to pass to the `FlagConverter` subclass. Defaults to `""`.
-        delimiter (Optional[str], optional): The delimiter to pass to the `FlagConverter`
+        delimiter (str | None, optional): The delimiter to pass to the `FlagConverter`
           subclass. Defaults to `":"`.
         cls (type[commands.FlagConverter], optional): The class to use as a base class for
           the resulting FlagConverter class to generate. Useful for implementing custom flag
@@ -111,14 +111,16 @@ def flagconverter_kwargs(
                         commands.Greedy,
                     ):
                         if (
-                            isinstance(evaluated_anno, UnionGenericAlias)
+                            isinstance(
+                                evaluated_anno, (UnionGenericAlias, types.UnionType)
+                            )
                             and type(None) in evaluated_anno.__args__
                             or evaluated_anno in (None, type(None), str)
                         ):
                             raise TypeError(
-                                "Cannot have None, NoneType or typing.Optional as an "
-                                f"annotation for '*{param.name}' when using "
-                                "flagconverter decorator"
+                                "Cannot have None, NoneType or typing.Optional/or "
+                                "UnionType with None as an annotation for "
+                                f"'*{param.name}' when using flagconverter decorator"
                             )
                         else:
                             new_annotation = f"commands.Greedy[{param.annotation}]"
@@ -128,14 +130,14 @@ def flagconverter_kwargs(
                     or isinstance(new_annotation, commands.Greedy)
                 ):
                     if (
-                        isinstance(new_annotation, UnionGenericAlias)
+                        isinstance(new_annotation, (UnionGenericAlias, types.UnionType))
                         and type(None) in new_annotation.__args__
                         or new_annotation in (None, type(None), str)
                     ):
                         raise TypeError(
-                            "Cannot have None, NoneType or typing.Optional as an "
-                            f"annotation for '*{param.name}' when using "
-                            "flagconverter decorator"
+                            "Cannot have None, NoneType or typing.Optional/or "
+                            "UnionType with None as an annotation for "
+                            f"'*{param.name}' when using flagconverter decorator"
                         )
                     new_annotation = commands.Greedy(converter=param.annotation)
 
@@ -339,7 +341,7 @@ def with_config_kwargs(setup: Callable[_P, Any]) -> Callable[[commands.Bot], Any
 
     Parameters
     ----------
-    func : Callable[[Union[ExtBot, ExtAutoShardedBot], ...], None]
+    func : Callable[[ExtBot | ExtAutoShardedBot, ...], None]
         The `setup()` function.
     """
 

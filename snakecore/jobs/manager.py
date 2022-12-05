@@ -54,18 +54,18 @@ class JobManager:
 
     def __init__(
         self,
-        loop: Optional[asyncio.AbstractEventLoop] = None,
-        global_job_timeout: Optional[float] = None,
+        loop: asyncio.AbstractEventLoop | None = None,
+        global_job_timeout: float | None = None,
         default_job_permission_level: JobPermissionLevels = JobPermissionLevels.MEDIUM,
     ) -> None:
         """Create a new job manager instance.
 
         Parameters
         ----------
-        loop : Optional[asyncio.AbstractEventLoop], optional
+        loop : asyncio.AbstractEventLoop | None, optional
             The event loop to use for this job manager and all of its jobs.
             Defaults to None.
-        global_job_timeout : Optional[float], optional
+        global_job_timeout : float | None, optional
             The default global job timeout in seconds. Defaults to None.
         default_job_permission_level : JobPermissionLevels, optional
             The default job permission level
@@ -86,20 +86,20 @@ class JobManager:
         self._loop = loop
         self._event_job_ids = {}
         self._job_class_data: dict[str, dict[str, Any]] = {}
-        self._default_job_permission_level: Optional[
-            JobPermissionLevels
-        ] = default_job_permission_level
+        self._default_job_permission_level: JobPermissionLevels | None = (
+            default_job_permission_level
+        )
         self._job_id_map: dict[
             str, tuple[jobs.ManagedJobBase, JobPermissionLevels]
         ] = {}
-        self._manager_job: Optional[jobs.JobManagerJob] = None
+        self._manager_job: jobs.JobManagerJob | None = None
         self._event_waiting_queues: dict[
             str,
             list[
                 tuple[
                     jobs.ManagedJobBase,
                     tuple[type[events.BaseEvent], ...],
-                    Optional[Callable[[events.BaseEvent], bool]],
+                    Callable[[events.BaseEvent], bool] | None,
                     asyncio.Future[events.BaseEvent],
                 ]
             ],
@@ -182,21 +182,21 @@ class JobManager:
         """
         return self._initialized
 
-    def get_global_job_stop_timeout(self) -> Optional[float]:
-        """`Optional[float]`: Get the maximum time period in seconds for job objects to stop
+    def get_global_job_stop_timeout(self) -> float | None:
+        """`float | None`: Get the maximum time period in seconds for job objects to stop
         when halted from this manager, either due to stopping,
         being restarted or being killed.
         """
         return self._global_job_stop_timeout
 
-    def set_global_job_stop_timeout(self, timeout: Optional[float]) -> None:
+    def set_global_job_stop_timeout(self, timeout: float | None) -> None:
         """Set the maximum time period in seconds for job objects to stop
         when halted from this manager, either due to stopping,
         restarted or killed.
 
         Parameters
         ----------
-        timeout : Optional[float]
+        timeout : float | None
             The timeout in seconds, or ``None`` to clear any previous timeout.
         """
 
@@ -206,7 +206,7 @@ class JobManager:
         self._check_manager_misuse()
         self._global_job_stop_timeout = timeout
 
-    def get_default_job_permission_level(self) -> Optional[JobPermissionLevels]:
+    def get_default_job_permission_level(self) -> JobPermissionLevels | None:
         return self._default_job_permission_level
 
     def set_default_job_permission_level(self, permission_level: JobPermissionLevels):
@@ -252,9 +252,9 @@ class JobManager:
         self,
         invoker: jobs.ManagedJobBase,
         op: JobOps,
-        target: Optional[Union[jobs.ManagedJobBase, "proxies.JobProxy"]] = None,
-        register_permission_level: Optional[JobPermissionLevels] = None,
-        target_cls: Optional[type[jobs.ManagedJobBase]] = None,
+        target: "jobs.ManagedJobBase | proxies.JobProxy | None" = None,
+        register_permission_level: JobPermissionLevels | None = None,
+        target_cls: type[jobs.ManagedJobBase] | None = None,
         raise_exceptions=True,
     ) -> bool:
 
@@ -501,7 +501,7 @@ class JobManager:
         cls: type[jobs.ManagedJobBase],
         *args,
         _return_proxy=True,
-        _iv: Optional[jobs.ManagedJobBase] = None,
+        _iv: jobs.ManagedJobBase | None = None,
         **kwargs,
     ) -> jobs.ManagedJobBase:
         ...
@@ -511,9 +511,9 @@ class JobManager:
         cls: type[jobs.ManagedJobBase],
         *args,
         _return_proxy=True,
-        _iv: Optional[jobs.ManagedJobBase] = None,
+        _iv: jobs.ManagedJobBase | None = None,
         **kwargs,
-    ) -> Union[jobs.ManagedJobBase, "proxies.JobProxy"]:
+    ) -> "proxies.JobProxy | jobs.ManagedJobBase":
         """Create an instance of a job class and return it.
 
         Parameters
@@ -569,7 +569,7 @@ class JobManager:
         self,
         job_proxy: "proxies.JobProxy",
         raise_exceptions: bool = True,
-        _iv: Optional[jobs.ManagedJobBase] = None,
+        _iv: jobs.ManagedJobBase | None = None,
     ) -> bool:
         ...
 
@@ -577,7 +577,7 @@ class JobManager:
         self,
         job_proxy: "proxies.JobProxy",
         raise_exceptions: bool = True,
-        _iv: Optional[jobs.ManagedJobBase] = None,
+        _iv: jobs.ManagedJobBase | None = None,
     ) -> bool:
         """Initialize a job object.
 
@@ -641,7 +641,7 @@ class JobManager:
     async def register_job(  # type: ignore
         self,
         job_proxy: "proxies.JobProxy",
-        permission_level: Optional[JobPermissionLevels] = None,
+        permission_level: JobPermissionLevels | None = None,
         start: bool = True,
     ):
         ...
@@ -650,18 +650,18 @@ class JobManager:
     async def register_job(
         self,
         job_proxy: "proxies.JobProxy",
-        permission_level: Optional[JobPermissionLevels] = None,
+        permission_level: JobPermissionLevels | None = None,
         start: bool = True,
-        _iv: Optional[jobs.ManagedJobBase] = None,
+        _iv: jobs.ManagedJobBase | None = None,
     ):
         ...
 
     async def register_job(
         self,
         job_proxy: "proxies.JobProxy",
-        permission_level: Optional[JobPermissionLevels] = None,
+        permission_level: JobPermissionLevels | None = None,
         start: bool = True,
-        _iv: Optional[jobs.ManagedJobBase] = None,
+        _iv: jobs.ManagedJobBase | None = None,
     ):
         """Register a job object to this JobManager,
         while initializing it if necessary.
@@ -672,7 +672,7 @@ class JobManager:
             The job object to be registered.
         start : bool
             Whether the given job object should start automatically upon registration.
-        permission_level : Optional[JobPermissionLevels], optional
+        permission_level : JobPermissionLevels | None, optional
             The permission level under which the job object should be registered.
             If set to `None`, the default job manager permission level will be
             chosen. Defaults to None.
@@ -746,7 +746,7 @@ class JobManager:
         self,
         cls: type[jobs.ManagedJobBase],
         *args,
-        permission_level: Optional[JobPermissionLevels] = None,
+        permission_level: JobPermissionLevels | None = None,
         **kwargs,
     ) -> "proxies.JobProxy":
         ...
@@ -756,22 +756,22 @@ class JobManager:
         self,
         cls: type[jobs.ManagedJobBase],
         *args,
-        permission_level: Optional[JobPermissionLevels] = None,
+        permission_level: JobPermissionLevels | None = None,
         _return_proxy: bool = True,
-        _iv: Optional[jobs.ManagedJobBase] = None,
+        _iv: jobs.ManagedJobBase | None = None,
         **kwargs,
-    ) -> Union["proxies.JobProxy", jobs.ManagedJobBase]:
+    ) -> "proxies.JobProxy | jobs.ManagedJobBase":
         ...
 
     async def create_and_register_job(
         self,
         cls: type[jobs.ManagedJobBase],
         *args,
-        permission_level: Optional[JobPermissionLevels] = None,
+        permission_level: JobPermissionLevels | None = None,
         _return_proxy: bool = True,
-        _iv: Optional[jobs.ManagedJobBase] = None,
+        _iv: jobs.ManagedJobBase | None = None,
         **kwargs,
-    ) -> Union["proxies.JobProxy", jobs.ManagedJobBase]:
+    ) -> "proxies.JobProxy | jobs.ManagedJobBase":
         """Create an instance of a job class, register it to this job manager,
         and start it.
 
@@ -781,7 +781,7 @@ class JobManager:
             The job class to instantiate.
         *args
             Positional arguments for the job constructor.
-        permission_level : Optional[JobPermissionLevels], optional
+        permission_level : JobPermissionLevels | None, optional
             The permission level under which the job object should be registered.
             If set to `None`, the default job manager permission level will be
             chosen. Defaults to None.
@@ -964,42 +964,42 @@ class JobManager:
     def find_job(
         self,
         *,
-        identifier: Optional[str] = None,
-        created_at: Optional[datetime.datetime] = None,
-    ) -> Optional["proxies.JobProxy"]:
+        identifier: str | None = None,
+        created_at: datetime.datetime | None = None,
+    ) -> "proxies.JobProxy | None":
         ...
 
     @overload
     def find_job(
         self,
         *,
-        identifier: Optional[str] = None,
-        created_at: Optional[datetime.datetime] = None,
+        identifier: str | None = None,
+        created_at: datetime.datetime | None = None,
         _return_proxy: bool = True,
-    ) -> Optional[jobs.ManagedJobBase]:
+    ) -> jobs.ManagedJobBase | None:
         ...
 
     def find_job(
         self,
         *,
-        identifier: Optional[str] = None,
-        created_at: Optional[datetime.datetime] = None,
+        identifier: str | None = None,
+        created_at: datetime.datetime | None = None,
         _return_proxy: bool = True,
-    ) -> Union["proxies.JobProxy", jobs.ManagedJobBase, NoneType]:
+    ) -> "proxies.JobProxy | jobs.ManagedJobBase | None":
         """Find the first job that matches the given criteria specified as arguments,
         and return a proxy to it, otherwise return `None`.
 
         Parameters
         ----------
-        identifier : Optional[str], optional
+        identifier : str | None, optional
             The exact identifier of the job to find. This argument overrides any other
             parameter below. Defaults to None.
-        created_at : Optional[datetime.datetime], optional
+        created_at : datetime.datetime | None, optional
             The exact creation date of the job to find. Defaults to None.
 
         Returns
         -------
-        Optional[JobProxy]
+        JobProxy | None
             The proxy of the matching job object, if present.
 
         Raises
@@ -1041,15 +1041,12 @@ class JobManager:
     def find_jobs(  # type: ignore
         self,
         *,
-        classes: Optional[
-            Union[
-                type[jobs.ManagedJobBase],
-                tuple[
-                    type[jobs.ManagedJobBase],
-                    ...,
-                ],
-            ]
-        ] = tuple(),
+        classes: type[jobs.ManagedJobBase]
+        | tuple[
+            type[jobs.ManagedJobBase],
+            ...,
+        ]
+        | None = tuple(),
         exact_class_match: bool = False,
         creator: "proxies.JobProxy" = UNSET,
         created_before: datetime.datetime = UNSET,
@@ -1075,15 +1072,12 @@ class JobManager:
     def find_jobs(
         self,
         *,
-        classes: Optional[
-            Union[
-                type[jobs.ManagedJobBase],
-                tuple[
-                    type[jobs.ManagedJobBase],
-                    ...,
-                ],
-            ]
-        ] = tuple(),
+        classes: type[jobs.ManagedJobBase]
+        | tuple[
+            type[jobs.ManagedJobBase],
+            ...,
+        ]
+        | None = tuple(),
         exact_class_match: bool = False,
         creator: "proxies.JobProxy" = UNSET,
         created_before: datetime.datetime = UNSET,
@@ -1104,13 +1098,13 @@ class JobManager:
         stopped: bool = UNSET,
         query_match_mode: Literal["ANY", "ALL"] = "ALL",
         _return_proxy: bool = True,
-    ) -> Union[tuple["proxies.JobProxy", ...], tuple[jobs.ManagedJobBase, ...]]:
+    ) -> tuple["proxies.JobProxy", ...] | tuple[jobs.ManagedJobBase, ...]:
         """Find jobs that match the given criteria specified as arguments,
         and return a tuple of proxy objects to them.
 
         Parameters
         ----------
-        classes : Optional[Union[type[jobs.ManagedJobBase], tuple[type[jobs.ManagedJobBase], ...]]] , optional
+        classes : type[jobs.ManagedJobBase] | tuple[type[jobs.ManagedJobBase], ...] | None , optional
             The class(es) of the job objects to limit the job search to,
             excluding subclasses. Defaults to `()`.
         exact_class_match : bool, optional
@@ -1136,7 +1130,7 @@ class JobManager:
             A boolean that a job's state should match.
         is_being_guarded : bool, optional
             A boolean that a job's state should match.
-        guardian : Optional[JobProxy], optional
+        guardian : JobProxy | None, optional
             A value that the value of this attribute on a job should match.
         is_stopping : bool, optional
             A boolean that a job's state should match.
@@ -1361,7 +1355,7 @@ class JobManager:
     def start_job(
         self,
         job_proxy: "proxies.JobProxy",
-        _iv: Optional[jobs.ManagedJobBase] = None,
+        _iv: jobs.ManagedJobBase | None = None,
     ) -> bool:
 
         """Start the given job object, if is hasn't already started.
@@ -1412,15 +1406,15 @@ class JobManager:
     def restart_job(  # type: ignore
         self,
         job_proxy: "proxies.JobProxy",
-        stopping_timeout: Optional[float] = None,
+        stopping_timeout: float | None = None,
     ) -> bool:
         ...
 
     def restart_job(
         self,
         job_proxy: "proxies.JobProxy",
-        stopping_timeout: Optional[float] = None,
-        _iv: Optional[jobs.ManagedJobBase] = None,
+        stopping_timeout: float | None = None,
+        _iv: jobs.ManagedJobBase | None = None,
     ) -> bool:
         """Restart the given job object. This provides a cleaner way
         to forcefully stop a job and restart it, or to wake it up from
@@ -1430,7 +1424,7 @@ class JobManager:
         ----------
         job_proxy : JobProxy
             The proxy to the job object.
-        stopping_timeout : Optional[float], optional
+        stopping_timeout : float | None, optional
             An optional timeout in seconds for the maximum time period
             for stopping the job while it is restarting. This overrides
             the global timeout of this job manager if present.
@@ -1480,7 +1474,7 @@ class JobManager:
     def stop_job(  # type: ignore
         self,
         job_proxy: "proxies.JobProxy",
-        stopping_timeout: Optional[float] = None,
+        stopping_timeout: float | None = None,
         force: bool = False,
     ) -> bool:
         ...
@@ -1488,9 +1482,9 @@ class JobManager:
     def stop_job(
         self,
         job_proxy: "proxies.JobProxy",
-        stopping_timeout: Optional[float] = None,
+        stopping_timeout: float | None = None,
         force: bool = False,
-        _iv: Optional[jobs.ManagedJobBase] = None,
+        _iv: jobs.ManagedJobBase | None = None,
     ) -> bool:
         """Stop the given job object.
 
@@ -1500,7 +1494,7 @@ class JobManager:
             The proxy to the job object.
         force : bool
             Whether to suspend all operations of the job forcefully.
-        stopping_timeout : Optional[float], optional
+        stopping_timeout : float | None, optional
             An optional timeout in seconds for the maximum time period
             for stopping the job. This overrides the global timeout of
             this job manager if present.
@@ -1549,8 +1543,8 @@ class JobManager:
     def kill_job(
         self,
         job_proxy: "proxies.JobProxy",
-        stopping_timeout: Optional[float] = None,
-        _iv: Optional[jobs.ManagedJobBase] = None,
+        stopping_timeout: float | None = None,
+        _iv: jobs.ManagedJobBase | None = None,
     ) -> bool:
         """Stops a job's current execution unconditionally and remove it from its
         job manager.
@@ -1559,7 +1553,7 @@ class JobManager:
         ----------
         job_proxy : JobProxy
             The proxy to the job object.
-        stopping_timeout : Optional[float], optional
+        stopping_timeout : float | None, optional
             An optional timeout in seconds for the maximum time period for
             stopping the job while it is being killed. This overrides the
             global timeout of this job manager if present.
@@ -1608,7 +1602,7 @@ class JobManager:
     def guard_job(
         self,
         job_proxy: "proxies.JobProxy",
-        _iv: Optional[jobs.ManagedJobBase] = None,
+        _iv: jobs.ManagedJobBase | None = None,
     ) -> None:
         """Place a guard on the given job object, to prevent unintended state
         modifications by other jobs. This guard can only be broken by other
@@ -1662,7 +1656,7 @@ class JobManager:
     def unguard_job(
         self,
         job_proxy: "proxies.JobProxy",
-        _iv: Optional[jobs.ManagedJobBase] = None,
+        _iv: jobs.ManagedJobBase | None = None,
     ):
         """Remove the guard on the given job object, to prevent unintended state
         modifications by other jobs.
@@ -1728,7 +1722,7 @@ class JobManager:
     def guard_on_job(
         self,
         job_proxy: "proxies.JobProxy",
-        _iv: Optional[jobs.ManagedJobBase] = None,
+        _iv: jobs.ManagedJobBase | None = None,
     ):
         """A context manager for automatically guarding and unguarding a job object.
         If the given job object is already unguarded or guarded by another job when
@@ -1778,7 +1772,7 @@ class JobManager:
     def dispatch_event(
         self,
         event: events.BaseEvent,
-        _iv: Optional[jobs.ManagedJobBase] = None,
+        _iv: jobs.ManagedJobBase | None = None,
     ):
         """Dispatch an instance of a `BaseEvent` subclass to all event job
         objects in this job manager that are listening for it. If that
@@ -1812,7 +1806,7 @@ class JobManager:
 
         event_class_identifier = event.__class__._RUNTIME_ID
 
-        event_job_waiters: Optional[set[mixins.BaseEventJobMixin]] = None
+        event_job_waiters: set[mixins.BaseEventJobMixin] | None = None
 
         if event_class_identifier in self._event_waiting_queues:
             target_event_waiting_queue = self._event_waiting_queues[
@@ -1858,9 +1852,9 @@ class JobManager:
     def wait_for_event(
         self,
         *event_types: type[events.BaseEvent],
-        check: Optional[Callable[[events.BaseEvent], bool]] = None,
-        timeout: Optional[float] = None,
-        _iv: Optional[jobs.ManagedJobBase] = None,
+        check: Callable[[events.BaseEvent], bool] | None = None,
+        timeout: float | None = None,
+        _iv: jobs.ManagedJobBase | None = None,
     ) -> Coroutine[Any, Any, events.BaseEvent]:
         """Wait for a specific type of event to be dispatched
         and return it as an event object using the given coroutine.
@@ -1870,10 +1864,10 @@ class JobManager:
         *event_types : type[BaseEvent]
             The event type/types to wait for. If any of its/their instances is
             dispatched, that instance will be returned.
-        check : Optional[Callable[[events.BaseEvent], bool]], optional
+        check : Callable[[events.BaseEvent], bool] | None, optional
             A callable obejct used to validate if a valid event that was
             received meets specific conditions. Defaults to None.
-        timeout : Optional[float], optional
+        timeout : float | None, optional
             An optional timeout value in seconds for the maximum waiting period.
 
         Returns
@@ -1997,14 +1991,14 @@ class JobManager:
 
     def stop(
         self,
-        job_operation: Union[Literal[JobOps.KILL], Literal[JobOps.STOP]] = JobOps.STOP,
+        job_operation: Literal[JobOps.KILL] | Literal[JobOps.STOP] = JobOps.STOP,
     ) -> asyncio.Future[Any]:
         """Stop this job manager from running, while optionally killing/stopping the jobs in it
         and shutting down its executors.
 
         Parameters
         ----------
-        job_operation : Union[JobOps.KILL, JobOps.STOP]
+        job_operation : JobOps.KILL | JobOps.STOP
             The operation to perform on the jobs in this job manager.
             Defaults to `JobOps.STOP`. Killing will always be done by starting up
             jobs and killing them immediately. Stopping will always be done by

@@ -42,9 +42,9 @@ class MiniJobBase(_JobCore):
     """
 
     DEFAULT_INTERVAL = datetime.timedelta()
-    DEFAULT_TIME: Optional[Union[datetime.time, Sequence[datetime.time]]] = None
+    DEFAULT_TIME: datetime.time | Sequence[datetime.time] | None = None
 
-    DEFAULT_COUNT: Optional[int] = None
+    DEFAULT_COUNT: int | None = None
     DEFAULT_RECONNECT = True
 
     __slots__ = ("_external_data",)
@@ -52,8 +52,8 @@ class MiniJobBase(_JobCore):
     def __init__(
         self,
         interval: datetime.timedelta = UNSET,
-        time: Union[datetime.time, Sequence[datetime.time]] = UNSET,
-        count: Optional[int] = UNSET,
+        time: datetime.time | Sequence[datetime.time] = UNSET,
+        count: int | None = UNSET,
         reconnect: bool = UNSET,
     ) -> None:
         """Create a new `MiniJobBase` instance."""
@@ -97,12 +97,12 @@ class MiniJobBase(_JobCore):
         """
         return self._external_data
 
-    def next_iteration(self) -> Optional[datetime.datetime]:
-        """`Optional[datetime.datetime]`: When the next iteration of `.on_run()` will occur."""
+    def next_iteration(self) -> datetime.datetime | None:
+        """`datetime.datetime | None`: When the next iteration of `.on_run()` will occur."""
         return self._job_loop.next_iteration
 
-    def get_interval(self) -> Optional[tuple[float, float, float]]:
-        """`Optional[tuple[float, float, float]]`: Returns a tuple of the seconds,
+    def get_interval(self) -> tuple[float, float, float] | None:
+        """`tuple[float, float, float] | None`: Returns a tuple of the seconds,
         minutes and hours at which this job object is executing its `.on_run()`
         method.
         """
@@ -126,7 +126,7 @@ class MiniJobBase(_JobCore):
         seconds: float = 0,
         minutes: float = 0,
         hours: float = 0,
-        time: Union[datetime.time, Sequence[datetime.time]] = UNSET,
+        time: datetime.time | Sequence[datetime.time] = UNSET,
     ):
         """Change the interval at which this job will run its `on_run()` method,
         as soon as possible.
@@ -139,7 +139,7 @@ class MiniJobBase(_JobCore):
             Defaults to 0.
         hours : float, optional
             Defaults to 0.
-        time : Union[datetime.time, Sequence[datetime.time]], optional
+        time : datetime.time | Sequence[datetime.time], optional
             Defaults to 0.
         """
         self._job_loop.change_interval(

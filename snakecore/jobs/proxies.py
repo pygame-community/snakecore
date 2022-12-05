@@ -52,7 +52,7 @@ class JobProxy:
     )
 
     def __init__(self, job: "jobs.JobBase") -> None:
-        self.__j: Optional["jobs.JobBase"] = job
+        self.__j: "jobs.JobBase | None" = job
         self._cache_current_job_state()
 
     def _cache_current_job_state(self):
@@ -92,7 +92,7 @@ class JobProxy:
         return self.__job_class
 
     @property
-    def permission_level(self) -> Optional[JobPermissionLevels]:
+    def permission_level(self) -> JobPermissionLevels | None:
         return (
             self.__j.permission_level
             if self.__j is not None
@@ -104,13 +104,13 @@ class JobProxy:
         return self.__runtime_id
 
     @property
-    def creator(self) -> Optional["JobProxy"]:
-        """`Optional[JobProxy]`: The `JobProxy` of the creator of this job."""
+    def creator(self) -> "JobProxy | None":
+        """`JobProxy | None`: The `JobProxy` of the creator of this job."""
         return self.__creator
 
     @property
-    def guardian(self) -> Optional["JobProxy"]:
-        """`Optional[JobProxy]`: The `JobProxy` of the current guardian of this job."""
+    def guardian(self) -> "JobProxy | None":
+        """`JobProxy | None`: The `JobProxy` of the current guardian of this job."""
         return self.__j._guardian if self.__j is not None else None
 
     @property
@@ -118,15 +118,15 @@ class JobProxy:
         return self._created_at
 
     @property
-    def registered_at(self) -> Optional[datetime.datetime]:
+    def registered_at(self) -> datetime.datetime | None:
         return self._registered_at
 
     @property
-    def killed_at(self) -> Optional[datetime.datetime]:
+    def killed_at(self) -> datetime.datetime | None:
         return self._killed_at
 
     @property
-    def completed_at(self) -> Optional[datetime.datetime]:
+    def completed_at(self) -> datetime.datetime | None:
         return self.__job_class.completed_at
 
     def initialized(self):
@@ -229,13 +229,11 @@ class JobProxy:
     def is_being_guarded(self):
         return self.__j.is_being_guarded() if self.__j is not None else False
 
-    def await_done(
-        self, timeout: Optional[float] = None, cancel_if_killed: bool = False
-    ):
+    def await_done(self, timeout: float | None = None, cancel_if_killed: bool = False):
         self._check_if_ejected()
         return self.__j.await_done(timeout=timeout, cancel_if_killed=cancel_if_killed)  # type: ignore
 
-    def await_unguard(self, timeout: Optional[float] = None):
+    def await_unguard(self, timeout: float | None = None):
         self._check_if_ejected()
         return self.__j.await_unguard(timeout=timeout)  # type: ignore
 
@@ -281,14 +279,14 @@ class JobProxy:
         self._check_if_ejected()
         return self.__j.output_queue_is_empty(queue_name)  # type: ignore
 
-    def await_output_field(self, field_name: str, timeout: Optional[float] = None):
+    def await_output_field(self, field_name: str, timeout: float | None = None):
         self._check_if_ejected()
         return self.__j.await_output_field(field_name, timeout=timeout)  # type: ignore
 
     def await_output_queue_add(
         self,
         queue_name: str,
-        timeout: Optional[float] = None,
+        timeout: float | None = None,
         cancel_if_cleared: bool = True,
     ):
         self._check_if_ejected()
@@ -323,7 +321,7 @@ class JobProxy:
 
 class _JobOutputQueueProxyDict(TypedDict):
     index: int
-    rescue_buffer: Optional[deque[Any]]
+    rescue_buffer: deque[Any] | None
     job_output_queue: list[Any]
 
 
@@ -372,7 +370,7 @@ class JobOutputQueueProxy:
         ----------
         queue_name : str
             The name of the output queue to set.
-        raise_exceptions : Optional[bool], optional
+        raise_exceptions : bool | None, optional
             Whether exceptions should be raised. Defaults to False.
 
         Raises
@@ -395,7 +393,7 @@ class JobOutputQueueProxy:
         )
 
     def config_output_queue(
-        self, queue_name: str, use_rescue_buffer: Optional[bool] = None
+        self, queue_name: str, use_rescue_buffer: bool | None = None
     ) -> None:
         """Configure settings for a specified output queue.
 
@@ -403,7 +401,7 @@ class JobOutputQueueProxy:
         ----------
         queue_name : str
             The name of the output queue to set.
-        use_rescue_buffer : Optional[bool], optional
+        use_rescue_buffer : bool | None, optional
             Set up a rescue buffer for the specified output queue, which
             automatically collects queue values when a job cleares a
             queue. Defaults to None.
@@ -423,13 +421,13 @@ class JobOutputQueueProxy:
             self._output_queue_proxy_dict[queue_name]["rescue_buffer"] = None
 
     def config_output_queue_defaults(
-        self, use_rescue_buffer: Optional[bool] = None
+        self, use_rescue_buffer: bool | None = None
     ) -> None:
         """Configure default settings for output queues.
 
         Parameters
         ----------
-        use_rescue_buffer : Optional[bool], optional
+        use_rescue_buffer : bool | None, optional
             Set up a rescue buffer for an output queue, which automatically collects
             queue values when a job cleares a queue. Defaults to None.
         """
@@ -461,18 +459,18 @@ class JobOutputQueueProxy:
             self._output_queue_proxy_dict[queue_name]["rescue_buffer"] = deque()
 
     @overload
-    def pop_output_queue(self, queue_name: str, amount: Optional[int] = None) -> Any:
+    def pop_output_queue(self, queue_name: str, amount: int | None = None) -> Any:
         ...
 
     @overload
     def pop_output_queue(
-        self, queue_name: str, amount: Optional[int] = None, all_values: bool = False
+        self, queue_name: str, amount: int | None = None, all_values: bool = False
     ) -> list[Any]:
         ...
 
     def pop_output_queue(
-        self, queue_name: str, amount: Optional[int] = None, all_values: bool = False
-    ) -> Union[list[Any], Any]:
+        self, queue_name: str, amount: int | None = None, all_values: bool = False
+    ) -> list[Any] | Any:
         """Get the oldest or a list of the specified amount of oldest entries in the
         specified output queue.
 
@@ -480,7 +478,7 @@ class JobOutputQueueProxy:
         ----------
         queue_name : str
             The name of the target output queue.
-        amount : Optional[int], optional
+        amount : int | None, optional
             The maximum amount of entries to return.
             If there are less entries available than this amount, only
             Defaults to None.
@@ -489,7 +487,7 @@ class JobOutputQueueProxy:
 
         Returns
         -------
-        Union[list[Any], Any]
+        list[Any] | Any
             The oldest value, or a list of the specified amount of them, if possible.
 
         Raises
@@ -616,7 +614,7 @@ class JobOutputQueueProxy:
     def await_output_queue_add(
         self,
         queue_name: str,
-        timeout: Optional[float] = None,
+        timeout: float | None = None,
         cancel_if_cleared: bool = True,
     ):
         """Wait for the job object of this output queue proxy to add to the specified
@@ -700,8 +698,8 @@ class JobManagerProxy:
         self._check_if_ejected()
         return self.__mgr._loop
 
-    def get_job_stop_timeout(self) -> Optional[float]:
-        """`Optional[float]`: Get the maximum time period in seconds for the job object managed
+    def get_job_stop_timeout(self) -> float | None:
+        """`float | None`: Get the maximum time period in seconds for the job object managed
         by this `JobManagerProxy` to stop when halted from the
         job manager, either due to stopping, restarted or killed.
         By default, this method returns the global job timeout set for the
@@ -718,9 +716,9 @@ class JobManagerProxy:
     def verify_permissions(
         self,
         op: JobOps,
-        target: Optional[JobProxy] = None,
-        target_cls: Optional[type[jobs.ManagedJobBase]] = None,
-        register_permission_level: Optional[JobPermissionLevels] = None,
+        target: JobProxy | None = None,
+        target_cls: type[jobs.ManagedJobBase] | None = None,
+        register_permission_level: JobPermissionLevels | None = None,
     ) -> bool:
         """Check if the permissions of the job of this `JobManagerProxy` object
         are sufficient for carrying out the specified operation on the given input.
@@ -730,9 +728,9 @@ class JobManagerProxy:
         op : JobOps
             The operation. Must be one of the operations defined in the `JobOps`
             class namespace.
-        target : Optional[JobProxy], optional
+        target : JobProxy | None, optional
             The target job's proxy for an operation. Defaults to None.
-        target_cls : Optional[type[ManagedJobBase]], optional
+        target_cls : type[ManagedJobBase] | None, optional
             The target job class for an operation. Defaults to None.
 
         Returns
@@ -790,9 +788,7 @@ class JobManagerProxy:
             **kwargs,
         )
 
-    def restart_job(
-        self, job_proxy: JobProxy, stopping_timeout: Optional[float] = None
-    ):
+    def restart_job(self, job_proxy: JobProxy, stopping_timeout: float | None = None):
         self._check_if_ejected()
         job = self.__mgr._get_job_from_proxy(job_proxy)
 
@@ -813,7 +809,7 @@ class JobManagerProxy:
     def stop_job(
         self,
         job_proxy: JobProxy,
-        stopping_timeout: Optional[float] = None,
+        stopping_timeout: float | None = None,
         force=False,
     ):
         self._check_if_ejected()
@@ -826,7 +822,7 @@ class JobManagerProxy:
             job_proxy, stopping_timeout=stopping_timeout, force=force, _iv=self.__j
         )  # type: ignore
 
-    def kill_job(self, job_proxy: JobProxy, stopping_timeout: Optional[float] = None):
+    def kill_job(self, job_proxy: JobProxy, stopping_timeout: float | None = None):
         self._check_if_ejected()
         job = self.__mgr._get_job_from_proxy(job_proxy)
 
@@ -877,9 +873,9 @@ class JobManagerProxy:
     def find_job(
         self,
         *,
-        identifier: Optional[str] = None,
-        created_at: Optional[datetime.datetime] = None,
-    ) -> Optional[JobProxy]:
+        identifier: str | None = None,
+        created_at: datetime.datetime | None = None,
+    ) -> JobProxy | None:
         self._check_if_ejected()
         return self.__mgr.find_job(
             identifier=identifier,
@@ -890,15 +886,12 @@ class JobManagerProxy:
     def find_jobs(  # type: ignore
         self,
         *,
-        classes: Optional[
-            Union[
-                type[jobs.ManagedJobBase],
-                tuple[
-                    type[jobs.ManagedJobBase],
-                    ...,
-                ],
-            ]
-        ] = tuple(),
+        classes: type[jobs.ManagedJobBase]
+        | tuple[
+            type[jobs.ManagedJobBase],
+            ...,
+        ]
+        | None = tuple(),
         exact_class_match: bool = False,
         creator: JobProxy = UNSET,
         created_before: datetime.datetime = UNSET,
@@ -947,8 +940,8 @@ class JobManagerProxy:
     def wait_for_event(
         self,
         *event_types: type[events.BaseEvent],
-        check: Optional[Callable[[events.BaseEvent], bool]] = None,
-        timeout: Optional[float] = None,
+        check: Callable[[events.BaseEvent], bool] | None = None,
+        timeout: float | None = None,
     ):
         self._check_if_ejected()
         return self.__mgr.wait_for_event(

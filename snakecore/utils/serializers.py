@@ -156,8 +156,8 @@ class UserSerializer(DiscordObjectBaseSerializer):
 
     async def deserialized_async(
         self,
-        client: Optional[discord.Client] = None,
-        always_fetch: Optional[bool] = None,
+        client: discord.Client | None = None,
+        always_fetch: bool | None = None,
     ):
         if always_fetch is None:
             always_fetch = self.ALWAYS_FETCH_ON_ASYNC_RECONSTRUCT
@@ -186,8 +186,8 @@ class MemberSerializer(DiscordObjectBaseSerializer):
 
     async def deserialized_async(
         self,
-        client: Optional[discord.Client] = None,
-        always_fetch: Optional[bool] = None,
+        client: discord.Client | None = None,
+        always_fetch: bool | None = None,
     ):
         if always_fetch is None:
             always_fetch = self.ALWAYS_FETCH_ON_ASYNC_RECONSTRUCT
@@ -230,8 +230,8 @@ class GuildSerializer(DiscordObjectBaseSerializer):
 
     async def deserialized_async(
         self,
-        client: Optional[discord.Client] = None,
-        always_fetch: Optional[bool] = None,
+        client: discord.Client | None = None,
+        always_fetch: bool | None = None,
     ):
         if always_fetch is None:
             always_fetch = self.ALWAYS_FETCH_ON_ASYNC_RECONSTRUCT
@@ -258,7 +258,7 @@ class EmojiSerializer(DiscordObjectBaseSerializer):
             "emoji_id": emoji.id,
         }
 
-    def deserialized(self, client: Optional[discord.Client] = None):
+    def deserialized(self, client: discord.Client | None = None):
         client = config.conf.global_client if client is None else client
         emoji = client.get_emoji(self._dict["emoji_id"])
         if emoji is None:
@@ -354,8 +354,8 @@ class RoleSerializer(DiscordObjectBaseSerializer):
 
     async def deserialized_async(
         self,
-        client: Optional[discord.Client] = None,
-        always_fetch: Optional[bool] = None,
+        client: discord.Client | None = None,
+        always_fetch: bool | None = None,
     ):
         if always_fetch is None:
             always_fetch = self.ALWAYS_FETCH_ON_ASYNC_RECONSTRUCT
@@ -449,7 +449,7 @@ class AllowedMentionsSerializer(DiscordObjectBaseSerializer):
             else [UserSerializer(user).serialized() for user in allowed_mentions.users],  # type: ignore
         }
 
-    async def deserialized_async(self, always_fetch: Optional[bool] = None):
+    async def deserialized_async(self, always_fetch: bool | None = None):
         return discord.AllowedMentions(
             everyone=self._dict["everyone"],
             replied_user=self._dict["replied_user"],
@@ -599,8 +599,8 @@ class MessageSerializer(DiscordObjectBaseSerializer):
 
     async def deserialized_async(
         self,
-        client: Optional[discord.Client] = None,
-        always_fetch: Optional[bool] = None,
+        client: discord.Client | None = None,
+        always_fetch: bool | None = None,
     ):
         if always_fetch is None:
             always_fetch = self.ALWAYS_FETCH_ON_ASYNC_RECONSTRUCT
@@ -684,9 +684,7 @@ class ChannelSerializer(DiscordObjectBaseSerializer):
 
     def __init__(
         self,
-        channel: Union[
-            discord.abc.GuildChannel, discord.Thread, discord.abc.PrivateChannel
-        ],
+        channel: discord.abc.GuildChannel | discord.Thread | discord.abc.PrivateChannel,
     ) -> None:
         self._dict = {
             "channel_id": channel.id,
@@ -694,8 +692,8 @@ class ChannelSerializer(DiscordObjectBaseSerializer):
 
     async def deserialized_async(
         self,
-        client: Optional[discord.Client] = None,
-        always_fetch: Optional[bool] = None,
+        client: discord.Client | None = None,
+        always_fetch: bool | None = None,
     ):
         if always_fetch is None:
             always_fetch = self.ALWAYS_FETCH_ON_ASYNC_RECONSTRUCT
@@ -721,8 +719,8 @@ class GuildChannelSerializer(ChannelSerializer):
 
     async def deserialized_async(
         self,
-        client: Optional[discord.Client] = None,
-        always_fetch: Optional[bool] = None,
+        client: discord.Client | None = None,
+        always_fetch: bool | None = None,
     ):
         if always_fetch is None:
             always_fetch = self.ALWAYS_FETCH_ON_ASYNC_RECONSTRUCT
@@ -766,8 +764,8 @@ class ThreadSerializer(DiscordObjectBaseSerializer):
 
     async def deserialized_async(
         self,
-        client: Optional[discord.Client] = None,
-        always_fetch: Optional[bool] = None,
+        client: discord.Client | None = None,
+        always_fetch: bool | None = None,
     ):
         if always_fetch is None:
             always_fetch = self.ALWAYS_FETCH_ON_ASYNC_RECONSTRUCT

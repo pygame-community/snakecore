@@ -25,11 +25,11 @@ class EmbedPaginator:
         self,
         message: discord.Message,
         *pages: discord.Embed,
-        member: Union[discord.Member, Sequence[discord.Member]],
-        roles: Optional[Iterable[Union[discord.Role, int]]] = None,
+        member: discord.Member | Sequence[discord.Member],
+        roles: Iterable[discord.Role | int] | None = None,
         start_page_number: int = 1,
-        inactivity_timeout: Optional[float] = None,
-        theme_color: Union[int, discord.Color] = 0,
+        inactivity_timeout: float | None = None,
+        theme_color: int | discord.Color = 0,
     ) -> None:
         """Create an embed paginator that can paginate between the given embed pages,
         using the given Discord message in a guild. The input message must have remaining
@@ -41,17 +41,17 @@ class EmbedPaginator:
             The bot message to use for pagination.
         *pages : discord.Embed
             The embed pages.
-        member : Union[discord.Member, Sequence[discord.Member]]
+        member : discord.Member | Sequence[discord.Member]
             The member(s) that can control the paginator.
-        roles : Optional[Iterable[Union[discord.Role, int]]], optional
+        roles : Iterable[discord.Role | int] | None, optional
             The IDs of the guild roles that are additionally granted control over this
             embed paginator.
         start_page_number : int
             The number of the page to start from (1-based). Defaults to 1.
-        inactivity_timeout : Optional[float], optional
+        inactivity_timeout : float | None, optional
             The maximum time period for this paginator to wait for a reaction to occur,
             before aborting. Defaults to None.
-        theme_color : Union[int, discord.Color]
+        theme_color : int | discord.Color
             The theme color to use for all extra embeds used by the paginator.
             Defaults to 0 (black).
         """
@@ -106,9 +106,9 @@ class EmbedPaginator:
             color=self._theme_color,
         )
 
-        self._current_event_task: Optional[
-            asyncio.Task[discord.RawReactionActionEvent]
-        ] = None
+        self._current_event_task: asyncio.Task[
+            discord.RawReactionActionEvent
+        ] | None = None
 
         self._is_running = True
         self._stopped = False
@@ -272,10 +272,10 @@ class EmbedPaginator:
     def update(
         self,
         *pages: discord.Embed,
-        member: Optional[Union[discord.Member, Sequence[discord.Member]]] = UNSET,
-        roles: Optional[Sequence[int]] = UNSET,
+        member: discord.Member | Sequence[discord.Member] | None = UNSET,
+        roles: Sequence[int] | None = UNSET,
         page_number: int = UNSET,
-        inactivity_timeout: Optional[float] = UNSET,
+        inactivity_timeout: float | None = UNSET,
         theme_color: int = UNSET,
     ):
         """Update the paginator."""
@@ -377,7 +377,7 @@ class EmbedPaginator:
         await fut
 
     async def mainloop(
-        self, client: Union[discord.Client, discord.AutoShardedClient, None] = None
+        self, client: discord.Client | discord.AutoShardedClient | None = None
     ):
         """Start the mainloop. This checks for reactions and handles them. HTTP-related
         exceptions from `discord.py` are propagated from this function.

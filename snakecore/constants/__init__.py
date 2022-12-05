@@ -21,7 +21,7 @@ if sys.version_info >= (3, 10):
     from types import NoneType, UnionType
 else:
     NoneType = type(None)
-    UnionType = type(Optional[int])
+    UnionType = type(int | None)
 
 
 class _SingletonMeta(type):

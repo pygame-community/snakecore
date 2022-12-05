@@ -33,31 +33,30 @@ class GenericManagedJob(jobs.ManagedJobBase):
 
     def __init__(
         self,
-        name: Optional[str] = None,
-        on_init: Optional[
-            Callable[[jobs.ManagedJobBase], Coroutine[Any, Any, None]]
-        ] = None,
-        on_start: Optional[
-            Callable[[jobs.ManagedJobBase], Coroutine[Any, Any, None]]
-        ] = None,
-        on_start_error: Optional[
-            Callable[[jobs.ManagedJobBase, Exception], Coroutine[Any, Any, None]]
-        ] = None,
-        on_run: Optional[
-            Callable[[jobs.ManagedJobBase], Coroutine[Any, Any, None]]
-        ] = None,
-        on_run_error: Optional[
-            Callable[[jobs.ManagedJobBase, Exception], Coroutine[Any, Any, None]]
-        ] = None,
-        on_stop: Optional[
-            Callable[[jobs.ManagedJobBase], Coroutine[Any, Any, None]]
-        ] = None,
-        on_stop_error: Optional[
-            Callable[[jobs.ManagedJobBase, Exception], Coroutine[Any, Any, None]]
-        ] = None,
+        name: str | None = None,
+        on_init: Callable[[jobs.ManagedJobBase], Coroutine[Any, Any, None]]
+        | None = None,
+        on_start: Callable[[jobs.ManagedJobBase], Coroutine[Any, Any, None]]
+        | None = None,
+        on_start_error: Callable[
+            [jobs.ManagedJobBase, Exception], Coroutine[Any, Any, None]
+        ]
+        | None = None,
+        on_run: Callable[[jobs.ManagedJobBase], Coroutine[Any, Any, None]]
+        | None = None,
+        on_run_error: Callable[
+            [jobs.ManagedJobBase, Exception], Coroutine[Any, Any, None]
+        ]
+        | None = None,
+        on_stop: Callable[[jobs.ManagedJobBase], Coroutine[Any, Any, None]]
+        | None = None,
+        on_stop_error: Callable[
+            [jobs.ManagedJobBase, Exception], Coroutine[Any, Any, None]
+        ]
+        | None = None,
         interval: datetime.timedelta = UNSET,
-        time: Union[datetime.time, Sequence[datetime.time]] = UNSET,
-        count: Union[int, NoneType] = UNSET,
+        time: datetime.time | Sequence[datetime.time] = UNSET,
+        count: int | NoneType = UNSET,
         reconnect: bool = UNSET,
     ) -> None:
         supercls = jobs.ManagedJobBase

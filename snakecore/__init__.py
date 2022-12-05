@@ -30,7 +30,7 @@ __version__ = "0.1.6"
 
 
 async def init(
-    global_client: Optional[discord.Client] = None,
+    global_client: discord.Client | None = None,
     *,
     raise_module_exceptions: bool = False,
 ) -> tuple[int, int]:
@@ -47,7 +47,7 @@ async def init(
 
     Parameters
     ----------
-    global_client : Optional[discord.Client], optional
+    global_client : discord.Client | None, optional
         The global `discord.Client` object to set for all modules to use.
         By default None.
     raise_module_exceptions : bool, optional
@@ -77,7 +77,7 @@ async def init(
 
 
 def init_sync(
-    global_client: Optional[discord.Client] = None,
+    global_client: discord.Client | None = None,
     *,
     raise_module_exceptions: bool = False,
 ) -> tuple[int, int]:
@@ -88,7 +88,7 @@ def init_sync(
 
     Parameters
     ----------
-    global_client : Optional[discord.Client], optional
+    global_client : discord.Client | None, optional
         The global `discord.Client` object to set for all modules to use.
         Defaults to None.
     raise_module_exceptions : bool, optional
@@ -134,7 +134,7 @@ def init_sync(
 
 
 async def init_async(
-    global_client: Optional[discord.Client] = None,
+    global_client: discord.Client | None = None,
     *,
     raise_module_exceptions: bool = False,
 ):
@@ -145,7 +145,7 @@ async def init_async(
 
     Parameters
     ----------
-    global_client : Optional[discord.Client], optional
+    global_client : discord.Client | None, optional
         The global `discord.Client` object to set for all modules to use.
         Defaults to None.
     raise_module_exceptions : bool, optional

@@ -96,7 +96,7 @@ def get_job_class_from_uuid(
     class_uuid: str,
     default: Any = UNSET,
     /,
-) -> Union["JobBase", Any]:
+) -> "JobBase | Any":
 
     if class_uuid in _JOB_CLASS_UUID_MAP:
         return _JOB_CLASS_UUID_MAP[class_uuid]
@@ -114,7 +114,7 @@ def get_job_class_uuid(
     cls: type["JobBase"],
     default: Any = UNSET,
     /,
-) -> Union[str, Any]:
+) -> str | Any:
     """Get a job class by its UUID. This is the safe way
     of looking up job classes in a persistent manner.
 
@@ -177,7 +177,7 @@ def get_job_class_runtime_id(
     cls: type["JobBase"],
     default: Any = UNSET,
     /,
-) -> Union[str, Any]:
+) -> str | Any:
     """Get a job class by its runtime id string. This is the safe way
     of looking up job class runtime ids.
 
@@ -285,20 +285,20 @@ def singletonjob(cls: type[_T]) -> type[_T]:
 
 @overload
 def singletonjob(
-    cls: Optional[type[_T]] = None, disabled: bool = False
+    cls: type[_T] | None = None, disabled: bool = False
 ) -> Callable[[type[_T]], type[_T]]:
     ...
 
 
 def singletonjob(
-    cls: Optional[type[_T]] = None, disabled: bool = False
-) -> Union[type[_T], Callable[[type[_T]], type[_T]]]:
+    cls: type[_T] | None = None, disabled: bool = False
+) -> type[_T] | Callable[[type[_T]], type[_T]]:
     """A class decorator for (un)marking managed job classes as singletons,
     meaning that their instances can only be running one at a time in a job manager.
 
     Parameters
     ----------
-    cls : Optional[type[T]], optional
+    cls : type[T] | None, optional
         The `ManagedJobBase` subclass.
     disabled : bool, optional
         Whether to disable singleton mode.
@@ -320,18 +320,18 @@ def singletonjob(
 
 
 def publicjobmethod(
-    func: Optional[Callable[_P, _T]] = None,
-    is_async: Optional[bool] = None,
+    func: Callable[_P, _T] | None = None,
+    is_async: bool | None = None,
     disabled: bool = False,
-) -> Union[Callable[_P, _T], Callable[[Callable[_P, _T]], Callable[_P, _T]]]:
+) -> Callable[_P, _T] | Callable[[Callable[_P, _T]], Callable[_P, _T]]:
     """A special decorator to expose a managed job class method as public to other managed
     job objects. Can be used as a decorator function with or without extra arguments.
 
     Parameters
     ----------
-    func : Optional[Callable[P, T]], optional
+    func : Callable[P, T] | None, optional
         The function to mark as a public method.
-    is_async : Optional[bool], optional
+    is_async : bool | None, optional
         An indicator for whether the returned value of the
         public method should be awaited upon being called, either because of it being a
         coroutine function or it returning an awaitable object. If set to `None`, it
@@ -385,12 +385,12 @@ class _JobCore:
     )
 
     _CREATED_AT = datetime.datetime.now(datetime.timezone.utc)
-    _UUID: Optional[str] = None
+    _UUID: str | None = None
     _RUNTIME_ID = f"JobBase-{int(_CREATED_AT.timestamp()*1_000_000_000)}"
 
     Namespace = JobNamespace
 
-    def __init_subclass__(cls, class_uuid: Optional[str] = None) -> None:
+    def __init_subclass__(cls, class_uuid: str | None = None) -> None:
         if getattr(cls, f"{cls.__qualname__}_INIT", False):
             raise RuntimeError("This job class was already initialized")
 
@@ -434,30 +434,28 @@ class _JobCore:
 
         self._interval_secs: float = 0
         self._time = None
-        self._count: Optional[int] = None
+        self._count: int | None = None
 
         self._loop_count: int = 0
 
         self._job_loop: JobLoop = None  # type: ignore (will be set at runtime)
 
-        self._on_start_exception: Optional[BaseException] = None
-        self._on_run_exception: Optional[BaseException] = None
-        self._on_stop_exception: Optional[BaseException] = None
+        self._on_start_exception: BaseException | None = None
+        self._on_run_exception: BaseException | None = None
+        self._on_stop_exception: BaseException | None = None
 
         self._bools = 0
 
-        self._stop_futures: Optional[
-            list[asyncio.Future[Union[bool, JobStatus]]]
-        ] = None
+        self._stop_futures: list[asyncio.Future[bool | JobStatus]] | None = None
 
-        self._last_stopping_reason: Optional[
-            Union[JobStopReasons.Internal, JobStopReasons.External]
-        ] = None
+        self._last_stopping_reason: JobStopReasons.Internal | JobStopReasons.External | None = (
+            None
+        )
 
-        self._initialized_since_ts: Optional[float] = None
-        self._idling_since_ts: Optional[float] = None
-        self._running_since_ts: Optional[float] = None
-        self._stopped_since_ts: Optional[float] = None
+        self._initialized_since_ts: float | None = None
+        self._idling_since_ts: float | None = None
+        self._running_since_ts: float | None = None
+        self._stopped_since_ts: float | None = None
 
     @classmethod
     def get_class_runtime_id(cls) -> str:
@@ -471,12 +469,12 @@ class _JobCore:
         return cls._RUNTIME_ID
 
     @classmethod
-    def get_class_uuid(cls) -> Optional[str]:
+    def get_class_uuid(cls) -> str | None:
         """Get the UUID of this job class.
 
         Returns
         -------
-            Optional[str]: The UUID.
+            str | None: The UUID.
         """
         return cls._UUID
 
@@ -580,9 +578,7 @@ class _JobCore:
 
     def _stop_cleanup(
         self,
-        reason: Optional[
-            Union[JobStopReasons.Internal, JobStopReasons.External]
-        ] = None,
+        reason: JobStopReasons.Internal | JobStopReasons.External | None = None,
     ) -> None:
         self._last_stopping_reason = (
             reason
@@ -740,12 +736,12 @@ class _JobCore:
 
     def get_stopping_reason(
         self,
-    ) -> Optional[Union[JobStopReasons.Internal, JobStopReasons.External]]:
+    ) -> JobStopReasons.Internal | JobStopReasons.External | None:
         """Get the reason this job is currently stopping, if it is the case.
 
         Returns
         -------
-        Optional[Union[JobStopReasons.Internal, JobStopReasons.External]]:
+        JobStopReasons.Internal | JobStopReasons.External | None:
             An enum value from the `Internal` or `External` enums of the
             `JobStopReasons` namespace, if applicable.
         """
@@ -807,48 +803,48 @@ class _JobCore:
 
     def get_last_stopping_reason(
         self,
-    ) -> Optional[Union[JobStopReasons.Internal, JobStopReasons.External]]:
+    ) -> JobStopReasons.Internal | JobStopReasons.External | None:
         """Get the last reason this job object stopped, when applicable.
 
         Returns
         -------
-        Optional[Union[JobStopReasons.Internal, JobStopReasons.External]]:
+        JobStopReasons.Internal | JobStopReasons.External | None:
             The reason for stopping.
         """
         return self._last_stopping_reason
 
-    def get_start_exception(self) -> Optional[BaseException]:
+    def get_start_exception(self) -> BaseException | None:
         """Get the exception that caused this job to fail at startup
         within the `on_start()` method if it is the case,
         otherwise return None.
 
         Returns
         -------
-        Optional[BaseException]
+        BaseException | None
             The exception, if one occured.
         """
         return self._on_start_exception
 
-    def get_run_exception(self) -> Optional[BaseException]:
+    def get_run_exception(self) -> BaseException | None:
         """Get the exception that caused this job to fail while running
         its main loop within the `on_run()` method if it is the case,
         otherwise return None.
 
         Returns
         -------
-        Optional[BaseException]
+        BaseException | None
             The exception, if one occured.
         """
         return self._on_run_exception
 
-    def get_stop_exception(self) -> Optional[BaseException]:
+    def get_stop_exception(self) -> BaseException | None:
         """Get the exception that caused this job to fail while shutting
         down with the `on_stop()` method if it is the case,
         otherwise return None.
 
         Returns
         -------
-        Optional[BaseException]
+        BaseException | None
             The exception, if one occured.
         """
         return self._on_stop_exception
@@ -1006,8 +1002,8 @@ class _JobCore:
 
         return bool(self._bools & JF.IS_INITIALIZING)
 
-    def initialized_since(self) -> Optional[datetime.datetime]:
-        """`Optional[datetime.datetime]`: The time at which this job object was initialized, if available."""
+    def initialized_since(self) -> datetime.datetime | None:
+        """`datetime.datetime | None`: The time at which this job object was initialized, if available."""
         if self._initialized_since_ts:
             return datetime.datetime.fromtimestamp(
                 self._initialized_since_ts, tz=datetime.timezone.utc
@@ -1026,8 +1022,8 @@ class _JobCore:
             and not self._bools & JF.STOPPED
         )
 
-    def running_since(self) -> Optional[datetime.datetime]:
-        """`Optional[datetime.datetime]`: The last time at which this job object started running, if available."""
+    def running_since(self) -> datetime.datetime | None:
+        """`datetime.datetime | None`: The last time at which this job object started running, if available."""
         if self._running_since_ts:
             return datetime.datetime.fromtimestamp(
                 self._running_since_ts, tz=datetime.timezone.utc
@@ -1038,8 +1034,8 @@ class _JobCore:
         """`bool`: Whether this job is currently stopped (alive and not running)."""
         return bool(self._bools & JF.STOPPED)
 
-    def stopped_since(self) -> Optional[datetime.datetime]:
-        """`Optional[datetime.datetime]`: The last time at which this job object stopped, if available."""
+    def stopped_since(self) -> datetime.datetime | None:
+        """`datetime.datetime | None`: The last time at which this job object stopped, if available."""
         if self._stopped_since_ts:
             return datetime.datetime.fromtimestamp(
                 self._stopped_since_ts, tz=datetime.timezone.utc
@@ -1052,8 +1048,8 @@ class _JobCore:
         """
         return bool(self._bools & JF.IS_IDLING)
 
-    def idling_since(self) -> Optional[datetime.datetime]:
-        """`Optional[datetime.datetime]`: The last time at which this job object began idling, if available."""
+    def idling_since(self) -> datetime.datetime | None:
+        """`datetime.datetime | None`: The last time at which this job object began idling, if available."""
         if self._idling_since_ts:
             return datetime.datetime.fromtimestamp(
                 self._idling_since_ts, tz=datetime.timezone.utc
@@ -1082,7 +1078,7 @@ class _JobCore:
 
     def await_stop(
         self,
-        timeout: Optional[float] = None,
+        timeout: float | None = None,
     ) -> Coroutine[Any, Any, Literal[JobStatus.STOPPED]]:
         """Wait for this job object to stop using the
         coroutine output of this method.
@@ -1187,16 +1183,16 @@ class JobCore(_JobCore):
     _RUNTIME_ID = f"JobBase-{int(_CREATED_AT.timestamp()*1_000_000_000)}"
     _SINGLE: bool = False
 
-    OutputFields: Optional[Union[Any, "groupings.OutputNameRecord"]] = None
-    OutputQueues: Optional[Union[Any, "groupings.OutputNameRecord"]] = None
-    PublicMethods: Optional[Union[Any, "groupings.NameRecord"]] = None
+    OutputFields: "Any | groupings.OutputNameRecord | None" = None
+    OutputQueues: "Any | groupings.OutputNameRecord | None" = None
+    PublicMethods: "Any | groupings.NameRecord | None" = None
 
-    PUBLIC_METHODS_MAP: Optional[dict[str, Callable[..., Any]]] = None
-    PUBLIC_METHODS_CHAINMAP: Optional[FastChainMap] = None
+    PUBLIC_METHODS_MAP: dict[str, Callable[..., Any]] | None = None
+    PUBLIC_METHODS_CHAINMAP: FastChainMap | None = None
 
     def __init_subclass__(
         cls,
-        class_uuid: Optional[str] = None,
+        class_uuid: str | None = None,
     ) -> None:
         super().__init_subclass__(class_uuid=class_uuid)
 
@@ -1282,26 +1278,26 @@ class JobCore(_JobCore):
     def __init__(self) -> None:
         super().__init__()
 
-        self._manager: Union["proxies.JobManagerProxy", Any] = None
-        self._creator: Optional["proxies.JobProxy"] = None
-        self._permission_level: Optional[JobPermissionLevels] = None
+        self._manager: "proxies.JobManagerProxy | Any" = None
+        self._creator: "proxies.JobProxy | None" = None
+        self._permission_level: JobPermissionLevels | None = None
 
-        self._registered_at_ts: Optional[float] = None
-        self._done_since_ts: Optional[float] = None
+        self._registered_at_ts: float | None = None
+        self._done_since_ts: float | None = None
 
-        self._done_futures: Optional[list[asyncio.Future]] = None
-        self._done_callbacks: Optional[dict[int, Callable[["_JobCore"], Any]]] = None
+        self._done_futures: list[asyncio.Future] | None = None
+        self._done_callbacks: dict[int, Callable[["_JobCore"], Any]] | None = None
 
-        self._output_fields: Optional[dict[str, Any]] = None
-        self._output_field_futures: Optional[
-            dict[str, list[Union[asyncio.Future[Any], Any]]]
-        ] = None
+        self._output_fields: dict[str, Any] | None = None
+        self._output_field_futures: dict[
+            str, list[asyncio.Future[Any] | Any]
+        ] | None = None
 
-        self._output_queues: Optional[dict[str, list[Any]]] = None
-        self._output_queue_futures: Optional[
-            dict[str, list[Union[asyncio.Future[Any], Any]]]
-        ] = None
-        self._output_queue_proxies: Optional[list["proxies.JobOutputQueueProxy"]] = None
+        self._output_queues: dict[str, list[Any]] | None = None
+        self._output_queue_futures: dict[
+            str, list[asyncio.Future[Any] | Any]
+        ] | None = None
+        self._output_queue_proxies: list["proxies.JobOutputQueueProxy"] | None = None
 
         if self.OutputFields is not None:
             self._output_field_futures = {}
@@ -1312,10 +1308,10 @@ class JobCore(_JobCore):
             self._output_queue_futures = {}
             self._output_queues = {}
 
-        self._unguard_futures: Optional[list[asyncio.Future[bool]]] = None
-        self._guardian: Optional["proxies.JobProxy"] = None
+        self._unguard_futures: list[asyncio.Future[bool]] | None = None
+        self._guardian: "proxies.JobProxy | None" = None
 
-        self._guarded_job_proxies_dict: Optional[dict[str, "proxies.JobProxy"]] = None
+        self._guarded_job_proxies_dict: dict[str, "proxies.JobProxy"] | None = None
         # will be assigned by job manager
 
         self._bools &= ~(
@@ -1329,7 +1325,7 @@ class JobCore(_JobCore):
         self._bools &= ~JF.EXTERNAL_STARTUP_KILL  # False
         # give a job a chance to react to an external startup kill
 
-        self._alive_since_ts: Optional[float] = None
+        self._alive_since_ts: float | None = None
 
         self._proxy: "proxies.JobProxy" = proxies.JobProxy(self)  # type: ignore
 
@@ -1348,7 +1344,7 @@ class JobCore(_JobCore):
         raise JobNotAlive("This job object doesn't yet have a permission level")
 
     @property
-    def registered_at(self) -> Optional[datetime.datetime]:
+    def registered_at(self) -> datetime.datetime | None:
         if self._registered_at_ts:
             return datetime.datetime.fromtimestamp(
                 self._registered_at_ts, tz=datetime.timezone.utc
@@ -1361,13 +1357,13 @@ class JobCore(_JobCore):
         return self._manager
 
     @property
-    def creator(self) -> Optional["proxies.JobProxy"]:
-        """`Optional[JobProxy]`: The `JobProxy` of the creator of this job object."""
+    def creator(self) -> "proxies.JobProxy | None":
+        """`JobProxy | None`: The `JobProxy` of the creator of this job object."""
         return self._creator
 
     @property
-    def guardian(self) -> Optional["proxies.JobProxy"]:
-        """`Optional[JobProxy]`: The `JobProxy` of the current guardian of this job object."""
+    def guardian(self) -> "proxies.JobProxy | None":
+        """`JobProxy | None`: The `JobProxy` of the current guardian of this job object."""
         return self._guardian
 
     @property
@@ -1411,9 +1407,7 @@ class JobCore(_JobCore):
 
     def _stop_cleanup(
         self,
-        reason: Optional[
-            Union[JobStopReasons.Internal, JobStopReasons.External]
-        ] = None,
+        reason: JobStopReasons.Internal | JobStopReasons.External | None = None,
     ) -> None:
         self._last_stopping_reason = (
             reason
@@ -1588,7 +1582,7 @@ class JobCore(_JobCore):
 
     def get_stopping_reason(
         self,
-    ) -> Optional[Union[JobStopReasons.Internal, JobStopReasons.External]]:
+    ) -> JobStopReasons.Internal | JobStopReasons.External | None:
 
         if not self._bools & JF.IS_STOPPING:
             return
@@ -1813,8 +1807,8 @@ class JobCore(_JobCore):
             and not self._bools & (JF.KILLED | JF.COMPLETED)  # not any
         )
 
-    def alive_since(self) -> Optional[datetime.datetime]:
-        """`Optional[datetime.datetime]`: The last time at which this job object became alive, if available."""
+    def alive_since(self) -> datetime.datetime | None:
+        """`datetime.datetime | None`: The last time at which this job object became alive, if available."""
         if self._alive_since_ts:
             return datetime.datetime.fromtimestamp(
                 self._alive_since_ts, tz=datetime.timezone.utc
@@ -1864,8 +1858,8 @@ class JobCore(_JobCore):
         """`bool`: Whether this job was killed or has completed."""
         return bool(self._bools & (JF.KILLED | JF.COMPLETED))  # any
 
-    def done_since(self) -> Optional[datetime.datetime]:
-        """`Optional[datetime.datetime]`: The time at which this job object completed successfully or was killed, if available."""
+    def done_since(self) -> datetime.datetime | None:
+        """`datetime.datetime | None`: The time at which this job object completed successfully or was killed, if available."""
         if self._done_since_ts is not None:
             return datetime.datetime.fromtimestamp(
                 self._done_since_ts, tz=datetime.timezone.utc
@@ -1877,7 +1871,7 @@ class JobCore(_JobCore):
 
     Returns
     -------
-        Optional[datetime.datetime]: The time, if available.
+        datetime.datetime | None: The time, if available.
     """
 
     completed_at = killed_at
@@ -1885,7 +1879,7 @@ class JobCore(_JobCore):
 
     Returns
     -------
-        Optional[datetime.datetime]: The time, if available.
+        datetime.datetime | None: The time, if available.
     """
 
     def is_being_guarded(self) -> bool:
@@ -1894,7 +1888,7 @@ class JobCore(_JobCore):
 
     def await_stop(
         self,
-        timeout: Optional[float] = None,
+        timeout: float | None = None,
     ) -> Coroutine[
         Any, Any, Literal[JobStatus.STOPPED, JobStatus.KILLED, JobStatus.COMPLETED]
     ]:
@@ -1937,7 +1931,7 @@ class JobCore(_JobCore):
         return asyncio.wait_for(fut, timeout)
 
     def await_done(
-        self, timeout: Optional[float] = None, cancel_if_killed: bool = False
+        self, timeout: float | None = None, cancel_if_killed: bool = False
     ) -> Coroutine[Any, Any, Literal[JobStatus.KILLED, JobStatus.COMPLETED]]:
         """Wait for this job object to be done (completed or killed) using the
         coroutine output of this method.
@@ -1974,9 +1968,7 @@ class JobCore(_JobCore):
 
         return asyncio.wait_for(fut, timeout)
 
-    def await_unguard(
-        self, timeout: Optional[float] = None
-    ) -> Coroutine[Any, Any, bool]:
+    def await_unguard(self, timeout: float | None = None) -> Coroutine[Any, Any, bool]:
         """Wait for this job object to be unguarded using the
         coroutine output of this method.
 
@@ -2528,10 +2520,8 @@ class JobCore(_JobCore):
         return not self._output_queues.get(queue_name, None)  # type: ignore
 
     def await_output_field(
-        self, field_name: str, timeout: Optional[float] = None
-    ) -> Coroutine[
-        Any, Any, Union[Any, Literal[JobStatus.COMPLETED, JobStatus.KILLED]]
-    ]:
+        self, field_name: str, timeout: float | None = None
+    ) -> Coroutine[Any, Any, Any | Literal[JobStatus.COMPLETED, JobStatus.KILLED]]:
         """Wait for this job object to release the value of a
         specified output field while it is running, using the
         coroutine output of this method.
@@ -2546,7 +2536,7 @@ class JobCore(_JobCore):
 
         Returns
         -------
-        Coroutine[Any, Any, Union[Any, Literal[JobStatus.COMPLETED, JobStatus.KILLED]]]
+        Coroutine[Any, Any, Any | Literal[JobStatus.COMPLETED, JobStatus.KILLED]]
             A coroutine that evaluates to the value of specified
             output field.
 
@@ -2582,16 +2572,14 @@ class JobCore(_JobCore):
     def await_output_queue_add(
         self,
         queue_name: str,
-        timeout: Optional[float] = None,
+        timeout: float | None = None,
         cancel_if_cleared: bool = True,
     ) -> Coroutine[
         Any,
         Any,
-        Union[
-            Any,
-            Literal[
-                JobStatus.OUTPUT_QUEUE_CLEARED, JobStatus.KILLED, JobStatus.COMPLETED
-            ],
+        Any
+        | Literal[
+            JobStatus.OUTPUT_QUEUE_CLEARED, JobStatus.KILLED, JobStatus.COMPLETED
         ],
     ]:
         """Wait for this job object to add to the specified output queue while
@@ -2610,7 +2598,7 @@ class JobCore(_JobCore):
 
         Returns
         -------
-        Coroutine[Any, Any, Union[Any, Literal[JobStatus.OUTPUT_QUEUE_CLEARED, JobStatus.KILLED, JobStatus.COMPLETED]]]
+        Coroutine[Any, Any, Any | Literal[JobStatus.OUTPUT_QUEUE_CLEARED, JobStatus.KILLED, JobStatus.COMPLETED]]
             A coroutine that evaluates to the most recent output
             queue value, or `JobStatus.OUTPUT_QUEUE_CLEARED` if the queue
             is cleared, `JobStatus.KILLED` if this job was killed and
@@ -2852,7 +2840,7 @@ class JobMixin(JobCore):
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
 
-    async def mixin_routine(self: Union[Self, "JobBase"]) -> None:
+    async def mixin_routine(self: "Self | JobBase") -> None:
         """A function to overload for running job mixin
         functionality.
         """
@@ -2864,7 +2852,7 @@ class JobBase(JobCore):
 
     JOB_MIXIN_CLASSES: frozenset[type[JobMixin]] = frozenset()
 
-    def __init_subclass__(cls, class_uuid: Optional[str] = None):
+    def __init_subclass__(cls, class_uuid: str | None = None):
         super().__init_subclass__(class_uuid)
 
         mixin_classes: list[type[JobMixin]] = []
@@ -3052,7 +3040,7 @@ class JobBase(JobCore):
     def wait_for_mixin_routines(
         self,
         *mixin_classes: type[JobMixin],
-        timeout: Optional[float] = None,
+        timeout: float | None = None,
         skip_not_running: bool = True,
     ) -> Coroutine[Any, Any, dict[type[JobMixin], asyncio.Task[None]]]:
         """Wait for the mixin routines of the specified mixin classes
@@ -3062,7 +3050,7 @@ class JobBase(JobCore):
         ----------
         *mixin_classes : type[JobMixin]
             The mixin classes.
-        timeout : Optional[float], optional
+        timeout : float | None, optional
             The waiting timeout. Defaults to None.
         skip_not_running : bool, optional
             Whether to ignore the mixin classes which
@@ -3290,9 +3278,9 @@ class ManagedJobBase(JobBase):
     """
 
     DEFAULT_INTERVAL = datetime.timedelta()
-    DEFAULT_TIME: Optional[Union[datetime.time, Sequence[datetime.time]]] = None
+    DEFAULT_TIME: datetime.time | Sequence[datetime.time] | None = None
 
-    DEFAULT_COUNT: Optional[int] = None
+    DEFAULT_COUNT: int | None = None
     DEFAULT_RECONNECT = True
 
     __slots__ = ()
@@ -3300,8 +3288,8 @@ class ManagedJobBase(JobBase):
     def __init__(
         self,
         interval: datetime.timedelta = UNSET,
-        time: Union[datetime.time, Sequence[datetime.time]] = UNSET,
-        count: Union[int, NoneType] = UNSET,
+        time: datetime.time | Sequence[datetime.time] = UNSET,
+        count: int | NoneType = UNSET,
         reconnect: bool = UNSET,
     ) -> None:
         """Create a new `ManagedJobBase` instance."""
@@ -3336,12 +3324,12 @@ class ManagedJobBase(JobBase):
         self._job_loop.after_loop(self._on_stop)
         self._job_loop.error(self._on_run_error)  # type: ignore
 
-    def next_iteration(self) -> Optional[datetime.datetime]:
-        """`Optional[datetime.datetime]`: When the next iteration of `.on_run()` will occur."""
+    def next_iteration(self) -> datetime.datetime | None:
+        """`datetime.datetime | None`: When the next iteration of `.on_run()` will occur."""
         return self._job_loop.next_iteration
 
-    def get_interval(self) -> Optional[tuple[float, float, float]]:
-        """`Optional[tuple[float, float, float]]`: Returns a tuple of the seconds,
+    def get_interval(self) -> tuple[float, float, float] | None:
+        """`tuple[float, float, float] | None`: Returns a tuple of the seconds,
         minutes and hours at which this job object is executing its `.on_run()`
         method.
         """
@@ -3365,7 +3353,7 @@ class ManagedJobBase(JobBase):
         seconds: float = 0,
         minutes: float = 0,
         hours: float = 0,
-        time: Union[datetime.time, Sequence[datetime.time]] = UNSET,
+        time: datetime.time | Sequence[datetime.time] = UNSET,
     ) -> None:
         """Change the interval at which this job will run its `on_run()` method,
         as soon as possible.
@@ -3378,7 +3366,7 @@ class ManagedJobBase(JobBase):
             Defaults to 0.
         hours : float, optional
             Defaults to 0.
-        time : Union[datetime.time, Sequence[datetime.time]], optional
+        time : datetime.time | Sequence[datetime.time], optional
             Defaults to 0.
         """
         self._job_loop.change_interval(

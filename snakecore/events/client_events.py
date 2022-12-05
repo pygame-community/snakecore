@@ -19,7 +19,7 @@ class ClientEvent(base_events.BaseEvent):
     """The base class for all discord API websocket event wrapper objects, with values
     as returned by discord.py."""
 
-    ALT_NAME: Optional[str] = None
+    ALT_NAME: str | None = None
     """The actual event name used by the current discord API wrapper,
     if available for a client event subclass.
     """
@@ -43,17 +43,12 @@ class OnTyping(ClientEvent):
 
     def __init__(
         self,
-        channel: Union[
-            discord.TextChannel,
-            discord.DMChannel,
-            discord.GroupChannel,
-            discord.Member,
-            discord.User,
-        ],
-        user: Union[
-            discord.Member,
-            discord.User,
-        ],
+        channel: discord.TextChannel
+        | discord.DMChannel
+        | discord.GroupChannel
+        | discord.Member
+        | discord.User,
+        user: discord.Member | discord.User,
         when: datetime.datetime,
         *args,
         **kwargs,
@@ -220,10 +215,7 @@ class _OnReactionToggle(OnReactionBase):
     def __init__(
         self,
         reaction: discord.Reaction,
-        user: Union[
-            discord.Member,
-            discord.User,
-        ],
+        user: discord.Member | discord.User,
         *args,
         **kwargs,
     ) -> None:
@@ -244,7 +236,7 @@ class _OnRawReactionToggle(OnRawReactionBase):
         super().__init__(*args, **kwargs)
         self.payload = payload
 
-    async def as_unraw(self, client: Optional[discord.Client] = None):
+    async def as_unraw(self, client: discord.Client | None = None):
         user = None
         client = config.conf.global_client if client is None else client
         if (
@@ -809,7 +801,7 @@ class _OnMemberBanToggle(OnMemberBanBase):
     def __init__(
         self,
         guild: discord.Guild,
-        user: Union[discord.Member, discord.User],
+        user: discord.Member | discord.User,
         *args,
         **kwargs,
     ) -> None:

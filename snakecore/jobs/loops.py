@@ -33,8 +33,8 @@ class JobLoop(tasks.Loop):
         seconds: float = discord.utils.MISSING,
         minutes: float = discord.utils.MISSING,
         hours: float = discord.utils.MISSING,
-        time: Union[datetime.time, Sequence[datetime.time]] = discord.utils.MISSING,
-        count: Optional[int] = None,
+        time: datetime.time | Sequence[datetime.time] = discord.utils.MISSING,
+        count: int | None = None,
         reconnect: bool = True,
     ) -> None:
         super().__init__(coro, seconds, hours, minutes, time, count, reconnect)

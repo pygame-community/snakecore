@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.black]
 line-length = 88
-target_version = ['py39', 'py310']
+target_version = ['py310']
 include = '\.pyi?$'
 exclude = '''
 
@@ -38,7 +38,7 @@ include = [
 exclude = [
     "**/__pycache__"
 ]
-pythonVersion = "3.9"
+pythonVersion = "3.10"
 
 [tool.pytest.ini_options]
 asyncio_mode = "strict"

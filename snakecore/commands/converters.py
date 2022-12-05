@@ -41,8 +41,8 @@ from snakecore.utils import regex_patterns
 from .bot import AutoShardedBot, Bot
 
 _T = TypeVar("_T")
-BotT = Union[Bot, AutoShardedBot]
-DECBotT = Union[commands.Bot, commands.AutoShardedBot]
+BotT = Bot | AutoShardedBot
+DECBotT = commands.Bot | commands.AutoShardedBot
 
 ellipsis = type(Ellipsis)
 
@@ -432,7 +432,7 @@ class CodeBlock:
     _INLINE_PATTERN = re.compile(regex_patterns.INLINE_CODE_BLOCK)
 
     def __init__(
-        self, code: str, language: Optional[str] = None, inline: Optional[bool] = None
+        self, code: str, language: str | None = None, inline: bool | None = None
     ) -> None:
         self.code = code
         self.language = language
@@ -560,6 +560,12 @@ class _StringConverter(commands.Converter[str]):
     def __call__(self, *args: Any, **kwds: Any) -> Any:
         pass
 
+    def __or__(self, other):  # Add support for UnionType
+        return self.__class__.__class__.__or__(self.__class__, other)  # type: ignore
+
+    def __ror__(self, other):  # Add support for UnionType
+        return self.__class__.__class__.__ror__(self.__class__, other)  # type: ignore
+
     @staticmethod
     def escape(string: str) -> str:
         """Convert a "raw" string to one where characters are escaped."""
@@ -629,7 +635,7 @@ class StringConverter(_StringConverter, Generic[_T]):
         super().__init__()
         self.size: tuple = (..., ...) if size is None else size
 
-    def __class_getitem__(cls, size: Union[StringParams, StringParamsTuple]) -> Self:
+    def __class_getitem__(cls, size: StringParams | StringParamsTuple) -> Self:
         size_tuple = (..., ...)
 
         if getattr(size, "__origin__", None) is Literal:
@@ -775,7 +781,7 @@ class StringExprConverter(_StringConverter, Generic[TVT]):  # type: ignore
         self.regex_pattern = re.compile(regex)
         self.examples = examples
 
-    def __class_getitem__(cls, regex_and_examples: Union[str, tuple[str, ...]]) -> Self:
+    def __class_getitem__(cls, regex_and_examples: str | tuple[str, ...]) -> Self:
         regex = None
         examples = ()
         if isinstance(regex_and_examples, tuple) and regex_and_examples:
@@ -891,7 +897,7 @@ class ParensConverter(commands.Converter[tuple]):
 
             args = getattr(converter, "__args__", ())
             if sys.version_info >= (3, 10) and converter.__class__ is types.UnionType:  # type: ignore
-                converter = Union[args]  # type: ignore
+                converter = args  # type: ignore
 
             origin = getattr(converter, "__origin__", None)
 
@@ -1138,10 +1144,10 @@ class ParensConverter(commands.Converter[tuple]):
                 ctx.command
                 and getattr(fake_parameter.annotation, "__origin__", None) is Union
                 and type(None)
-                in fake_parameter.annotation.__args__  # check for Optional[...]  # type: ignore
+                in fake_parameter.annotation.__args__  # check for ... | None  # type: ignore
                 and transformed is None
             ):
-                view.index = previous_index  # view.undo() does not revert properly for Optional[...]
+                view.index = previous_index  # view.undo() does not revert properly for ... | None
                 view.previous = previous_previous
 
         ctx.current_parameter = original_parameter
@@ -1149,6 +1155,12 @@ class ParensConverter(commands.Converter[tuple]):
 
     def __call__(self, *args: Any, **kwds: Any) -> Any:
         pass
+
+    def __or__(self, other):  # Add support for UnionType
+        return self.__class__.__class__.__or__(self.__class__, other)  # type: ignore
+
+    def __ror__(self, other):  # Add support for UnionType
+        return self.__class__.__class__.__ror__(self.__class__, other)  # type: ignore
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}[{', '.join(self._repr_converter(conv) for conv in self.converters)}]"
@@ -1296,7 +1308,7 @@ if TYPE_CHECKING:  # type checker deception
         - `'"ab\\"c"'` -> `'ab"c'`
         """
 
-        def __class_getitem__(cls, size: Union[StringParams, StringParamsTuple]):
+        def __class_getitem__(cls, size: StringParams | StringParamsTuple):
             ...
 
     class StringExpr(str):  # type: ignore
@@ -1312,7 +1324,7 @@ if TYPE_CHECKING:  # type checker deception
         - `'"ab\\"c"'` -> `'ab"c'`
         """
 
-        def __class_getitem__(cls, regex_and_examples: Union[str, tuple[str, ...]]):
+        def __class_getitem__(cls, regex_and_examples: str | tuple[str, ...]):
             ...
 
     class StringExprMatch(re.Match):  # type: ignore
@@ -1320,7 +1332,7 @@ if TYPE_CHECKING:  # type checker deception
         `re.Match` objects instead of strings.
         """
 
-        def __class_getitem__(cls, regex_and_examples: Union[str, tuple[str, ...]]):
+        def __class_getitem__(cls, regex_and_examples: str | tuple[str, ...]):
             ...
 
 else:
@@ -1420,8 +1432,8 @@ async def convert_flag(
             annotation = annotation.__args__[0]
             return await convert_flag(ctx, argument, flag, annotation)
         elif origin is Union and type(None) in annotation.__args__:
-            # typing.Optional[x]
-            annotation = Union[tuple(arg for arg in annotation.__args__ if arg is not type(None))]  # type: ignore
+            # typing.x | None
+            annotation = tuple(arg for arg in annotation.__args__ if arg is not type(None))  # type: ignore
             return await commands.run_converters(ctx, annotation, argument, param)
         elif origin is dict:
             # typing.Dict[K, V] -> typing.Tuple[K, V]

@@ -349,10 +349,10 @@ class CoreConfig(ConfigurationBase):
     """Configuration variables used by `snakecore` itself."""
 
     global_client = Field(
-        var_type=Union[discord.Client, discord.AutoShardedClient], write_once=True
+        var_type=discord.Client | discord.AutoShardedClient, write_once=True
     )
     init_mods = Field(init_constr=dict, var_type=dict[ModuleName, bool])
-    storage_channel = Field(init_val=None, var_type=Optional[discord.abc.Messageable])
+    storage_channel = Field(init_val=None, var_type=discord.abc.Messageable | None)
 
 
 conf = CoreConfig()

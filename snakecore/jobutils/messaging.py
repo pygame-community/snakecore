@@ -37,32 +37,30 @@ class MessageSend(
 
     def __init__(
         self,
-        channel: Union[int, discord.abc.Messageable, serializers.ChannelSerializer],
-        content: Optional[str] = None,
+        channel: int | discord.abc.Messageable | serializers.ChannelSerializer,
+        content: str | None = None,
         tts: bool = False,
-        embed: Union[discord.Embed, serializers.EmbedSerializer, dict, NoneType] = None,
-        file: Union[discord.File, serializers.FileSerializer, NoneType] = None,
-        files: Optional[list[Union[discord.File, serializers.FileSerializer]]] = None,
-        delete_after: Optional[float] = None,
-        nonce: Optional[int] = None,
-        allowed_mentions: Optional[
-            Union[discord.AllowedMentions, serializers.AllowedMentionsSerializer]
-        ] = None,
-        reference: Union[
-            discord.Message,
-            discord.MessageReference,
-            serializers.MessageSerializer,
-            serializers.MessageReferenceSerializer,
-            NoneType,
-        ] = None,
-        mention_author: Optional[bool] = None,
+        embed: discord.Embed | serializers.EmbedSerializer | dict | NoneType = None,
+        file: discord.File | serializers.FileSerializer | NoneType = None,
+        files: list[discord.File | serializers.FileSerializer] | None = None,
+        delete_after: float | None = None,
+        nonce: int | None = None,
+        allowed_mentions: discord.AllowedMentions
+        | serializers.AllowedMentionsSerializer
+        | None = None,
+        reference: discord.Message
+        | discord.MessageReference
+        | serializers.MessageSerializer
+        | serializers.MessageReferenceSerializer
+        | NoneType = None,
+        mention_author: bool | None = None,
         kill_if_failed: bool = True,
     ) -> None:
         """Setup this job ojbect's namespace.
 
         Parameters
         ----------
-        channel : Union[int, discord.abc.Messageable]
+        channel : int | discord.abc.Messageable
             The channel/channel ID to message to.
         **kwargs
             The keyword arguments to pass to the `.send()` coroutine method of
@@ -191,14 +189,14 @@ messageable_channels = (
     discord.DMChannel,
 )
 
-PartialMessageableChannel = Union[
-    discord.TextChannel,
-    discord.VoiceChannel,
-    discord.Thread,
-    discord.DMChannel,
-    discord.PartialMessageable,
-]
-MessageableChannel = Union[PartialMessageableChannel, discord.GroupChannel]
+PartialMessageableChannel = (
+    discord.TextChannel
+    | discord.VoiceChannel
+    | discord.Thread
+    | discord.DMChannel
+    | discord.PartialMessageable
+)
+MessageableChannel = PartialMessageableChannel | discord.GroupChannel
 
 
 class _MessageModify(jobs.ManagedJobBase):
@@ -211,19 +209,17 @@ class _MessageModify(jobs.ManagedJobBase):
 
     def __init__(
         self,
-        channel: Union[
-            int, MessageableChannel, serializers.ChannelSerializer, NoneType
-        ],
-        message: Union[int, discord.Message, serializers.MessageSerializer],
+        channel: int | MessageableChannel | serializers.ChannelSerializer | NoneType,
+        message: int | discord.Message | serializers.MessageSerializer,
         kill_if_failed: bool = True,
     ) -> None:
         """Create a bot job instance.
 
         Parameters
         ----------
-        channel : Union[int, discord.abc.Messageable, ChannelSerializer]
+        channel : int | discord.abc.Messageable | ChannelSerializer
             The target channel.
-        message : Union[int, discord.Message, MessageSerializer]
+        message : int | discord.Message | MessageSerializer
             The target message.
         """
         super().__init__()
@@ -280,25 +276,23 @@ class MessageEdit(
 
     def __init__(
         self,
-        channel: Union[
-            int, MessageableChannel, serializers.ChannelSerializer, NoneType
-        ],
-        message: Union[int, discord.Message, serializers.MessageSerializer],
-        content: Optional[str] = None,
-        embed: Union[discord.Embed, serializers.EmbedSerializer, dict, NoneType] = None,
-        delete_after: Optional[float] = None,
-        allowed_mentions: Optional[
-            Union[discord.AllowedMentions, serializers.AllowedMentionsSerializer]
-        ] = None,
+        channel: int | MessageableChannel | serializers.ChannelSerializer | NoneType,
+        message: int | discord.Message | serializers.MessageSerializer,
+        content: str | None = None,
+        embed: discord.Embed | serializers.EmbedSerializer | dict | NoneType = None,
+        delete_after: float | None = None,
+        allowed_mentions: discord.AllowedMentions
+        | serializers.AllowedMentionsSerializer
+        | None = None,
         **kwargs,
     ) -> None:
         """Setup this job ojbect.
 
         Parameters
         ----------
-        channel : Union[int, discord.abc.Messageable, ChannelSerializer]
+        channel : int | discord.abc.Messageable | ChannelSerializer
             The target channel.
-        message : Union[int, discord.Message, MessageSerializer]
+        message : int | discord.Message | MessageSerializer
             The target message.
         **kwargs
             The keyword arguments to pass to the coroutine methods of
@@ -351,20 +345,18 @@ class MessageDelete(_MessageModify, class_uuid="860055c6-4971-4046-925c-7cafae67
 
     def __init__(
         self,
-        channel: Union[
-            int, MessageableChannel, serializers.ChannelSerializer, NoneType
-        ],
-        message: Union[int, discord.Message, serializers.MessageSerializer],
-        delay: Optional[float] = None,
+        channel: int | MessageableChannel | serializers.ChannelSerializer | NoneType,
+        message: int | discord.Message | serializers.MessageSerializer,
+        delay: float | None = None,
         **kwargs,
     ) -> None:
         """Setup this job ojbect.
 
         Parameters
         ----------
-        channel : Union[int, discord.abc.Messageable, ChannelSerializer]
+        channel : int | discord.abc.Messageable | ChannelSerializer
             The target channel.
-        message : Union[int, discord.Message, MessageSerializer]
+        message : int | discord.Message | MessageSerializer
             The target message.
         **kwargs
             The keyword arguments to pass to the coroutine
@@ -389,30 +381,26 @@ class ReactionAdd(_MessageModify, class_uuid="151cf1a5-73c8-4542-ad17-9b9956d0eb
 
     def __init__(
         self,
-        channel: Union[
-            int, MessageableChannel, serializers.ChannelSerializer, NoneType
-        ],
-        message: Union[int, discord.Message, serializers.MessageSerializer],
-        emoji: Union[
-            int,
-            discord.Reaction,
-            discord.Emoji,
-            serializers.EmojiSerializer,
-            discord.PartialEmoji,
-            serializers.PartialEmojiSerializer,
-            str,
-        ],
+        channel: int | MessageableChannel | serializers.ChannelSerializer | NoneType,
+        message: int | discord.Message | serializers.MessageSerializer,
+        emoji: int
+        | discord.Reaction
+        | discord.Emoji
+        | serializers.EmojiSerializer
+        | discord.PartialEmoji
+        | serializers.PartialEmojiSerializer
+        | str,
         **kwargs,
     ) -> None:
         """Setup this job ojbect.
 
         Parameters
         ----------
-        channel : Union[int, discord.abc.Messageable, ChannelSerializer]
+        channel : int | discord.abc.Messageable | ChannelSerializer
             The target channel.
-        message : Union[int, discord.Message, MessageSerializer]
+        message : int | discord.Message | MessageSerializer
             The target message.
-        emoji : Union[int, discord.Reaction, discord.Emoji, EmojiSerializer, discord.PartialEmoji, PartialEmojiSerializer, str]
+        emoji : int | discord.Reaction | discord.Emoji | EmojiSerializer | discord.PartialEmoji | PartialEmojiSerializer | str
             The emoji to react with.
         **kwargs
             More optional keyword arguments.
@@ -449,19 +437,15 @@ class ReactionsAdd(_MessageModify, class_uuid="f26bdcb2-8d04-4bf5-82f8-778c7a8af
 
     def __init__(
         self,
-        channel: Union[
-            int, MessageableChannel, serializers.ChannelSerializer, NoneType
-        ],
-        message: Union[int, discord.Message, serializers.MessageSerializer],
-        *emojis: Union[
-            int,
-            discord.Reaction,
-            discord.Emoji,
-            serializers.EmojiSerializer,
-            discord.PartialEmoji,
-            serializers.PartialEmojiSerializer,
-            str,
-        ],
+        channel: int | MessageableChannel | serializers.ChannelSerializer | NoneType,
+        message: int | discord.Message | serializers.MessageSerializer,
+        *emojis: int
+        | discord.Reaction
+        | discord.Emoji
+        | serializers.EmojiSerializer
+        | discord.PartialEmoji
+        | serializers.PartialEmojiSerializer
+        | str,
         stop_at_maximum=True,
         **kwargs,
     ) -> None:
@@ -469,11 +453,11 @@ class ReactionsAdd(_MessageModify, class_uuid="f26bdcb2-8d04-4bf5-82f8-778c7a8af
 
         Parameters
         ----------
-            channel : Union[int, discord.abc.Messageable, ChannelSerializer]
+            channel : int | discord.abc.Messageable | ChannelSerializer
               The target channel.
-            message : Union[int, discord.Message, MessageSerializer]
+            message : int | discord.Message | MessageSerializer
               The message to react to.
-            *emojis : Union[int, discord.Reaction, discord.Emoji, EmojiSerializer, discord.PartialEmoji, PartialEmojiSerializer, str]
+            *emojis : int | discord.Reaction | discord.Emoji | EmojiSerializer | discord.PartialEmoji | PartialEmojiSerializer | str
                 A sequence of emojis to react with.
             stop_at_maximum (bool, optional): Whether the reactions will be added until
               the maxmimum is reached. If False, reaction emojis will be added to a
@@ -532,33 +516,27 @@ class ReactionRemove(_MessageModify, class_uuid="e1c474dd-1c56-43b9-91f4-7b74a1d
 
     def __init__(
         self,
-        channel: Union[
-            int, MessageableChannel, serializers.ChannelSerializer, NoneType
-        ],
-        message: Union[int, discord.Message, serializers.MessageSerializer],
-        emoji: Union[
-            int,
-            discord.Reaction,
-            discord.Emoji,
-            serializers.EmojiSerializer,
-            discord.PartialEmoji,
-            serializers.PartialEmojiSerializer,
-            str,
-        ],
-        member: Union[
-            discord.abc.Snowflake, discord.Member, serializers.MemberSerializer
-        ],
+        channel: int | MessageableChannel | serializers.ChannelSerializer | NoneType,
+        message: int | discord.Message | serializers.MessageSerializer,
+        emoji: int
+        | discord.Reaction
+        | discord.Emoji
+        | serializers.EmojiSerializer
+        | discord.PartialEmoji
+        | serializers.PartialEmojiSerializer
+        | str,
+        member: discord.abc.Snowflake | discord.Member | serializers.MemberSerializer,
         **kwargs,
     ) -> None:
         """Setup this job ojbect.
 
         Parameters
         ----------
-        channel : Union[int, discord.abc.Messageable, ChannelSerializer]
+        channel : int | discord.abc.Messageable | ChannelSerializer
             The target channel.
-        message : Union[int, discord.Message, MessageSerializer]
+        message : int | discord.Message | MessageSerializer
             The target message.
-        emoji : Union[int, discord.Reaction, discord.Emoji, EmojiSerializer, discord.PartialEmoji, PartialEmojiSerializer, str]
+        emoji : int | discord.Reaction | discord.Emoji | EmojiSerializer | discord.PartialEmoji | PartialEmojiSerializer | str
             The emoji to remove.
         member: (discord.abc.Snowflake): The member whose reaction should be removed.
         **kwargs: More optional keyword arguments.
@@ -604,30 +582,26 @@ class ReactionClearEmoji(
 
     def __init__(
         self,
-        channel: Union[
-            int, MessageableChannel, serializers.ChannelSerializer, NoneType
-        ],
-        message: Union[int, discord.Message],
-        emoji: Union[
-            int,
-            discord.Reaction,
-            discord.Emoji,
-            serializers.EmojiSerializer,
-            discord.PartialEmoji,
-            serializers.PartialEmojiSerializer,
-            str,
-        ],
+        channel: int | MessageableChannel | serializers.ChannelSerializer | NoneType,
+        message: int | discord.Message,
+        emoji: int
+        | discord.Reaction
+        | discord.Emoji
+        | serializers.EmojiSerializer
+        | discord.PartialEmoji
+        | serializers.PartialEmojiSerializer
+        | str,
         **kwargs,
     ) -> None:
         """Setup this job ojbect.
 
         Parameters
         ----------
-        channel : Union[int, discord.abc.Messageable, ChannelSerializer]
+        channel : int | discord.abc.Messageable | ChannelSerializer
             The target channel.
-        message : Union[int, discord.Message, MessageSerializer]
+        message : int | discord.Message | MessageSerializer
             The target message.
-        emoji : Union[int, discord.Reaction, discord.Emoji, EmojiSerializer, discord.PartialEmoji, PartialEmojiSerializer, str]
+        emoji : int | discord.Reaction | discord.Emoji | EmojiSerializer | discord.PartialEmoji | PartialEmojiSerializer | str
             The emoji to clear.
         **kwargs
             More optional keyword arguments.

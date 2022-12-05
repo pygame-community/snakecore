@@ -35,12 +35,12 @@ from .proxies import JobProxy, JobOutputQueueProxy, JobManagerProxy
 from .groupings import JobGroup
 
 
-def init(global_client: Optional[discord.Client] = None) -> None:
+def init(global_client: discord.Client | None = None) -> None:
     """Initialize this module.
 
     Parameters
     ----------
-    global_client : Optional[discord.Client], optional
+    global_client : discord.Client | None, optional
         The global `discord.Client` object to set for all modules to use.
         Defaults to None.
     """

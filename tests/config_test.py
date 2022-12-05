@@ -43,7 +43,7 @@ def test_config_with_init():
         a = 6
 
         # 'd' looks like 'Field[float | None]' at typecheck time.
-        b = Field(init_val=4.5, var_type=Optional[float])
+        b = Field(init_val=4.5, var_type=float | None)
 
         # 'c' looks like Field[list[str]] at typecheck time.
         c = Field(init_constr=list, var_type=list[str])

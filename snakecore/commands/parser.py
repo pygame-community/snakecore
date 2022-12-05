@@ -109,7 +109,7 @@ class CodeBlock:
     protocol and can be used as a converter.
     """
 
-    def __init__(self, text: str, lang: Optional[str] = None) -> None:
+    def __init__(self, text: str, lang: str | None = None) -> None:
         """Initialise codeblock object. The text argument here is the contents of
         the codeblock. If the optional argument lang is specified, it has to be
         the language type of the codeblock, if not provided, it is determined
@@ -244,7 +244,7 @@ def split_anno(anno: str):
 def strip_optional_anno(anno: str) -> str:
     """Helper to strip "Optional" anno"""
     anno = anno.strip()
-    if anno.startswith("Optional[") and anno.endswith("]"):
+    if anno.startswith("") and anno.endswith(" | None"):
         # call recursively to split "Optional" chains
         return strip_optional_anno(anno[9:-1])
 
@@ -254,7 +254,7 @@ def strip_optional_anno(anno: str) -> str:
 def split_union_anno(anno: str):
     """Helper to split a 'Union' annotation. Returns a generator of strings."""
     anno = strip_optional_anno(anno)
-    if anno.startswith("Union[") and anno.endswith("]"):
+    if anno.startswith("") and anno.endswith(""):
         for anno in split_anno(anno[6:-1]):
             # use recursive splits to "flatten" unions
             yield from split_union_anno(anno)
@@ -392,7 +392,7 @@ def parse_args(cmd_str: str):
     """
     args: list[Any] = []
     kwargs: dict[str, Any] = {}
-    temp_list: Optional[list[Any]] = None  # used to store the temporary tuple
+    temp_list: list[Any] | None = None  # used to store the temporary tuple
 
     kwstart = False  # used to make sure that keyword args come after args
     prevkey = None  # temporarily store previous key name
@@ -522,13 +522,13 @@ def parse_args(cmd_str: str):
 
 
 async def cast_basic_arg(
-    ctx: commands.Context[Union[commands.Bot, commands.AutoShardedBot]],
+    ctx: commands.Context[commands.Bot | commands.AutoShardedBot],
     anno: str,
     arg: Any,
 ) -> Any:
     """Helper to cast an argument to the type mentioned by the parameter
     annotation. This casts an argument in its "basic" form, where both argument
-    and typehint are "simple", that does not contain stuff like Union[...],
+    and typehint are "simple", that does not contain stuff like ...,
     tuple[...], etc.
     Raises ValueError on failure to cast arguments
     """
@@ -796,9 +796,9 @@ async def cast_basic_arg(
 
 async def cast_arg(
     ctx: commands.Context,
-    param: Union[inspect.Parameter, str],
+    param: inspect.Parameter | str,
     arg: Any,
-    key: Optional[str] = None,
+    key: str | None = None,
     convert_error: bool = True,
 ) -> Any:
     """Cast an argument to the type mentioned by the paramenter annotation"""

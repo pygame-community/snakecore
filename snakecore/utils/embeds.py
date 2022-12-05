@@ -176,30 +176,28 @@ CONDENSED_EMBED_DATA_LIST_SYNTAX = """
 
 
 class FlattenedEmbedDict(TypedDict):
-    author_name: Optional[str]
-    author_url: Optional[str]
-    author_icon_url: Optional[str]
-    title: Optional[str]
-    url: Optional[str]
-    thumbnail_url: Optional[str]
-    description: Optional[str]
-    image_url: Optional[str]
+    author_name: str | None
+    author_url: str | None
+    author_icon_url: str | None
+    title: str | None
+    url: str | None
+    thumbnail_url: str | None
+    description: str | None
+    image_url: str | None
     color: int
-    fields: Optional[Sequence[dict[str, Union[str, bool]]]]
-    footer_text: Optional[str]
-    footer_icon_url: Optional[str]
-    timestamp: Optional[Union[str, datetime.datetime]]
+    fields: Sequence[dict[str, str | bool]] | None
+    footer_text: str | None
+    footer_icon_url: str | None
+    timestamp: str | datetime.datetime | None
 
 
 EMBED_MASK_DICT_HINT = dict[
     str,
-    Union[
-        str,
-        int,
-        dict[str, Union[str, bool]],
-        list[dict[str, Union[str, bool]]],
-        datetime.datetime,
-    ],
+    str
+    | int
+    | dict[str, Union[str, bool]]
+    | list[dict[str, Union[str, bool]]]
+    | datetime.datetime,
 ]
 
 EmbedDict = discord.types.embed.Embed
@@ -1279,7 +1277,7 @@ def filter_embed_dict(
 
 def filter_embed_dict(
     embed_dict: dict[str, Any], in_place: bool = True
-) -> Optional[dict[str, Any]]:
+) -> dict[str, Any] | None:
     """Delete invalid embed attributes in the given embed dictionary that would cause
     exceptions for structural errors. Note that the output embed dictionary of this
     function might still not be a viable embed dictionary to be sent to Discord's
@@ -1296,7 +1294,7 @@ def filter_embed_dict(
 
     Returns
     -------
-    Optional[dict[str, Any]]
+    dict[str, Any] | None
         A new filtered embed dictionary or `None` depending on the given arguments.
     """
 

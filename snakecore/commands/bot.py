@@ -99,7 +99,7 @@ class ExtBotBase(commands.bot.BotBase):
 
     def get_extension_config(
         self, qualified_name: str, default: Any = UNSET, /
-    ) -> Union[Mapping[str, Any], Any]:
+    ) -> Mapping[str, Any] | Any:
         """Get the configuration mapping that an extension should be loaded with, under
         the given qualified name.
 
@@ -118,7 +118,7 @@ class ExtBotBase(commands.bot.BotBase):
 
         Returns
         -------
-        Union[Mapping[str, Any], Any]
+        Mapping[str, Any] | Any
             The mapping or a default value.
         """
         config = self._extension_configs.get(qualified_name, None)
@@ -137,8 +137,8 @@ class ExtBotBase(commands.bot.BotBase):
         self,
         name: str,
         *,
-        package: Optional[str] = None,
-        config: Optional[Mapping[str, Any]] = None,
+        package: str | None = None,
+        config: Mapping[str, Any] | None = None,
     ) -> None:
         """A shorthand for calling `set_extension_config` followed by `load_extension`."""
         name = self._resolve_name(name, package)

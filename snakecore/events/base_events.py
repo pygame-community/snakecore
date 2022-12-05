@@ -40,7 +40,7 @@ def get_event_class_runtime_id(
     cls: type["BaseEvent"],
     default: Any = UNSET,
     /,
-) -> Union[str, Any]:
+) -> str | Any:
     """Get a event class by its runtime id string. This is the safe way
     of looking up event class runtime ids.
 
@@ -159,8 +159,8 @@ class BaseEvent:
 
     def __init__(
         self,
-        event_created_at: Optional[datetime.datetime] = None,
-        dispatcher: Optional[Any] = None,
+        event_created_at: datetime.datetime | None = None,
+        dispatcher: Any | None = None,
     ) -> None:
         self._real_event_created_at_ts: float = time.time()
         if event_created_at is None:
@@ -172,7 +172,7 @@ class BaseEvent:
             f"{self.__class__._RUNTIME_ID}:"
             f"{int(self._real_event_created_at_ts*1_000_000_000)}"
         )
-        self._dispatcher: Optional[Any] = dispatcher
+        self._dispatcher: Any | None = dispatcher
 
     @classmethod
     def get_class_runtime_id(cls) -> str:
@@ -229,7 +229,7 @@ class BaseEvent:
         )
 
     @property
-    def dispatcher(self) -> Optional[Any]:
+    def dispatcher(self) -> Any | None:
         """The object that dispatched this event, if available."""
         return self._dispatcher
 

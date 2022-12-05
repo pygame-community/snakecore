@@ -43,19 +43,19 @@ class JobGroup:
         cls.__job_class_members__ = tuple(members)
 
     @classmethod
-    def members(cls) -> tuple[type[Union[JobBase, MiniJobBase]], ...]:
-        """`tuple[type[Union[JobBase, MiniJobBase]], ...]`:
+    def members(cls) -> tuple[type[JobBase | MiniJobBase], ...]:
+        """`tuple[type[JobBase | MiniJobBase], ...]`:
         Get the job classes that are members of this job group.
         """
         return cls.__job_class_members__
 
     @classmethod
-    def has_class(cls, job_cls: Union[JobBase, MiniJobBase]) -> bool:
+    def has_class(cls, job_cls: JobBase | MiniJobBase) -> bool:
         """Whether a specified job class is contained in this job group.
 
         Parameters
         ----------
-        job_cls : Union[JobBase, MiniJobBase]
+        job_cls : JobBase | MiniJobBase
             The target job class.
 
         Returns
@@ -68,14 +68,14 @@ class JobGroup:
 
     @classmethod
     def is_group_member_instance(
-        cls, obj: Union[JobBase, MiniJobBase, proxies.JobProxy]
+        cls, obj: JobBase | MiniJobBase | proxies.JobProxy
     ) -> bool:
         """Whether the specified job is an instance of one of the jobs
         within this job group.
 
         Parameters
         ----------
-        job_or_proxy : Union[JobBase, proxies.JobProxy], optional
+        job_or_proxy : JobBase | proxies.JobProxy, optional
             The target job instance, or its proxy.
 
         Returns

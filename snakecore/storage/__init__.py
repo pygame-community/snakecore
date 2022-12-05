@@ -21,12 +21,12 @@ from .discord_storage import (
 from .local_storage import LocalStorage as LocalStorage
 
 
-async def init(global_client: Optional[discord.Client] = None) -> None:
+async def init(global_client: discord.Client | None = None) -> None:
     """Initialize this module.
 
     Parameters
     ----------
-    global_client : Optional[discord.Client], optional
+    global_client : discord.Client | None, optional
         The global `discord.Client` object to set for all modules to use.
         Defaults to None.
     """
