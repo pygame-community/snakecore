@@ -1,6 +1,6 @@
-black~=22.6
-discord.py~=2.1
+black~=23.1
+discord.py~=2.2
 python-dateutil~=2.8
-python-dotenv~=0.19
+python-dotenv~=1.0
 typing-extensions~=4.4
 emoji~=2.2
