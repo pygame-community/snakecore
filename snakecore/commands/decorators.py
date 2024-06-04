@@ -25,27 +25,45 @@ _P = ParamSpec("_P")
 UnionGenericAlias = type(Union[str, int])
 
 
+# Monkeypatch __init__ of HybridAppCommand to stop overwriting and deleting custom __signature__ values
+__original_hybrid_app_command_init__ = commands.hybrid.HybridAppCommand.__init__
+
+
+def __custom_hybrid_app_command_init__(self, wrapped):
+    old_wrapped_callback_sig = getattr(wrapped.callback, "__signature__", None)
+    __original_hybrid_app_command_init__(self, wrapped)
+    if old_wrapped_callback_sig:
+        wrapped.callback.__signature__ = old_wrapped_callback_sig
+
+
+commands.hybrid.HybridAppCommand.__init__ = __custom_hybrid_app_command_init__
+
+
 def flagconverter_kwargs(
     *,
     prefix: str | None = "",
     delimiter: str = ":",
     cls: type[commands.FlagConverter] = _FlagConverter,
 ) -> Callable[[Callable[_P, _T]], Callable[_P, _T]]:
-    """Wraps a `discord.ext.commands` command function using a wrapper function
-    that fakes its signature, whilst mapping the `.__dict__`s key-value pairs from
-    an implicitly generated `FlagConverter` subclass's instance to its keyword-only
-    arguments. In essence, this allows you to define keyword-only arguments
-    in your command callback, which will automatically be treated as `FlagConverter`
-    flags.
+    """Wraps a `discord.ext.commands` command or hybrid command callback using a
+    wrapper function that fakes its signature, whilst mapping the `.__dict__`s
+    key-value pairs from an implicitly generated `FlagConverter` subclass's
+    instance to its keyword-only arguments. In essence, this allows you to define
+    keyword-only arguments in your command callback, which will automatically
+    be treated as `FlagConverter` flags.
+
 
     Variable keyword arguments (`**kwargs`) are ignored.
 
     This decorator must be applied as the very first decorator when defining a command.
 
+    For hybrid commands, only callbacks that define command arguments as keyword-only
+    are supported.
+
     This is a convenience decorator that handles the creation of `FlagConverter`
     subclasses for you. Note that The output wrapper function
     will have a less restrictive signature than the input command function.
-    If called directly, the implicitly generated `__flags__` keyword argument
+    If called directly, the implicitly generated `_flags_` keyword argument
     should not be specified.
 
     The generated wrapper function doesn't expose the wrapped command function
@@ -168,7 +186,9 @@ def flagconverter_kwargs(
             "KeywordOnlyFlags",
             (cls,),
             attrs=flag_dict
-            | dict(__qualname__=f"{func.__qualname__}.KeywordOnlyFlags"),
+            | dict(
+                __qualname__=f"{func.__qualname__}.KeywordOnlyFlags",
+            ),
             prefix=prefix or discord.utils.MISSING,
             delimiter=delimiter or discord.utils.MISSING,
         )
