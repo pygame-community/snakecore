@@ -11,5 +11,4 @@ AnyCommandType = TypeVar(
     commands.HybridCommand,
     commands.HybridGroup,
     app_commands.Command,
-    app_commands.Group,
 )
