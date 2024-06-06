@@ -1200,6 +1200,44 @@ class UnicodeEmojiConverter(commands.Converter[str]):
         )
 
 
+class ReferencedMessageConverter(commands.Converter[discord.Message]):
+    async def convert(
+        self, ctx: commands.Context[_BotT], argument: str
+    ) -> discord.Message:
+
+        if not ctx.message.reference:
+            raise commands.UserInputError(
+                "The target message does not reference any other message."
+            )
+
+        message = ctx.message.reference.cached_message
+
+        if isinstance(ctx.message.reference.resolved, discord.DeletedReferencedMessage):
+            raise commands.UserInputError(
+                "The target message references a deleted message."
+            )
+
+        elif isinstance(ctx.message.reference.resolved, discord.Message):
+            message = ctx.message.reference.resolved
+
+        elif ctx.message.reference.message_id:
+            try:
+                message = await ctx.message.channel.fetch_message(
+                    ctx.message.reference.message_id
+                )
+            except discord.HTTPException:
+                raise commands.UserInputError(
+                    "Failed to retrieve the referenced message."
+                )
+
+        else:
+            raise commands.UserInputError("Failed to retrieve the referenced message.")
+
+        ctx.view.undo() # backtrack for next converter to continue from here
+
+        return message
+
+
 UnicodeEmoji = Annotated[str, UnicodeEmojiConverter]
 """A converter that converts emoji shortcodes or unicode
 character escapes into valid unicode emojis. Already valid
@@ -1256,6 +1294,14 @@ Examples
 *The last '|' is considered as part of the syntax.
 """
 
+ReferencedMessage = Annotated[discord.Message, ReferencedMessageConverter]
+"""A converter that retrieves a message referenced (replied to) by a command invocation
+text message.
+
+Does not actually consume command arguments.
+"""
+
+
 if TYPE_CHECKING:  # type checker deception
     Parens = tuple
     """A special converter that establishes its own scope of arguments
@@ -1303,8 +1349,7 @@ if TYPE_CHECKING:  # type checker deception
         - `'"ab\\"c"'` -> `'ab"c'`
         """
 
-        def __class_getitem__(cls, size: StringParams | StringParamsTuple):
-            ...
+        def __class_getitem__(cls, size: StringParams | StringParamsTuple): ...
 
     class StringExpr(str):  # type: ignore
         """A subclass of the `String` converter, that enforces input strings to match the
@@ -1319,16 +1364,14 @@ if TYPE_CHECKING:  # type checker deception
         - `'"ab\\"c"'` -> `'ab"c'`
         """
 
-        def __class_getitem__(cls, regex_and_examples: str | tuple[str, ...]):
-            ...
+        def __class_getitem__(cls, regex_and_examples: str | tuple[str, ...]): ...
 
     class StringExprMatch(re.Match):  # type: ignore
         """A subclass of the `StringExpr` converter, that converts inputs into
         `re.Match` objects instead of strings.
         """
 
-        def __class_getitem__(cls, regex_and_examples: str | tuple[str, ...]):
-            ...
+        def __class_getitem__(cls, regex_and_examples: str | tuple[str, ...]): ...
 
 else:
     String = StringConverter
@@ -1514,4 +1557,6 @@ __all__ = (
     "Parens",
     "UnicodeEmojiConverter",
     "UnicodeEmoji",
+    "ReferencedMessageConverter",
+    "ReferencedMessage",
 )
