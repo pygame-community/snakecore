@@ -11,6 +11,7 @@ from snakecore import config
 from .bot import *
 from .converters import *
 from .decorators import *
+from .transformers import *
 
 
 def init(global_client: discord.Client | None = None) -> None:
