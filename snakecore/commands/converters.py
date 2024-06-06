@@ -1201,10 +1201,22 @@ class UnicodeEmojiConverter(commands.Converter[str]):
 
 
 class ReferencedMessageConverter(commands.Converter[discord.Message]):
+    """A converter that retrieves a message referenced (replied to) by a command invocation
+    text message.
+
+    This converter doesn't attempt to parse any text inputs and passes them on to
+    the next converter.
+
+    NOTE: Due to the way discord.py parses text commands, this converter will not
+    be called upon if a command invocation uses a message reference as the sole argument,
+    without any other text arguments. Instead, ``discord.MissingRequiredArgument``
+    will be raised.
+    To work around this, you must at least specify one character (e.g. '.')
+    to be 'consumed' by this converter, even though that character wouldn't be parsed.
+    """
     async def convert(
         self, ctx: commands.Context[_BotT], argument: str
     ) -> discord.Message:
-
         if not ctx.message.reference:
             raise commands.UserInputError(
                 "The target message does not reference any other message."
@@ -1233,7 +1245,8 @@ class ReferencedMessageConverter(commands.Converter[discord.Message]):
         else:
             raise commands.UserInputError("Failed to retrieve the referenced message.")
 
-        ctx.view.undo() # backtrack for next converter to continue from here
+        if not ctx.view.eof: # don't backtrack if no other converters follow
+            ctx.view.undo()  # backtrack to pass on argument to next converter
 
         return message
 
@@ -1298,7 +1311,15 @@ ReferencedMessage = Annotated[discord.Message, ReferencedMessageConverter]
 """A converter that retrieves a message referenced (replied to) by a command invocation
 text message.
 
-Does not actually consume command arguments.
+This converter doesn't attempt to parse any text inputs and passes them on to
+the next converter.
+
+NOTE: Due to the way discord.py parses text commands, this converter will not
+be called upon if a command invocation uses a message reference as the sole argument,
+without any other text arguments. Instead, ``discord.MissingRequiredArgument``
+will be raised.
+To work around this, you must at least specify one character (e.g. '.')
+to be 'consumed' by this converter, even though that character wouldn't be parsed.
 """
 
 
