@@ -431,6 +431,12 @@ class CodeBlock:
     ) -> None:
         self.code = code
         self.language = language
+
+        if inline and language is not None:
+            raise ValueError(
+                "a code block cannot be both inline and have a language"
+            )
+        
         self.inline = inline if inline is not None else not (language or "\n" in code)
 
     @classmethod
@@ -438,11 +444,9 @@ class CodeBlock:
         view: StringView = getattr(ctx, "_current_view", ctx.view)
 
         if argument.startswith("```"):
-
             if not argument.endswith("```") or (
                 argument.endswith("```") and argument == "```"
             ):
-
                 parsed_argument = argument.strip("\n").strip()
                 multiline_match = cls._MULTILINE_PATTERN.match(
                     view.buffer, pos=view.index - len(parsed_argument)
@@ -453,9 +457,8 @@ class CodeBlock:
                     view.index = multiline_match.end()
 
                 argument = parsed_argument
-
+            
         elif argument.startswith("`"):
-
             if not argument.endswith("`") or (
                 argument.endswith("`") and argument == "`"
             ):
@@ -470,7 +473,7 @@ class CodeBlock:
                     view.index = inline_match.end()
 
                 argument = parsed_argument
-
+            
         try:
             return cls.from_markdown(argument)
         except (TypeError, ValueError) as err:
@@ -480,13 +483,12 @@ class CodeBlock:
 
     @classmethod
     def from_markdown(cls, markdown: str) -> Self:
-
         if not isinstance(markdown, str):
             raise TypeError(
                 "argument 'markdown' must be of type 'str' containing a markdown code block, "
                 f"not {markdown.__class__.__name__}"
             )
-        elif markdown == "```" or not (markdown.startswith("`") and markdown.endswith("`")):
+        elif markdown == "```" or not (markdown.startswith("`") and markdown.endswith("`") and len(markdown) > 2):
             raise ValueError(
                 "argument 'markdown' does not contain a markdown code block"
             )
@@ -495,21 +497,17 @@ class CodeBlock:
         code = markdown
         inline = False
         if markdown.startswith("```") and markdown.endswith("```"):
-            if markdown[3] != "\n":
-                newline_idx = markdown.find("\n")
-                if newline_idx == -1:
-                    raise commands.BadArgument(
-                        "markdown string does not contain a valid multiline code block"
-                    )
+            match_ = re.fullmatch(cls._MULTILINE_PATTERN, markdown)
 
-                if language is None:
-                    language = markdown[3:newline_idx]
-                code = markdown[newline_idx + 1 : -3]
-
-            code = code.replace(
+            if match_ is None:
+                raise ValueError(
+                    "argument 'markdown' does not contain a valid markdown code block"
+                )
+            
+            language = match_.group(1) or None
+            code = match_.group(2).replace(
                 "\\```", "```"
             )  # support nested code blocks that were properly escaped
-
         else:
             inline = True
             code = markdown[1:-1]
