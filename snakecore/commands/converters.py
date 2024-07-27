@@ -486,7 +486,7 @@ class CodeBlock:
                 "argument 'markdown' must be of type 'str' containing a markdown code block, "
                 f"not {markdown.__class__.__name__}"
             )
-        elif not (markdown.startswith("`") and markdown.endswith("`")):
+        elif markdown == "```" or not (markdown.startswith("`") and markdown.endswith("`")):
             raise ValueError(
                 "argument 'markdown' does not contain a markdown code block"
             )
