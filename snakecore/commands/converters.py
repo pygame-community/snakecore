@@ -433,10 +433,8 @@ class CodeBlock:
         self.language = language
 
         if inline and language is not None:
-            raise ValueError(
-                "a code block cannot be both inline and have a language"
-            )
-        
+            raise ValueError("a code block cannot be both inline and have a language")
+
         self.inline = inline if inline is not None else not (language or "\n" in code)
 
     @classmethod
@@ -457,12 +455,11 @@ class CodeBlock:
                     view.index = multiline_match.end()
 
                 argument = parsed_argument
-            
+
         elif argument.startswith("`"):
             if not argument.endswith("`") or (
                 argument.endswith("`") and argument == "`"
             ):
-
                 parsed_argument = argument.strip("\n").strip()
                 inline_match = cls._INLINE_PATTERN.match(
                     view.buffer, pos=view.index - len(parsed_argument)
@@ -473,7 +470,7 @@ class CodeBlock:
                     view.index = inline_match.end()
 
                 argument = parsed_argument
-            
+
         try:
             return cls.from_markdown(argument)
         except (TypeError, ValueError) as err:
@@ -488,7 +485,9 @@ class CodeBlock:
                 "argument 'markdown' must be of type 'str' containing a markdown code block, "
                 f"not {markdown.__class__.__name__}"
             )
-        elif markdown == "```" or not (markdown.startswith("`") and markdown.endswith("`") and len(markdown) > 2):
+        elif markdown == "```" or not (
+            markdown.startswith("`") and markdown.endswith("`") and len(markdown) > 2
+        ):
             raise ValueError(
                 "argument 'markdown' does not contain a markdown code block"
             )
@@ -503,7 +502,7 @@ class CodeBlock:
                 raise ValueError(
                     "argument 'markdown' does not contain a valid markdown code block"
                 )
-            
+
             language = match_.group(1) or None
             code = match_.group(2).replace(
                 "\\```", "```"
@@ -769,9 +768,9 @@ _TVT = TypeVarTuple("_TVT")
 
 
 class StringExprConverter(_StringConverter, Generic[Unpack[_TVT]]):  # type: ignore
-    def __init__(self, regex: str, examples: tuple[str, ...]) -> None:
+    def __init__(self, regex: str = "", examples: tuple[str, ...] = ()) -> None:
         super().__init__()
-        self.regex_pattern = re.compile(regex)
+        self.regex_pattern = re.compile(regex if regex else r".*")
         self.examples = examples
 
     def __class_getitem__(cls, regex_and_examples: str | tuple[str, ...]) -> Self:
@@ -806,7 +805,7 @@ class StringExprConverter(_StringConverter, Generic[Unpack[_TVT]]):  # type: ign
 
 
 class StringExprMatchConverter(StringExprConverter, Generic[Unpack[_TVT]]):  # type: ignore
-    async def convert(
+    async def convert(  # type: ignore
         self, ctx: commands.Context[_DECBotT], argument: str
     ) -> re.Match[str]:
         string = await super().convert(ctx, argument)
@@ -957,7 +956,8 @@ class ParensConverter(commands.Converter[tuple]):
 
         if (
             not (
-                parens_slice := self._find_parenthesized_region(  # assume that inital parsed argument is parenthesized
+                parens_slice
+                := self._find_parenthesized_region(  # assume that inital parsed argument is parenthesized
                     parsed_argument,
                     self.OPENING,
                     self.CLOSING,
@@ -965,7 +965,8 @@ class ParensConverter(commands.Converter[tuple]):
             )
             and (splintered := True)
             and not (
-                parens_slice := self._find_parenthesized_region(  # if it isn't, assume that it at least starts with self.OPENING and try to find full region
+                parens_slice
+                := self._find_parenthesized_region(  # if it isn't, assume that it at least starts with self.OPENING and try to find full region
                     view.buffer[view.index - len(argument) :],
                     self.OPENING,
                     self.CLOSING,
@@ -985,7 +986,6 @@ class ParensConverter(commands.Converter[tuple]):
         fake_parameter = commands.parameter()
 
         if splintered:
-
             parens_slice = slice(
                 parens_slice.start + view.index - len(argument),
                 parens_slice.stop + view.index - len(argument),
@@ -993,7 +993,6 @@ class ParensConverter(commands.Converter[tuple]):
 
             view.index -= len(argument)
         else:
-
             parens_slice = slice(
                 parens_slice.start + view.index - len(argument) - 1,
                 parens_slice.stop + view.index - len(argument) - 1,
@@ -1011,7 +1010,6 @@ class ParensConverter(commands.Converter[tuple]):
         is_variadic = self.converters[-1] is Ellipsis
 
         while True:
-
             if view.index >= parens_slice.stop - 1:
                 break
 
@@ -1065,7 +1063,6 @@ class ParensConverter(commands.Converter[tuple]):
             previous_previous = view.previous
             previous_index = view.index
             try:
-
                 temp_previous = view.previous
                 temp_index = view.index
                 try:
@@ -1076,7 +1073,6 @@ class ParensConverter(commands.Converter[tuple]):
                     ctx.current_argument = fake_argument = view.get_word()
 
             except commands.ArgumentParsingError as a:
-
                 ctx.current_parameter = original_parameter
                 ctx.current_argument = argument
                 view.previous = old_previous
@@ -1099,7 +1095,10 @@ class ParensConverter(commands.Converter[tuple]):
                         fake_argument = fake_argument[:-2]
                         # catch last argument ... that ended with ')' followed by '"' (or any other quote):  '...)"'
                 transformed = await commands.run_converters(
-                    ctx, converter, fake_argument, fake_parameter  # type: ignore
+                    ctx,
+                    converter,
+                    fake_argument,
+                    fake_parameter,  # type: ignore
                 )
                 outputs.append(transformed)
 
@@ -1130,7 +1129,7 @@ class ParensConverter(commands.Converter[tuple]):
                     "Parsing parenthesized argument failed "
                     f"(at depth {self.parens_depth}): Failed to parse "
                     "parenthesized argument at position "
-                    f"{converter_index+1}: {err!s}"
+                    f"{converter_index + 1}: {err!s}"
                 ) from err
 
             if (
@@ -1212,6 +1211,7 @@ class ReferencedMessageConverter(commands.Converter[discord.Message]):
     To work around this, you must at least specify one character (e.g. '.')
     to be 'consumed' by this converter, even though that character wouldn't be parsed.
     """
+
     async def convert(
         self, ctx: commands.Context[_BotT], argument: str
     ) -> discord.Message:
@@ -1243,7 +1243,7 @@ class ReferencedMessageConverter(commands.Converter[discord.Message]):
         else:
             raise commands.UserInputError("Failed to retrieve the referenced message.")
 
-        if not ctx.view.eof: # don't backtrack if no other converters follow
+        if not ctx.view.eof:  # don't backtrack if no other converters follow
             ctx.view.undo()  # backtrack to pass on argument to next converter
 
         return message
@@ -1490,7 +1490,9 @@ async def _convert_flag(
             return await _convert_flag(ctx, argument, flag, annotation)
         elif origin is Union and type(None) in annotation.__args__:
             # typing.Optional[x]
-            annotation = Union[tuple(arg for arg in annotation.__args__ if arg is not type(None))]  # type: ignore
+            annotation = Union[
+                tuple(arg for arg in annotation.__args__ if arg is not type(None))
+            ]  # type: ignore
             return await commands.run_converters(ctx, annotation, argument, param)
         elif origin is dict:
             # typing.Dict[K, V] -> typing.Tuple[K, V]
